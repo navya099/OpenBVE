@@ -43,6 +43,10 @@
 		/// <summary>Sets the inital viewpoint for the camera</summary>
 		InitialViewPoint,
 		/// <summary>Adds AI trains</summary>
-		TfoXML
+		TfoXML,
+		/// <summary>Adds bve 초기좌표</summary> 
+		PositionX,
+		PositionY,
+		Direction
 	}
 }

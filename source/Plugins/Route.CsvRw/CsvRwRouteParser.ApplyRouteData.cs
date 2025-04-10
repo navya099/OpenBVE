@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using OpenBveApi.Colors;
 using OpenBveApi.Math;
 using OpenBveApi.Runtime;
@@ -81,6 +82,9 @@ namespace CsvRwRouteParser
 				{
 					if (!double.IsNaN(Data.Blocks[i].Height))
 					{
+						
+						
+
 						for (int j = i - 1; j >= 0; j--)
 						{
 							if (!double.IsNaN(Data.Blocks[j].Height))
@@ -161,7 +165,17 @@ namespace CsvRwRouteParser
 			// create objects and track
 			CurrentRoute.Switches = new Dictionary<Guid, RouteManager2.Tracks.Switch>();
 			Vector3 Position = Vector3.Zero;
+			Position.Y = CurrentRoute.Atmosphere.InitialElevation; // elvation값 적용
+			Position.X = CurrentRoute.Atmosphere.InitialX; // X 적용
+			Position.Z = CurrentRoute.Atmosphere.InitialY; // Z 적용
+
 			Vector2 Direction = Vector2.Down;
+			double degree = CurrentRoute.Atmosphere.InitialDirection;
+			double rad = degree * Math.PI / 180.0; // 도 → 라디안 변환
+			double dx241 = Math.Cos(rad);
+			double dy241 = Math.Sin(rad);
+			Direction = new Vector2(dx241, dy241); //
+
 			double CurrentSpeedLimit = double.PositiveInfinity;
 			int CurrentRunIndex = 0;
 			int CurrentFlangeIndex = 0;
@@ -185,6 +199,20 @@ namespace CsvRwRouteParser
 			}
 			// process blocks
 			double progressFactor = Data.Blocks.Count - Data.FirstUsedBlock == 0 ? 0.5 : 0.5 / (Data.Blocks.Count - Data.FirstUsedBlock);
+
+			//initial list
+			// List to store x and z values
+			List<string> coordinates = new List<string>();
+			List<string> pitch_info = new List<string>();
+			List<string> curve_info = new List<string>();
+			List<string> rail_info = new List<string>();
+			List<string> stacoordinates = new List<string>();
+			List<string> extrac_height_list = new List<string>();
+			List<string> freeobjcoordinates = new List<string>();
+
+			freeobjcoordinates.Add($"측점,레일번호,프리오브젝트인덱스,X,Y,Z");
+
+
 			for (int i = Data.FirstUsedBlock; i < Data.Blocks.Count; i++)
 			{
 				Plugin.CurrentProgress = 0.6667 + (i - Data.FirstUsedBlock) * progressFactor;
@@ -229,6 +257,9 @@ namespace CsvRwRouteParser
 				CurrentTrackLength++;
 				CurrentRoute.Tracks[0].Elements[n] = WorldTrackElement;
 				CurrentRoute.Tracks[0].Elements[n].WorldPosition = Position;
+
+				coordinates.Add($"{Position.X},{Position.Z},{Position.Y}");
+
 				CurrentRoute.Tracks[0].Elements[n].WorldDirection = Vector3.GetVector3(Direction, Data.Blocks[i].Pitch);
 				CurrentRoute.Tracks[0].Elements[n].WorldSide = new Vector3(Direction.Y, 0.0, -Direction.X);
 				CurrentRoute.Tracks[0].Elements[n].WorldUp = Vector3.Cross(CurrentRoute.Tracks[0].Elements[n].WorldDirection, CurrentRoute.Tracks[0].Elements[n].WorldSide);
@@ -390,7 +421,7 @@ namespace CsvRwRouteParser
 								}
 								if (q)
 								{
-									bool addPointSound = true;
+									bool addPointSound = false;
 									if (Data.Blocks[i].Switches != null)
 									{
 										for (int sw = 0; sw < Data.Blocks[i].Switches.Length; sw++)
@@ -468,7 +499,11 @@ namespace CsvRwRouteParser
 							}
 						}
 					}
+
+					string t = CurrentRoute.Stations[s].Name;
+					stacoordinates.Add($"{Position.X},{Position.Z},{t}");
 				}
+
 				// stop
 				for (int j = 0; j < Data.Blocks[i].StopPositions.Length; j++)
 				{
@@ -485,7 +520,7 @@ namespace CsvRwRouteParser
 				// marker
 				if (!PreviewOnly)
 				{
-					for (int j = 0; j < Data.Markers.Count; j++)
+					for (int j = 0; j < Data.Markers.Length; j++)
 					{
 						Data.Markers[j].CreateEvent(StartingDistance, EndingDistance, ref CurrentRoute.Tracks[0].Elements[n]);
 					}
@@ -493,7 +528,7 @@ namespace CsvRwRouteParser
 				// request stops
 				if (!PreviewOnly)
 				{
-					for (int j = 0; j < Data.RequestStops.Count; j++)
+					for (int j = 0; j < Data.RequestStops.Length; j++)
 					{
 						Data.RequestStops[j].CreateEvent(StartingDistance, EndingDistance, ref CurrentRoute.Tracks[0].Elements[n]);
 						
@@ -538,6 +573,15 @@ namespace CsvRwRouteParser
 				}
 				//Pitch
 				CurrentRoute.Tracks[0].Elements[n].Pitch = Data.Blocks[i].Pitch;
+				double extrac_pitch = CurrentRoute.Tracks[0].Elements[n].Pitch;
+				double current_sta = i * CurrentRoute.BlockLength;
+
+				// Add x and z values to the list
+				pitch_info.Add($"{current_sta},{extrac_pitch}");
+
+				//height txt
+				double extrac_height = Data.Blocks[i].Height;
+
 				// curves
 				double a = 0.0;
 				double c = Data.BlockInterval;
@@ -575,7 +619,11 @@ namespace CsvRwRouteParser
 				double TrackPitch = Math.Atan(Data.Blocks[i].Pitch);
 				Transformation GroundTransformation = new Transformation(TrackYaw, 0.0, 0.0);
 				Transformation TrackTransformation = new Transformation(TrackYaw, TrackPitch, 0.0);
-				
+
+				double extract_radius = WorldTrackElement.CurveRadius;
+				double extract_cant = WorldTrackElement.CurveCant;
+				// Add x and z values to the list
+				curve_info.Add($"{current_sta},{extract_radius},{extract_cant}");
 				// switches
 				if (!PreviewOnly)
 				{
@@ -631,6 +679,10 @@ namespace CsvRwRouteParser
 						Data.Structure.Ground[Data.Blocks[i].Cycle[ci]].CreateObject(Position + new Vector3(0.0, -Data.Blocks[i].Height, 0.0), GroundTransformation, StartingDistance, EndingDistance, StartingDistance);
 					}
 				}
+
+				// Add x and z values to the list
+				extrac_height_list.Add($"{current_sta},{extrac_height}");
+
 				// ground-aligned free objects
 				if (!PreviewOnly)
 				{
@@ -645,6 +697,8 @@ namespace CsvRwRouteParser
 					obj.CreateObject(Position, GroundTransformation, Data.Blocks[i].Height, StartingDistance, EndingDistance);
 				}
 				// rail-aligned objects
+
+				
 				{
 					for (int railInBlock = 0; railInBlock < Data.Blocks[i].Rails.Count; railInBlock++)
 					{
@@ -761,6 +815,23 @@ namespace CsvRwRouteParser
 							CurrentRoute.Tracks[railKey].Elements[n].CurveCant = Data.Blocks[i].Rails[railKey].CurveCant;
 							CurrentRoute.Tracks[railKey].Elements[n].AdhesionMultiplier = Data.Blocks[i].Rails[railKey].AdhesionMultiplier;
 							CurrentRoute.Tracks[railKey].Elements[n].IsDriveable = Data.Blocks[i].Rails[railKey].IsDriveable;
+
+							//extract key
+
+							if (Data.Blocks[i].Rails[railKey].RailStarted)
+							{
+
+								rail_info.Add($"rail {railKey},{pos}");
+							}
+							else
+							{
+								
+								continue;
+								
+							}
+							
+
+
 						}
 
 						if (!PreviewOnly)
@@ -779,7 +850,10 @@ namespace CsvRwRouteParser
 
 							if (Data.Structure.RailObjects.ContainsKey(Data.Blocks[i].RailType[railKey]))
 							{
-								Data.Structure.RailObjects[Data.Blocks[i].RailType[railKey]]?.CreateObject(pos, RailTransformation, StartingDistance, EndingDistance, StartingDistance);
+								if (Data.Structure.RailObjects[Data.Blocks[i].RailType[railKey]] != null)
+								{
+									Data.Structure.RailObjects[Data.Blocks[i].RailType[railKey]].CreateObject(pos, RailTransformation, StartingDistance, EndingDistance, StartingDistance);
+								}
 							}
 
 							// points of interest
@@ -847,20 +921,20 @@ namespace CsvRwRouteParser
 								// primary rail
 								if (Data.Blocks[i].Forms[k].PrimaryRail == railKey)
 								{
-									Data.Blocks[i].Forms[k].CreatePrimaryRail(Data.Blocks[i], Data.Blocks[i + 1], pos, RailTransformation, StartingDistance, EndingDistance);
+									Data.Blocks[i].Forms[k].CreatePrimaryRail(Data.Blocks[i], Data.Blocks[i + 1], pos, RailTransformation, StartingDistance, EndingDistance, FileName);
 								}
 
 								// secondary rail
 								if (Data.Blocks[i].Forms[k].SecondaryRail == railKey)
 								{
-									Data.Blocks[i].Forms[k].CreateSecondaryRail(Data.Blocks[i], pos, RailTransformation, StartingDistance, EndingDistance);
+									Data.Blocks[i].Forms[k].CreateSecondaryRail(Data.Blocks[i], pos, RailTransformation, StartingDistance, EndingDistance, FileName);
 								}
 							}
 
 							// cracks
 							for (int k = 0; k < Data.Blocks[i].Cracks.Length; k++)
 							{
-								Data.Blocks[i].Cracks[k].Create(railKey, RailTransformation, pos, Data.Blocks[i], Data.Blocks[i + 1], Data.Structure, StartingDistance, EndingDistance);
+								Data.Blocks[i].Cracks[k].Create(railKey, RailTransformation, pos, Data.Blocks[i], Data.Blocks[i + 1], Data.Structure, StartingDistance, EndingDistance, FileName);
 							}
 
 							// free objects
@@ -868,7 +942,10 @@ namespace CsvRwRouteParser
 							{
 								for (int k = 0; k < Data.Blocks[i].RailFreeObj[railKey].Count; k++)
 								{
-									Data.Blocks[i].RailFreeObj[railKey][k].CreateRailAligned(Data.Structure.FreeObjects, new Vector3(pos), RailTransformation, StartingDistance, EndingDistance);
+									Vector3 worldposition = Data.Blocks[i].RailFreeObj[railKey][k].CreateRailAligned(Data.Structure.FreeObjects, new Vector3(pos), RailTransformation, StartingDistance, EndingDistance);
+									int type = Data.Blocks[i].RailFreeObj[railKey][k].Type;
+									double extreact_TrackPosition = Data.Blocks[i].RailFreeObj[railKey][k].TrackPosition;
+									freeobjcoordinates.Add($"{extreact_TrackPosition},{railKey},{type},{worldposition.X},{worldposition.Z},{worldposition.Y}");
 								}
 							}
 
@@ -968,17 +1045,33 @@ namespace CsvRwRouteParser
 							}
 						}
 					}
+
 				}
 
 				// finalize block
 				Position.X += Direction.X * c;
 				Position.Y += h;
 				Position.Z += Direction.Y * c;
+
+				
+
 				if (a != 0.0)
 				{
 					Direction.Rotate(Math.Cos(-a), Math.Sin(-a));
 				}
+				
 			}
+
+			// Write x and z values to a TXT file
+
+				File.WriteAllLines(@"c:\temp\pitch_info.txt", pitch_info);
+				File.WriteAllLines(@"c:\temp\curve_info.txt", curve_info);
+				File.WriteAllLines(@"c:\temp\rail_info.txt", rail_info);
+				File.WriteAllLines(@"c:\temp\bve_coordinates.txt", coordinates);
+				File.WriteAllLines(@"c:\temp\bve_stationcoordinates.txt", stacoordinates);
+				File.WriteAllLines(@"c:\temp\height_info.txt", extrac_height_list);
+				File.WriteAllLines(@"c:\temp\bve_freeobjcoordinates.txt", freeobjcoordinates);
+				
 			// orphaned transponders
 			if (!PreviewOnly)
 			{

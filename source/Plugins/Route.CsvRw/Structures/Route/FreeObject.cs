@@ -7,7 +7,7 @@ namespace CsvRwRouteParser
 	internal class FreeObj : AbstractStructure
 	{
 		/// <summary>The routefile index of the object</summary>
-		private readonly int Type;
+		public readonly int Type;
 		/// <summary>The position of the object</summary>
 		private readonly Vector2 Position;
 		/// <summary>The yaw of the object (radians)</summary>
@@ -26,12 +26,13 @@ namespace CsvRwRouteParser
 			Roll = roll;
 		}
 
-		internal void CreateRailAligned(ObjectDictionary FreeObjects, Vector3 WorldPosition, Transformation RailTransformation, double StartingDistance, double EndingDistance)
+		internal Vector3 CreateRailAligned(ObjectDictionary FreeObjects, Vector3 WorldPosition, Transformation RailTransformation, double StartingDistance, double EndingDistance)
 		{
 			double dz = TrackPosition - StartingDistance;
 			WorldPosition += Position.X * RailTransformation.X + Position.Y * RailTransformation.Y + dz * RailTransformation.Z;
 			FreeObjects.TryGetValue(Type, out UnifiedObject obj);
 			obj?.CreateObject(WorldPosition, RailTransformation, new Transformation(Yaw, Pitch, Roll), StartingDistance, EndingDistance, TrackPosition);
+			return WorldPosition;
 		}
 
 		internal void CreateGroundAligned(ObjectDictionary FreeObjects, Vector3 WorldPosition, Transformation GroundTransformation, Vector2 Direction, double Height, double StartingDistance, double EndingDistance)

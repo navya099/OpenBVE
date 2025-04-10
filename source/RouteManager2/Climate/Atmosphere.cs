@@ -19,6 +19,13 @@ namespace RouteManager2.Climate
 		/// <summary>The initial elevation in meters</summary>
 		public double InitialElevation = 0.0;
 
+		/// <summary>
+		/// BVE 초기 좌표 설정
+		/// </summary>
+		public double InitialX = 0.0;
+		public double InitialY = 0.0;
+		public double InitialDirection = 90.0;
+
 		/// <summary>The acceleration due to gravity for this route in m/s²</summary>
 		public double AccelerationDueToGravity = 9.80665;
 
