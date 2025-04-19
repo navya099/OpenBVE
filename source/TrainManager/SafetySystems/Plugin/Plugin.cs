@@ -100,6 +100,11 @@ namespace TrainManager.SafetySystems
 			 * Prepare the vehicle state.
 			 * */
 			double location = this.Train.Cars[0].FrontAxle.Follower.TrackPosition - this.Train.Cars[0].FrontAxle.Position + 0.5 * this.Train.Cars[0].Length;
+			double worldx = this.Train.Cars[0].FrontAxle.Follower.WorldPosition.X;
+			double worldy = this.Train.Cars[0].FrontAxle.Follower.WorldPosition.Y;
+			double worldz = this.Train.Cars[0].FrontAxle.Follower.WorldPosition.Z;
+			List<double> world_coordiantes = new List<double> { worldx, worldz, worldy };
+
 			//If the list of stations has not been loaded, do so
 			if (!StationsLoaded)
 			{
@@ -148,7 +153,7 @@ namespace TrainManager.SafetySystems
 					break;
 				}
 			}
-			VehicleState vehicle = new VehicleState(location, new Speed(speed), bcPressure, mrPressure, erPressure, bpPressure, sapPressure, wheelSlip, this.Train.Cars[0].FrontAxle.Follower);
+			VehicleState vehicle = new VehicleState(location, new Speed(speed), bcPressure, mrPressure, erPressure, bpPressure, sapPressure, wheelSlip, this.Train.Cars[0].FrontAxle.Follower, world_coordiantes);
 			/*
 			 * Prepare the preceding vehicle state.
 			 * */

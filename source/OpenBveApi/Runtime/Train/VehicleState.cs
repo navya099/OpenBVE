@@ -47,7 +47,9 @@ namespace OpenBveApi.Runtime
 		private readonly double MyAdhesion;
 		[DataMember]
 		private readonly bool MyWheelSlip;
-
+		[DataMember]
+		private readonly List<double> MYWorlds;
+		
 		/// <summary>Gets the location of the front of the train, in meters.</summary>
 		public double Location => MyLocation;
 
@@ -87,6 +89,8 @@ namespace OpenBveApi.Runtime
 		/// <summary>Gets the track pitch value at the front axle of the driver's car.</summary>
 		public bool WheelSlip => MyWheelSlip;
 
+		/// <summary>Gets the track world coord value at the front axle of the driver's car.</summary>
+		public List<double> Worlds => MYWorlds;												
 		/// <summary>Creates a new instance of this class.</summary>
 		/// <param name="location">The location of the front of the train, in meters.</param>
 		/// <param name="speed">The speed of the train.</param>
@@ -175,6 +179,37 @@ namespace OpenBveApi.Runtime
 		{
 
 		}
-
+		/// <summary>Provides the overload for plugins built against versions of the OpenBVE API with worldposition.</summary>
+		/// <param name="location">The location of the front of the train, in meters.</param>
+		/// <param name="speed">The speed of the train.</param>
+		/// <param name="bcPressure">The pressure in the brake cylinder, in pascal.</param>
+		/// <param name="mrPressure">The pressure in the main reservoir, in pascal.</param>
+		/// <param name="erPressure">The pressure in the emergency reservoir, in pascal.</param>
+		/// <param name="bpPressure">The pressure in the brake pipe, in pascal.</param>
+		/// <param name="sapPressure">The pressure in the straight air pipe, in pascal.</param>
+		/// <param name="wheelSlip">Whether wheelslip is occuring</param>
+		/// <param name="Follower"></param>
+		/// <param name="Worlds">worldposition</param>
+		/// 
+		public VehicleState(double location, Speed speed, double bcPressure, double mrPressure, double erPressure, double bpPressure, double sapPressure, bool wheelSlip, TrackFollower Follower, List<double> Worlds)
+		{
+			MyRadius = Radius;
+			MyCant = Cant;
+			MyPitch = Pitch;
+			MyLocation = location;
+			MySpeed = speed;
+			MyBcPressure = bcPressure;
+			MyMrPressure = mrPressure;
+			MyErPressure = erPressure;
+			MyBpPressure = bpPressure;
+			MySapPressure = sapPressure;
+			MyRadius = Follower.CurveRadius;
+			MyCant = Follower.CurveCant;
+			MyPitch = Follower.Pitch;
+			MyRainIntensity = Follower.RainIntensity;
+			MyAdhesion = Follower.AdhesionMultiplier;
+			MyWheelSlip = wheelSlip;
+			MYWorlds = Worlds;
+		}																												
 	}
 }
