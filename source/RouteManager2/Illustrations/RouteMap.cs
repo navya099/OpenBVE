@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using OpenBveApi;
@@ -60,40 +59,46 @@ namespace RouteManager2
 			public Brush	elevFill;			// fill for elevation contour
 			public Pen		elevBrdr;			// border for elevation contour
 			public Brush	limitFill;			// fill for elevation contour
-			public Pen		limitBrdr;			// border for elevation contour
+			public Pen		limitBrdr;          // border for elevation contour
+			public Brush planFill;
+			public Pen planBrdr;
+			public Color bgfine;
 		};
 
 		// the colours used for the images
-		private static readonly MapColors[]	mapColors =
+		private static readonly MapColors[] mapColors =
 		{					// colours for windowed mode display
-			new MapColors() {background=Color.White,		atcMap=Pens.DarkRed,	normalMap=Pens.Black,
-							actStatnFill=Brushes.SkyBlue,	inactStatnFill=Brushes.LightGray,
-							actStatnBrdr=Pens.Black,		inactStatnBrdr=Pens.Gray,
-							actNameFill=Brushes.White,		inactNameFill=Brushes.LightGray,
-							actNameBrdr=Pens.Black,			inactNameBrdr=Pens.Gray,
-							actNameText=Brushes.Black,		inactNameText=Brushes.Gray,
-							belowSeaFill=Brushes.PaleGoldenrod,	belowSeaBrdr=Pens.Gray,
-							elevFill=Brushes.Tan,			elevBrdr=Pens.Black,
-							limitFill=Brushes.White,			limitBrdr= new Pen(Color.Red, 5f)},
+			new MapColors() {background=Color.White,        atcMap=Pens.DarkRed,    normalMap=Pens.Black,
+							actStatnFill=Brushes.SkyBlue,   inactStatnFill=Brushes.LightGray,
+							actStatnBrdr=Pens.Black,        inactStatnBrdr=Pens.Gray,
+							actNameFill=Brushes.White,      inactNameFill=Brushes.LightGray,
+							actNameBrdr=Pens.Black,         inactNameBrdr=Pens.Gray,
+							actNameText=Brushes.Black,      inactNameText=Brushes.Gray,
+							belowSeaFill=Brushes.PaleGoldenrod, belowSeaBrdr=Pens.Gray,
+							elevFill=Brushes.Tan,           elevBrdr=Pens.Black,
+							limitFill=Brushes.White,            limitBrdr= new Pen(Color.Red, 5f),
+							planFill = Brushes.Red,         planBrdr = Pens.Red,
+							bgfine = Color.FromArgb(214, 222, 235),
+							},
 							// colours for in-game display
-			new MapColors() {background=Color.FromArgb(0x64000000),	atcMap=Pens.Red,	normalMap=Pens.White,
-							actStatnFill=Brushes.SkyBlue,	inactStatnFill=Brushes.Gray,
-							actStatnBrdr=Pens.White,		inactStatnBrdr=Pens.LightGray,
-							actNameFill=Brushes.Black,		inactNameFill=Brushes.Gray,
-							actNameBrdr=Pens.White,			inactNameBrdr=Pens.LightGray,
-							actNameText=Brushes.White,		inactNameText=Brushes.LightGray,
-							belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),	belowSeaBrdr=Pens.Gray,
-							elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),		elevBrdr=Pens.Gray,
-							limitFill=Brushes.White,			limitBrdr= new Pen(Color.Red, 5f)},
-			new MapColors() {background=Color.FromArgb(0x64000000),	atcMap=Pens.Red,	normalMap=Pens.White,
-			actStatnFill=Brushes.SkyBlue,	inactStatnFill=Brushes.Gray,
-			actStatnBrdr=Pens.White,		inactStatnBrdr=Pens.LightGray,
-			actNameFill=Brushes.Black,		inactNameFill=Brushes.Gray,
-			actNameBrdr=Pens.White,			inactNameBrdr=Pens.LightGray,
-			actNameText=Brushes.White,		inactNameText=Brushes.LightGray,
-			belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),	belowSeaBrdr=Pens.Gray,
-			elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),		elevBrdr=Pens.Gray,
-			limitFill=Brushes.White,			limitBrdr= new Pen(Color.Red, 5f)}
+			new MapColors() {background=Color.FromArgb(0x64000000), atcMap=Pens.Red,    normalMap=Pens.White,
+							actStatnFill=Brushes.SkyBlue,   inactStatnFill=Brushes.Gray,
+							actStatnBrdr=Pens.White,        inactStatnBrdr=Pens.LightGray,
+							actNameFill=Brushes.Black,      inactNameFill=Brushes.Gray,
+							actNameBrdr=Pens.White,         inactNameBrdr=Pens.LightGray,
+							actNameText=Brushes.White,      inactNameText=Brushes.LightGray,
+							belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),   belowSeaBrdr=Pens.Gray,
+							elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),       elevBrdr=Pens.Gray,
+							limitFill=Brushes.White,            limitBrdr= new Pen(Color.Red, 5f)},
+			new MapColors() {background=Color.FromArgb(0x64000000), atcMap=Pens.Red,    normalMap=Pens.White,
+			actStatnFill=Brushes.SkyBlue,   inactStatnFill=Brushes.Gray,
+			actStatnBrdr=Pens.White,        inactStatnBrdr=Pens.LightGray,
+			actNameFill=Brushes.Black,      inactNameFill=Brushes.Gray,
+			actNameBrdr=Pens.White,         inactNameBrdr=Pens.LightGray,
+			actNameText=Brushes.White,      inactNameText=Brushes.LightGray,
+			belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),   belowSeaBrdr=Pens.Gray,
+			elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),       elevBrdr=Pens.Gray,
+			limitFill=Brushes.White,            limitBrdr= new Pen(Color.Red, 5f)}
 		};
 
 		// data about world ranges of last generated images
@@ -485,7 +490,8 @@ namespace RouteManager2
 			// in any 'real world' unit (like m).
 
 			// HORIZONTAL RANGE: find first and last used element based on stations
-			TotalRouteRange(out int totalElements, out int firstUsedElement, out int lastUsedElement);
+			int totalElements, firstUsedElement, lastUsedElement;
+			TotalRouteRange(out totalElements, out firstUsedElement, out lastUsedElement);
 			// VERTICAL RANGE
 			double y0 = double.PositiveInfinity, y1 = double.NegativeInfinity;
 			for (int i = firstUsedElement; i <= lastUsedElement; i++)
@@ -496,19 +502,19 @@ namespace RouteManager2
 			}
 			if (y0 >= y1 - 1.0)
 				y0 = y1 - 1.0;
-
+			y0 = y0 - 50; //강제로 계획고 -50으로 설정하기
 			// allow for some padding around actual data
 			double ox = LeftPad, oy = TopPad;
 			double w = (double)(Width - (LeftPad+RightPad));
 			double h = (double)(Height - (TopPad+BottomPad+TrackOffsPad));
-			// horizontal and vertical scale
+			// 스케일 변환 비율을 계산.
 			double nd = w / (double)(lastUsedElement - firstUsedElement);
 			double yd = h / (double)(y1 - y0);
 			// set total bitmap track position range; used by in-game profile to place
 			// the current position of the trains; as the train positions are known as track positions,
 			// actual track positions are needed here, rather than indices into the track element array.
-			double minX = CurrentRoute.Tracks[0].Elements[firstUsedElement].StartingTrackPosition;
-			double maxX = CurrentRoute.Tracks[0].Elements[lastUsedElement].StartingTrackPosition;
+			double minX = CurrentRoute.Tracks[0].Elements[firstUsedElement].StartingTrackPosition;//노선 시작측점
+			double maxX = CurrentRoute.Tracks[0].Elements[lastUsedElement].StartingTrackPosition;//노선 끝 측점
 			double offX = ox * (maxX - minX) / w;
 			lastGradientMinTrack = (int)(minX - offX);
 			lastGradientMaxTrack = (int)(maxX + offX);
@@ -521,7 +527,7 @@ namespace RouteManager2
 			g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
 			g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
 			int mode = inGame ? 1 : 0;
-			g.Clear(mapColors[mode].background);
+			g.Clear(mapColors[mode].bgfine);
 
 			// BELOW SEA LEVEL
 			{
@@ -531,17 +537,21 @@ namespace RouteManager2
 				g.FillRectangle(mapColors[mode].belowSeaFill, (float)x0, (float)y, (float)x1, (float)(oy + h) - (float)y);
 				g.DrawLine(mapColors[mode].belowSeaBrdr, (float)x0, (float)y, (float)x1, (float)y);
 			}
-			// GRADIENT PROFILE
+
+			// 지반고
 			{
 				totalElements = lastUsedElement - firstUsedElement + 1;
 				PointF[] p = new PointF[totalElements + 2];
 				p[0] = new PointF((float)ox, (float)(oy + h));
 				for (int i = firstUsedElement; i <= lastUsedElement; i++)
 				{
+					double fl = CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y;
+					double height = CurrentRoute.Tracks[0].Elements[i].Height;
+					double gl = fl - height;
 					double x = ox + (double)(i - firstUsedElement) * nd;
 					double y = oy + (h - 0.5 *
-						(double)(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
-					p[i -firstUsedElement + 1] = new PointF((float)x, (float)y);
+						(double)(gl - y0) * yd);
+					p[i - firstUsedElement + 1] = new PointF((float)x, (float)y);
 				}
 				p[totalElements + 1] = new PointF((float)(ox + (double)(totalElements - 1) * nd), (float)(oy + h));
 				g.FillPolygon(mapColors[mode].elevFill, p);
@@ -549,12 +559,40 @@ namespace RouteManager2
 					g.DrawLine(mapColors[mode].elevBrdr, p[i], p[i + 1]);
 				g.DrawLine(mapColors[mode].elevBrdr, 0.0f, (float)(oy + h), (float)Width, (float)(oy + h));
 			}
+
+			// 계획고
+			{
+				totalElements = lastUsedElement - firstUsedElement + 1;
+				PointF[] planPoints = new PointF[totalElements + 2];
+				planPoints[0] = new PointF((float)ox, (float)(oy + h));
+				for (int i = firstUsedElement; i <= lastUsedElement; i++)
+				{
+					double x = ox + (i - firstUsedElement) * nd;
+					double y = oy + (h - 0.5 * (CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
+					planPoints[i - firstUsedElement + 1] = new PointF((float)x, (float)y);
+				}
+				planPoints[totalElements + 1] = new PointF((float)(ox + (totalElements - 1) * nd), (float)(oy + h));
+
+				// 계획고 선 그리기
+				for (int i = 1; i < totalElements; i++)
+					g.DrawLine(mapColors[mode].planBrdr, planPoints[i], planPoints[i + 1]);
+
+				// 계획고 위쪽 10픽셀 오프셋으로 닫힌 도형 생성 (배경색으로 뚫기)
+				PointF[] offsetPoly = new PointF[planPoints.Length];
+				for (int i = 0; i < planPoints.Length; i++)
+				{
+					offsetPoly[i] = new PointF(planPoints[i].X, planPoints[i].Y - 10f);
+				}
+				//g.FillPolygon(mapColors[mode].limitFill, offsetPoly); // 흰색으로 뚫기
+			}
 			// STATION NAMES
 			{
 				Font f = new Font(FontFamily.GenericSansSerif, 12.0f, GraphicsUnit.Pixel);
 				StringFormat m = new StringFormat();
 				for (int i = firstUsedElement; i <= lastUsedElement; i++)
 				{
+					double fl = CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y;
+
 					for (int j = 0; j < CurrentRoute.Tracks[0].Elements[i].Events.Count; j++)
 					{
 						if (CurrentRoute.Tracks[0].Elements[i].Events[j] is StationStartEvent)
@@ -589,20 +627,45 @@ namespace RouteManager2
 										new PointF((float)x, ty + 4.0f), new PointF((float)x, (float)y));
 								} else
 								{
-									m.Alignment = StringAlignment.Far;
-									m.LineAlignment = StringAlignment.Near;
+									m.Alignment = StringAlignment.Center;
+									m.LineAlignment = StringAlignment.Center;
 									double x = ox + (double)(i - firstUsedElement) * nd;
 									double y = oy + (h - 0.5 *
 										(double)(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
-									g.RotateTransform(-90.0f);
-									g.TranslateTransform((float)x, (float)oy, System.Drawing.Drawing2D.MatrixOrder.Append);
+									g.RotateTransform(0.0f);
+									g.TranslateTransform((float)x, (float)fl + 50, System.Drawing.Drawing2D.MatrixOrder.Append);
+
+
+
+									string stationName = CurrentRoute.Stations[e.StationIndex].Name;
+
+									// 문자열 크기 계산
+									SizeF textSize = g.MeasureString(stationName, f);
+
+									// 가운데 기준 위치 조정
+									PointF textPoint = new PointF(-textSize.Width / 2, -5 - textSize.Height / 2);
+
+									// 사각형 (텍스트 크기 그대로)
+									RectangleF textRect = new RectangleF(
+										textPoint.X,
+										textPoint.Y,
+										textSize.Width,
+										textSize.Height
+									);
+
+									// 박스 그리기
+									g.DrawRectangle(stop ? Pens.Red : mapColors[mode].inactNameBrdr, textRect.X, textRect.Y, textRect.Width, textRect.Height);
+									//채우기 색
+									// 사각형 배경 채우기 (연한 노랑 예시)
+									g.FillRectangle(stop ?  Brushes.Red : mapColors[mode].inactNameText, textRect);
+
 									g.DrawString(CurrentRoute.Stations[e.StationIndex].Name, f,
-										stop ? mapColors[mode].actNameText : mapColors[mode].inactNameText,
+										stop ? mapColors[mode].limitFill : mapColors[mode].limitFill,
 										new PointF(0.0f, -5.0f), m);
 									g.ResetTransform();
 									SizeF s = g.MeasureString(CurrentRoute.Stations[e.StationIndex].Name, f);
-									g.DrawLine(stop ? mapColors[mode].actNameBrdr : mapColors[mode].inactNameBrdr,
-										new PointF((float)x, (float)(oy + s.Width + 4)), new PointF((float)x, (float)y));
+									g.DrawLine(stop ? mapColors[mode].planBrdr : mapColors[mode].inactNameBrdr,
+										new PointF((float)x, (float)(fl + 40)), new PointF((float)x, (float)y));
 								}
 							}
 						}
@@ -648,7 +711,7 @@ namespace RouteManager2
 					// route height at track offset (with measure and vertical line)
 					{
 						y = oy + (h - 0.5 * y) + 2.0f;
-						string t = ((int)Math.Round(CurrentRoute.Atmosphere.InitialElevation + CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y)).ToString(Culture);
+						string t = ((int)Math.Round(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y)).ToString(Culture);
 						SizeF s = g.MeasureString(t, fs);
 						if (y < oy + h - (double)s.Width - 10.0)
 						{
@@ -659,6 +722,7 @@ namespace RouteManager2
 							g.DrawLine(mapColors[mode].inactNameBrdr,
 								(float)x, (float)(y + s.Width + 12.0), (float)x, (float)(oy + h));
 						}
+
 					}
 				}
 			}
@@ -693,7 +757,7 @@ namespace RouteManager2
 					{
 						// turns out centering text in a circle using System.Drawing is a PITA
 						// numbers are fudges, need to check whether they work OK on non windows....
-						string limitString = Math.Round(lim.NextSpeedLimit * 3.6, 2).ToString(CultureInfo.InvariantCulture);
+						string limitString = Math.Round(lim.NextSpeedLimit * 3.6, 2).ToString();
 						float radius = g.MeasureString(limitString, boldFont).Width * 0.9f;
 						RectangleF r = new RectangleF((float)x - radius - 20, (float)z - radius,
 							radius * 2.0f, radius * 2.0f);
