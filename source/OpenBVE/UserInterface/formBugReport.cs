@@ -21,7 +21,7 @@ namespace OpenBve
 			try
 			{
 				string File = OpenBveApi.Path.CombineFile(Program.FileSystem.GetDataFolder(), "icon.ico");
-				this.Icon = new Icon(File);
+				Icon = new Icon(File);
 			}
 			catch
 			{
@@ -31,7 +31,7 @@ namespace OpenBve
 		}
 
 		private void ApplyLanguage() {
-			this.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"bug_report","title"});
+			Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"bug_report","title"});
 			textBoxReportLabel.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "bug_report", "description"});
 			labelViewLog.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "bug_report", "view_log"});
 			labelViewCrash.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "bug_report", "view_crash_log"});
@@ -44,8 +44,8 @@ namespace OpenBve
 		private void buttonViewLog_Click(object sender, EventArgs e)
 		{
 			try
-			{
-				var file = OpenBveApi.Path.CombineFile(Program.FileSystem.SettingsFolder, "log.txt");
+			{ 
+				string file = OpenBveApi.Path.CombineFile(Program.FileSystem.SettingsFolder, "log.txt");
 				if(File.Exists(file))
 				{
 					if (Program.CurrentHost.Platform == HostPlatform.MicrosoftWindows)
@@ -73,8 +73,8 @@ namespace OpenBve
 		{
 			try
 			{
-				var directory = new DirectoryInfo(Program.FileSystem.SettingsFolder);
-				var file = directory.GetFiles("OpenBVE Crash*.log").OrderByDescending(f => f.LastWriteTime).First();
+				DirectoryInfo directory = new DirectoryInfo(Program.FileSystem.SettingsFolder);
+				FileInfo file = directory.GetFiles("OpenBVE Crash*.log").OrderByDescending(f => f.LastWriteTime).First();
 				if (Program.CurrentHost.Platform == HostPlatform.MicrosoftWindows)
 				{
 					Process.Start(file.FullName);
@@ -98,7 +98,7 @@ namespace OpenBve
 			{
 				using (var ProblemReport = File.OpenWrite(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Desktop), fileName)))
 				{
-					using (var zipWriter = WriterFactory.Open(ProblemReport, ArchiveType.Zip, CompressionType.LZMA))
+					using (var zipWriter = WriterFactory.OpenWriter(ProblemReport, ArchiveType.Zip, new WriterOptions(CompressionType.LZMA)))
 					{
 						//Add log file to the archive
 						var file = OpenBveApi.Path.CombineFile(Program.FileSystem.SettingsFolder, "log.txt");
@@ -147,7 +147,7 @@ namespace OpenBve
 				MessageBox.Show(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"bug_report","save_failed"}), Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"bug_report","title"}), MessageBoxButtons.OK, MessageBoxIcon.Error);
 			}
 
-			this.Close();
+			Close();
 		}
 	}
 }

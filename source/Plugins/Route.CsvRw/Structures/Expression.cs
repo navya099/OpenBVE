@@ -1,6 +1,7 @@
 using System;
 using OpenBveApi.Math;
 using System.Linq;
+using OpenBveApi;
 using OpenBveApi.Interface;
 
 namespace CsvRwRouteParser
@@ -12,6 +13,7 @@ namespace CsvRwRouteParser
 		internal int Line;
 		internal int Column;
 		internal double TrackPositionOffset;
+		internal bool Skip;
 
 		internal Expression(string file, string text, int line, int column, double trackPositionOffset)
 		{
@@ -20,6 +22,7 @@ namespace CsvRwRouteParser
 			Line = line;
 			Column = column;
 			TrackPositionOffset = trackPositionOffset;
+			Skip = false;
 		}
 
 		/// <summary>Converts a RW formatted expression to CSV format</summary>
@@ -28,23 +31,24 @@ namespace CsvRwRouteParser
 		internal void ConvertRwToCsv(string Section, bool SectionAlwaysPrefix)
 		{
 			int Equals = Text.IndexOf('=');
-			if (Equals >= 0)
+			if (Equals >= 0 && SectionAlwaysPrefix)
 			{
 				// handle RW cycle syntax
 				string t = Text.Substring(0, Equals);
-				if (Section.ToLowerInvariant() == "cycle" & SectionAlwaysPrefix)
+				switch (Section.ToLowerInvariant())
 				{
-					if (NumberFormats.TryParseDoubleVb6(t, out double b))
-					{
-						t = ".Ground(" + b + ")";
-					}
-				}
-				else if (Section.ToLowerInvariant() == "signal" & SectionAlwaysPrefix)
-				{
-					if (NumberFormats.TryParseDoubleVb6(t, out double b))
-					{
-						t = ".Void(" + b + ")";
-					}
+					case "cycle":
+						if (NumberFormats.TryParseDoubleVb6(t, out double g))
+						{
+							t = ".Ground(" + g + ")";
+						}
+						break;
+					case "signal":
+						if (NumberFormats.TryParseDoubleVb6(t, out double s))
+						{
+							t = ".Void(" + s + ")";
+						}
+						break;
 				}
 
 				// convert RW style into CSV style
@@ -56,10 +60,10 @@ namespace CsvRwRouteParser
 		/// <param name="Command">The command</param>
 		/// <param name="ArgumentSequence">The sequence of arguments contained within the expression</param>
 		/// <param name="Culture">The current culture</param>
+		/// <param name="FileFormat">The format of the routefile</param>
 		/// <param name="RaiseErrors">Whether errors should be raised at this point</param>
-		/// <param name="IsRw">Whether this is a RW format file</param>
 		/// <param name="CurrentSection">The current section being processed</param>
-		internal void SeparateCommandsAndArguments(out string Command, out string ArgumentSequence, System.Globalization.CultureInfo Culture, bool RaiseErrors, bool IsRw, string CurrentSection)
+		internal void SeparateCommandsAndArguments(out string Command, out string ArgumentSequence, System.Globalization.CultureInfo Culture, RoutefileFormat FileFormat, bool RaiseErrors, string CurrentSection)
 		{
 			bool openingError = false, closingError = false;
 			int i, firstClosingBracket = 0;
@@ -86,10 +90,24 @@ namespace CsvRwRouteParser
 					//Heavy Coal original RW- Fix starting station
 					Text = Text.Substring(0, Text.Length - 9);
 				}
-
-				if (IsRw && CurrentSection.ToLowerInvariant() == "track")
+				else if (Text.StartsWith(".Sta (貨)", StringComparison.OrdinalIgnoreCase))
 				{
-					//Removes misplaced track position indicies from the end of a command in the Track section
+					// 普通播州赤穂行 - brackets in station name
+					Text = ".Sta [貨]"+ Text.Substring(8);
+				}
+				else if (Text.StartsWith(".freeobj (9"))
+				{
+					// East Linconshire Railway bridges
+					Text = ".freeobj(9" + Text.Substring(11);
+				}
+				else if (Text.StartsWith("Track.Sta (", StringComparison.InvariantCultureIgnoreCase))
+				{
+					Text = "Track.Sta(" + Text.Substring(11);
+				}
+
+				if (FileFormat == RoutefileFormat.RW && CurrentSection.ToLowerInvariant() == "track")
+				{
+					//Removes misplaced track position indices from the end of a command in the Track section
 					int idx = Text.LastIndexOf(')');
 					if (idx != -1 && idx != Text.Length)
 					{
@@ -101,7 +119,7 @@ namespace CsvRwRouteParser
 					}
 				}
 
-				if (IsRw && Text.EndsWith("))"))
+				if (FileFormat == RoutefileFormat.RW && Text.EndsWith("))"))
 				{
 					int openingBrackets = Text.Count(x => x == '(');
 					int closingBrackets = Text.Count(x => x == ')');
@@ -119,7 +137,7 @@ namespace CsvRwRouteParser
 					Text = Text.Replace("(c)", "©");
 				}
 
-				if(IsRw && Parser.EnabledHacks.AggressiveRwBrackets)
+				if(FileFormat == RoutefileFormat.RW && Parser.EnabledHacks.AggressiveRwBrackets)
 				{
 					//Attempts to aggressively discard *anything* encountered after a closing bracket
 					int c = Text.IndexOf(')');
@@ -163,7 +181,7 @@ namespace CsvRwRouteParser
 								switch (argumentIndex)
 								{
 									case 0:
-										if (Text.StartsWith("sta"))
+										if (Text.StartsWith("sta", StringComparison.InvariantCultureIgnoreCase))
 										{
 											Text = Text.Remove(i, 1).Insert(i, "[");
 											break;
@@ -187,10 +205,30 @@ namespace CsvRwRouteParser
 										openingError = true;
 										break;
 									case 5: //arrival sound
+									case 7: // HMMSIM arrival sound
 									case 10: //departure sound
-										if (Text.StartsWith("sta", StringComparison.InvariantCultureIgnoreCase))
+										//break;
+										if (Text.StartsWith("sta", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith("Track.Sta", StringComparison.InvariantCultureIgnoreCase))
 										{
-											Text = Text.Remove(i, 1).Insert(i, "<");
+											int j = i;
+											while (j < Text.Length -1)
+											{
+												switch (Text[j])
+												{
+													case ';':
+														// argument separator
+														break;
+													case '(':
+														Text = Text.Remove(j, 1).Insert(j, "<");
+														break;
+													case ')':
+														Text = Text.Remove(j, 1).Insert(j, ">");
+														break;
+												}
+
+												j++;
+											}
+											
 											break;
 										}
 										Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid opening parenthesis encountered at line " + Line.ToString(Culture) + ", column " +
@@ -216,14 +254,14 @@ namespace CsvRwRouteParser
 							switch (argumentIndex)
 							{
 								case 0:
-									if (Text.StartsWith("sta") && i != Text.Length)
+									if (Text.StartsWith("sta", StringComparison.InvariantCultureIgnoreCase) && i != Text.Length)
 									{
 										Text = Text.Remove(i, 1).Insert(i, "]");
 										continue;
 									}
 									if (Text.StartsWith(".timetable", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith(".marker", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith(".announce", StringComparison.InvariantCultureIgnoreCase) || Text.IndexOf(".Load", StringComparison.InvariantCultureIgnoreCase) != -1)
 									{
-										if (Text.Substring(i + 1, 5).ToLowerInvariant() == ".load" || Text.Substring(i + 1, 9).ToLowerInvariant() == ".day.load" || Text.Substring(i + 1, 11).ToLowerInvariant() == ".night.load")
+										if (Text.SafeSubstring(i + 1, 5).ToLowerInvariant() == ".load" || Text.SafeSubstring(i + 1, 9).ToLowerInvariant() == ".day.load" || Text.SafeSubstring(i + 1, 11).ToLowerInvariant() == ".night.load")
 										{
 											found = true;
 											firstClosingBracket = i;
@@ -297,7 +335,7 @@ namespace CsvRwRouteParser
 
 			if (firstClosingBracket != 0 && firstClosingBracket < Text.Length - 1)
 			{
-				if (!Char.IsWhiteSpace(Text[firstClosingBracket + 1]) && Text[firstClosingBracket + 1] != '.' && Text[firstClosingBracket + 1] != ';')
+				if (!char.IsWhiteSpace(Text[firstClosingBracket + 1]) && Text[firstClosingBracket + 1] != '.' && Text[firstClosingBracket + 1] != ';' && Text[firstClosingBracket + 1] != '_')
 				{
 					Text = Text.Insert(firstClosingBracket + 1, " ");
 					i = firstClosingBracket;
@@ -379,7 +417,7 @@ namespace CsvRwRouteParser
 									}
 
 									Command = Text;
-									ArgumentSequence = "";
+									ArgumentSequence = string.Empty;
 								}
 
 								if (ArgumentSequence.StartsWith("(") & ArgumentSequence.EndsWith(")"))
@@ -444,7 +482,7 @@ namespace CsvRwRouteParser
 					{
 						Command = Text.Substring(0, i).TrimEnd();
 						ArgumentSequence = Text.Substring(i + 1, Text.Length - i - 2).Trim();
-						if (Text.StartsWith("sta", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith(".marker", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith(".announce", StringComparison.InvariantCultureIgnoreCase) || Text.IndexOf(".Load", StringComparison.InvariantCultureIgnoreCase) != -1)
+						if (Text.StartsWith("sta", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith("Track.Sta", StringComparison.InvariantCultureIgnoreCase)|| Text.StartsWith(".marker", StringComparison.InvariantCultureIgnoreCase) || Text.StartsWith(".announce", StringComparison.InvariantCultureIgnoreCase) || Text.IndexOf(".Load", StringComparison.InvariantCultureIgnoreCase) != -1)
 						{
 							// put back any temp removed brackets
 							ArgumentSequence = ArgumentSequence.Replace('<', '(');
@@ -458,7 +496,7 @@ namespace CsvRwRouteParser
 					else
 					{
 						Command = Text;
-						ArgumentSequence = "";
+						ArgumentSequence = string.Empty;
 					}
 				}
 				else
@@ -486,7 +524,7 @@ namespace CsvRwRouteParser
 						}
 
 						Command = Text;
-						ArgumentSequence = "";
+						ArgumentSequence = string.Empty;
 					}
 				}
 			}
@@ -498,11 +536,7 @@ namespace CsvRwRouteParser
 				{
 					Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid trailing semicolon encountered in " + Command + " at line " + Line.ToString(Culture) + ", column " + Column.ToString(Culture) + " in file " + File);
 				}
-
-				while (Command.EndsWith(";"))
-				{
-					Command = Command.Substring(0, Command.Length - 1);
-				}
+				Command = Command.TrimEnd(';');
 			}
 		}
 	}

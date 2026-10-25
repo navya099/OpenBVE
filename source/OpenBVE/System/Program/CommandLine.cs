@@ -4,7 +4,7 @@ using OpenBveApi.Math;
 namespace OpenBve
 {
 	/// <summary>Contains methods used to parse command-line arguments</summary>
-	class CommandLine
+	internal class CommandLine
 	{
 		/// <summary>Parses any command-line arguments passed to the main program</summary>
 		/// <param name="Arguments">A string array of arguments</param>
@@ -36,7 +36,7 @@ namespace OpenBve
 							Result.InitialStation = value;
 							break;
 						case "/time":
-							Interface.TryParseTime(value, out Result.StartTime);
+							Time.TryParseTime(value, out Result.StartTime);
 							break;
 						case "/ai":
 							if (value.ToLowerInvariant() == "true" || value.ToLowerInvariant() == "1")

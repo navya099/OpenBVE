@@ -30,8 +30,6 @@ namespace Train.OpenBve
 
 	    internal static BaseOptions CurrentOptions;
 
-	    internal static Random RandomNumberGenerator = new Random();
-
 	    internal static BaseRenderer Renderer;
 
 	    internal TrainDatParser TrainDatParser;
@@ -109,13 +107,40 @@ namespace Train.OpenBve
 			}
 		}
 
+		private static readonly string[] BlockedDirectories = new[]
+		{
+			"Application Data",
+			"Documents and Settings",
+			"Default User",
+			"Cookies",
+			"Local Settings",
+			"My Documents",
+			"MSOCache",
+			"NetHood",
+			"PrintHood",
+			"Recent",
+			"Recovery",
+			"SendTo",
+			"Start Menu",
+			"System Volume Information",
+			"Templates"
+		};
+
 		public override bool CanLoadTrain(string path)
 		{
-			if (string.IsNullOrEmpty(path) || !Directory.Exists(Path.GetDirectoryName(path)))
+			if (string.IsNullOrEmpty(path))
 			{
 				return false;
 			}
-			if (File.GetAttributes(path).HasFlag(FileAttributes.Directory))
+			string directoryName = new DirectoryInfo(path).Name;
+			if (!Directory.Exists(Path.GetDirectoryName(path)) || BlockedDirectories.Contains(directoryName))
+			{
+				return false;
+			}
+
+			
+
+			if (Directory.Exists(path))
 			{
 				string vehicleTxt;
 				try {
@@ -263,7 +288,7 @@ namespace Train.OpenBve
 				    IsLoading = false;
 				    return false;
 			    }
-			    FileSystem.AppendToLogFile("Train panel loaded sucessfully.");
+			    FileSystem.AppendToLogFile("Train panel loaded successfully.");
 		    }
 
 		    CurrentProgress = 0.5;
@@ -300,6 +325,11 @@ namespace Train.OpenBve
 					ExtensionsCfgParser.ParseExtensionsConfig(currentTrain.TrainFolder, encoding, ref carObjects, ref bogieObjects, ref couplerObjects, out visibleFromInterior, currentTrain);
 				}
 
+				// Ensure visibleFromInterior is valid even if both parsers fail
+				if (visibleFromInterior == null || visibleFromInterior.Length != currentTrain.Cars.Length)
+				{
+					visibleFromInterior = new bool[currentTrain.Cars.Length];
+				}
 				currentTrain.CameraCar = currentTrain.DriverCar;
 				Thread.Sleep(1);
 				if (Cancel)
@@ -336,7 +366,7 @@ namespace Train.OpenBve
 					if (carObjects[i] != null)
 					{
 						// add object
-						currentTrain.Cars[i].LoadCarSections(carObjects[i], visibleFromInterior[i]);
+						currentTrain.Cars[i].CarSections.Add(CarSectionType.Exterior, new CarSection(CurrentHost, ObjectType.Dynamic, visibleFromInterior[i], currentTrain.Cars[i], carObjects[i]));
 					}
 
 					if (couplerObjects[i] != null)
@@ -367,7 +397,7 @@ namespace Train.OpenBve
 				/*
 				 * Determine door opening / closing speed & copy in any missing bits (e.g. motor sound tables)
 				 * This *must* be done after the sound configuration has loaded
-				 * (As the original BVE / OpenBVE implimentation calculates this from
+				 * (As the original BVE / OpenBVE implementation calculates this from
 				 * the length of the sound buffer)
 				 *
 				 * However, as motor performance / sound tables may also be loaded via car XML files,
@@ -378,14 +408,14 @@ namespace Train.OpenBve
 				for (int i = 0; i < currentTrain.Cars.Length; i++)
 				{
 					currentTrain.Cars[i].DetermineDoorClosingSpeed();
-					if (currentTrain.Cars[i].Specs.IsMotorCar)
+					if (currentTrain.Cars[i].TractionModel.ProvidesPower)
 					{
 						numMotorCars++;
-						if (currentTrain.Cars[i].Sounds.Motor == null && TrainXmlParser.MotorSoundXMLParsed != null)
+						if (currentTrain.Cars[i].TractionModel.MotorSounds == null && TrainXmlParser.MotorSoundXMLParsed != null)
 						{
-							if(!TrainXmlParser.MotorSoundXMLParsed[i])
+							if(i < TrainXmlParser.MotorSoundXMLParsed.Length && !TrainXmlParser.MotorSoundXMLParsed[i])
 							{
-								currentTrain.Cars[i].Sounds.Motor = new BVEMotorSound(currentTrain.Cars[i], 18.0, MotorSoundTables);
+								currentTrain.Cars[i].TractionModel.MotorSounds = new BVEMotorSound(currentTrain.Cars[i], 18.0, MotorSoundTables);
 							}
 						}
 						
@@ -401,8 +431,8 @@ namespace Train.OpenBve
 					 * Speed / physics are likely to be off, but let's at least do something
 					 */
 					CurrentHost.AddMessage(MessageType.Error, false, "Player train appears to have no motor cars, assigning Car 0 as a motor car.");
-					currentTrain.Cars[0].Specs.IsMotorCar = true;
-					currentTrain.Cars[0].Sounds.Motor = new BVEMotorSound(currentTrain.Cars[0], 18.0, MotorSoundTables);
+					currentTrain.Cars[0].TractionModel = new BVEMotorCar(currentTrain.Cars[0], null);
+					currentTrain.Cars[0].TractionModel.MotorSounds = new BVEMotorSound(currentTrain.Cars[0], 18.0, MotorSoundTables);
 				}
 			}
 			CurrentProgress = 1;
@@ -450,7 +480,7 @@ namespace Train.OpenBve
 			    {
 				    if (encoding == null)
 				    {
-					    return File.ReadAllText(descriptionFile);
+					    return File.ReadAllText(descriptionFile, TextEncoding.GetSystemEncodingFromFile(descriptionFile));
 				    }
 				    return File.ReadAllText(descriptionFile, encoding);
 
@@ -458,7 +488,7 @@ namespace Train.OpenBve
 		    }
 		    catch(Exception ex)
 		    {
-				CurrentHost.ReportProblem(ProblemType.UnexpectedException, "Unable to get the description for train " + trainPath + " due to the exeception: " + ex.Message);
+				CurrentHost.ReportProblem(ProblemType.UnexpectedException, "Unable to get the description for train " + trainPath + " due to the exception: " + ex.Message);
 		    }
 		    return string.Empty;
 	    }
@@ -468,24 +498,24 @@ namespace Train.OpenBve
 		    try
 		    {
 			    string imageFile = Path.CombineFile(trainPath, "train.png");
-			    if (File.Exists(imageFile))
+			    if (File.Exists(imageFile) && new FileInfo(imageFile).Length != 0)
 			    {
 				    return imageFile;
 			    }
 			    imageFile  = Path.CombineFile(trainPath, "train.gif");
-			    if (File.Exists(imageFile))
+			    if (File.Exists(imageFile) && new FileInfo(imageFile).Length != 0)
 			    {
 				    return imageFile;
 			    }
 			    imageFile  = Path.CombineFile(trainPath, "train.bmp");
-			    if (File.Exists(imageFile))
+			    if (File.Exists(imageFile) && new FileInfo(imageFile).Length != 0)
 			    {
 				    return imageFile;
 			    }
 		    }
 		    catch (Exception ex)
 		    {
-			    CurrentHost.ReportProblem(ProblemType.UnexpectedException, "Unable to get the image for train " + trainPath + " due to the exeception: " + ex.Message);
+			    CurrentHost.ReportProblem(ProblemType.UnexpectedException, "Unable to get the image for train " + trainPath + " due to the exception: " + ex.Message);
 		    }
 		    return null;
 	    }
@@ -496,8 +526,8 @@ namespace Train.OpenBve
 	    /// <param name="encoding">The selected train encoding</param>
 	    internal void ParsePanelConfig(TrainBase train, Encoding encoding)
 	    {
-		    train.Cars[train.DriverCar].CarSections = new CarSection[1];
-		    train.Cars[train.DriverCar].CarSections[0] = new CarSection(CurrentHost, ObjectType.Overlay, true);
+		    train.Cars[train.DriverCar].CarSections = new Dictionary<CarSectionType, CarSection>();
+		    train.Cars[train.DriverCar].CarSections.Add(CarSectionType.Interior, new CarSection(CurrentHost, ObjectType.Overlay, true));
 		    string panelFile = Path.CombineFile(train.TrainFolder, "panel.xml");
 		    if (!File.Exists(panelFile))
 		    {
@@ -575,7 +605,7 @@ namespace Train.OpenBve
 							    CurrentHost.CreateDynamicObject(ref a.Objects[i].internalObject);
 						    }
 
-						    train.Cars[train.DriverCar].CarSections[0].Groups[0].Elements = a.Objects;
+						    train.Cars[train.DriverCar].CarSections[CarSectionType.Interior].Groups[0].Elements = a.Objects;
 						    if (train.Cars[train.DriverCar].CameraRestrictionMode != CameraRestrictionMode.Restricted3D)
 						    {
 							    train.Cars[train.DriverCar].CameraRestrictionMode = CameraRestrictionMode.NotAvailable;
@@ -616,7 +646,7 @@ namespace Train.OpenBve
 				    if (File.Exists(panelFile))
 				    {
 					    FileSystem.AppendToLogFile("Loading train panel: " + panelFile);
-					    PanelCfgParser.ParsePanelConfig(train.TrainFolder, encoding, train.Cars[train.DriverCar]);
+					    PanelCfgParser.ParsePanelConfig(train.TrainFolder, train.Cars[train.DriverCar]);
 					    train.Cars[train.DriverCar].CameraRestrictionMode = CameraRestrictionMode.On;
 					    Renderer.Camera.CurrentRestriction = CameraRestrictionMode.On;
 				    }

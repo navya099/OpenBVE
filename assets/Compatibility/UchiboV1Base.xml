@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <openBVE xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
-  <Compatibility>
+  <ObjectList>
   <!-- Uchibo V1 Route Objects -->
 	<Object>
 		<Name>Ballast.b3d</Name>
@@ -84,7 +84,7 @@
 	</Object>
 	<Object>
 		<Name>CraTunR.b3d</Name>
-		<Path>Uchibo\CraTunR.csv</Path>
+		<Path>UchiboV1\CraTunR.csv</Path>
 		<Message></Message>
 	</Object>
 	<Object>
@@ -199,7 +199,7 @@
 	</Object>
 	<Object>
 		<Name>Signal3.b3d</Name>
-		<Path>Signals\Signal_3_0.csv</Path>
+		<Path>Signals\Japanese\Signal_3_0.csv</Path>
 		<Message></Message>
 	</Object>
 	<Object>
@@ -277,5 +277,5 @@
 		<Path>UchiboV1\WallGR.csv</Path>
 		<Message></Message>
 	</Object>
-  </Compatibility>
+  </ObjectList>
 </openBVE>

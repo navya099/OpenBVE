@@ -31,11 +31,7 @@ namespace CsvRwRouteParser
 
 		internal void Create(Vector3 wpos, Transformation RailTransformation, double StartingDistance, double EndingDistance, ObjectDictionary Beacon)
 		{
-			UnifiedObject obj = null;
-			if (Beacon.ContainsKey(BeaconStructureIndex))
-			{
-				obj = Beacon[BeaconStructureIndex];
-			}
+			Beacon.TryGetValue(BeaconStructureIndex, out UnifiedObject obj);
 			if (obj != null)
 			{
 				double dx = Position.X;
@@ -43,7 +39,7 @@ namespace CsvRwRouteParser
 				double dz = TrackPosition - StartingDistance;
 				wpos += dx * RailTransformation.X + dy * RailTransformation.Y + dz * RailTransformation.Z;
 				double tpos = TrackPosition;
-				obj.CreateObject(wpos, RailTransformation, new Transformation(Yaw, Pitch, Roll), StartingDistance, EndingDistance, tpos);
+				obj.CreateObject(wpos, RailTransformation, new Transformation(Yaw, Pitch, Roll), new ObjectCreationParameters(tpos, StartingDistance, EndingDistance));
 			}
 		}
 }

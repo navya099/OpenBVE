@@ -25,7 +25,6 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Bve5_Parsing.MapGrammar.EvaluateData;
 using OpenBveApi;
 using OpenBveApi.Interface;
 using OpenBveApi.Objects;
@@ -33,32 +32,30 @@ using Path = OpenBveApi.Path;
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
-		private static void LoadSignalList(string FileName, bool PreviewOnly, MapData ParseData, RouteData RouteData)
+		private static void LoadSignalList(string FileName, bool PreviewOnly, string SignalListPath, RouteData RouteData)
 		{
 			RouteData.SignalObjects = new List<SignalData>();
 
-			if (PreviewOnly || string.IsNullOrEmpty(ParseData.SignalListPath))
+			if (PreviewOnly || string.IsNullOrEmpty(SignalListPath))
 			{
 				return;
 			}
 
-			string signalList = ParseData.SignalListPath;
-
-			if (!File.Exists(signalList))
+			if (!File.Exists(SignalListPath))
 			{
-				signalList = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), signalList);
+				SignalListPath = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), SignalListPath);
 
-				if (!File.Exists(signalList))
+				if (!File.Exists(SignalListPath))
 				{
-					Plugin.CurrentHost.AddMessage(MessageType.Error, true, "The BVE5 Signal List file " + signalList + " was not found.");
+					Plugin.CurrentHost.AddMessage(MessageType.Error, true, "BVE5: Signal List file " + SignalListPath + " was not found.");
 					return;
 				}
 			}
 
-			System.Text.Encoding Encoding = Text.DetermineBVE5FileEncoding(signalList);
-			string[] Lines = File.ReadAllLines(signalList, Encoding).Select(Line => Line.Trim('"').Trim()).ToArray();
+			System.Text.Encoding Encoding = Text.DetermineBVE5FileEncoding(SignalListPath);
+			string[] Lines = File.ReadAllLines(SignalListPath, Encoding).Select(Line => Line.Trim('"').Trim()).ToArray();
 
 			for (int currentLine = 1; currentLine < Lines.Length; currentLine++)
 			{
@@ -99,7 +96,7 @@ namespace Route.Bve5
 				}
 
 				List<StaticObject> Objects = new List<StaticObject>();
-				foreach (var ObjectKey in ObjectKeys)
+				foreach (string ObjectKey in ObjectKeys)
 				{
 					RouteData.Objects.TryGetValue(ObjectKey, out UnifiedObject Object);
 					if (Object != null)

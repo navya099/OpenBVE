@@ -1,4 +1,4 @@
-﻿//Simplified BSD License (BSD-2-Clause)
+//Simplified BSD License (BSD-2-Clause)
 //
 //Copyright (c) 2025, Christopher Lees, The OpenBVE Project
 //
@@ -24,11 +24,15 @@
 
 using System;
 using System.Linq;
+using OpenBveApi;
+using OpenBveApi.Motor;
 using TrainManager.Car;
+using TrainManager.Power;
+using TrainManager.Trains;
 
 namespace TrainManager.Motor
 {
-    public class DieselEngine : AbstractEngine
+    public class DieselEngine : TractionModel
     {
 		/// <summary>The RPM at maximum power</summary>
 	    public readonly double MaxRPM;
@@ -44,6 +48,12 @@ namespace TrainManager.Motor
 		public readonly double IdleFuelUse;
 		/// <summary>The fuel used at max power</summary>
 		public readonly double MaxPowerFuelUse;
+		/// <summary>The maximum temperature of the engine</summary>
+		public double MaxTemperature;
+		/// <summary>The maximum oil pressure of the engine</summary>
+		public double MaxOilPressure;
+
+		public readonly double MaxTractiveEffortSpeed;
 	    /// <summary>Gets or sets the current engine RPM</summary>
 		public double CurrentRPM
 		{
@@ -51,12 +61,13 @@ namespace TrainManager.Motor
 			private set => currentRPM = value;
 		}
 
+
 		private double currentRPM;
 		private double targetRPM;
 		private readonly double perNotchRPM;
 
 
-		public DieselEngine(CarBase car, double idleRPM, double minRPM, double maxRPM, double rpmChangeUpRate, double rpmChangeDownRate, double idleFuelUse = 0, double maxFuelUse = 0) : base (car)
+		public DieselEngine(CarBase car, AccelerationCurve[] accelerationCurves, double idleRPM, double minRPM, double maxRPM, double rpmChangeUpRate, double rpmChangeDownRate, double idleFuelUse = 0, double maxFuelUse = 0, double maxTractiveEffortSpeed = 0) : base (car, accelerationCurves, true)
 		{
 			MinRPM = minRPM;
 			MaxRPM = maxRPM;
@@ -66,25 +77,35 @@ namespace TrainManager.Motor
 			RPMChangeDownRate = rpmChangeDownRate;
 			IdleFuelUse = idleFuelUse;
 			MaxPowerFuelUse = maxFuelUse;
+			MaxTractiveEffortSpeed = maxTractiveEffortSpeed;
 		}
 
 		public override void Update(double timeElapsed)
 		{
 			if (IsRunning)
 			{
-				if (BaseCar.baseTrain.Handles.Power.Actual == 0)
+				if (BaseCar.baseTrain.AI is TrackFollowingObjectAI)
 				{
-					targetRPM = IdleRPM;
+					// HACK: TFO AI doesn't update power properly
+					targetRPM = BaseCar.CurrentSpeed == 0 ? IdleRPM : MaxRPM;
 				}
 				else
 				{
-					targetRPM = MinRPM + BaseCar.baseTrain.Handles.Power.Actual * perNotchRPM;
+					if (BaseCar.baseTrain.Handles.Power.Actual == 0)
+					{
+						targetRPM = IdleRPM;
+					}
+					else
+					{
+						targetRPM = MinRPM + BaseCar.baseTrain.Handles.Power.Actual * perNotchRPM;
+					}
 				}
 			}
 			else
 			{
 				targetRPM = 0;
 			}
+			MotorSounds?.Update(timeElapsed);
 
 			if (targetRPM > currentRPM)
 			{
@@ -98,21 +119,86 @@ namespace TrainManager.Motor
 				CurrentRPM = Math.Max(CurrentRPM, targetRPM);
 			}
 
+			Message = @"Current RPM " + Math.Round(CurrentRPM);
+
+			if(Components.TryGetTypedValue(EngineComponent.Gearbox, out Gearbox gearbox))
+			{
+				Message += " Current Gear " + gearbox.CurrentGear;
+			}
+
 			if (FuelTank != null)
 			{
 				if (currentRPM <= IdleRPM)
 				{
 					FuelTank.CurrentLevel -= IdleFuelUse * timeElapsed;
+					Message += " Fuel Use " + Math.Round(IdleFuelUse * timeElapsed, 5);
 				}
 				else
 				{
 					FuelTank.CurrentLevel -= (MaxPowerFuelUse - IdleFuelUse) / BaseCar.baseTrain.Handles.Power.MaximumDriverNotch * BaseCar.baseTrain.Handles.Power.Actual * timeElapsed;
+					Message += " Fuel Use " + Math.Round((MaxPowerFuelUse - IdleFuelUse) / BaseCar.baseTrain.Handles.Power.MaximumDriverNotch * BaseCar.baseTrain.Handles.Power.Actual * timeElapsed, 5);
 				}
 			}
 
 			for (int i = 0; i < Components.Count; i++)
 			{
 				Components.ElementAt(i).Value.Update(timeElapsed);
+			}
+
+			MaximumPossibleAcceleration = AccelerationCurves[0].MaximumAcceleration;
+		}
+
+		public override double CurrentPower => Math.Max(0, currentRPM - MinRPM) / (MaxRPM - MinRPM);
+
+		public override double TargetAcceleration
+		{
+			get
+			{
+				if (Components.TryGetTypedValue(EngineComponent.Gearbox, out Gearbox gearbox))
+				{
+					if (gearbox.OperationMode > GearboxOperation.Manual)
+					{
+						if (BaseCar.CurrentSpeed == 0)
+						{
+							if (BaseCar.baseTrain.Handles.Power.Actual == 0)
+							{
+								if (gearbox.CurrentGear > 0)
+								{
+									gearbox.GearDown();
+								}
+							}
+							else
+							{
+								if (gearbox.CurrentGear == 0)
+								{
+									gearbox.GearUp();
+								}
+							}
+						}
+						else
+						{
+							if (BaseCar.CurrentSpeed < gearbox.PreviousMaximumGearSpeed)
+							{
+								// slow enough for previous gear
+								gearbox.GearDown();
+							}
+							else if (BaseCar.CurrentSpeed >= gearbox.MaximumGearSpeed)
+							{
+								// gear change up
+								gearbox.GearUp();
+							}
+						}
+					}
+					if (gearbox.CurrentGear == 0)
+					{
+						return 0;
+					}
+
+					return AccelerationCurves[gearbox.CurrentGear - 1].GetAccelerationOutput(BaseCar.CurrentSpeed);
+
+				}
+				return AccelerationCurves[0].GetAccelerationOutput(BaseCar.CurrentSpeed);
+
 			}
 		}
     }

@@ -16,6 +16,7 @@ namespace CsvRwRouteParser
 		internal double Height;
 		internal Dictionary<int, Rail> Rails;
 		internal Switch[] Switches;
+		internal List<RailSound> RailSounds;
 		internal int[] RailType;
 		internal Dictionary<int, WallDike> RailWall;
 		internal Dictionary<int, WallDike> RailDike;
@@ -44,7 +45,6 @@ namespace CsvRwRouteParser
 		internal LightDefinition LightDefinition;
 		internal int DynamicLightDefinition;
 		internal LightingChange[] LightingChanges;
-		internal Dictionary<int, PatternObj> PatternObjs;
 
 		internal Block(bool PreviewOnly)
 		{
@@ -71,7 +71,7 @@ namespace CsvRwRouteParser
 				DynamicLightDefinition = -1;
 				LightDefinition = new LightDefinition();
 				LightingChanges = new LightingChange[] { };
-				PatternObjs = new Dictionary<int, PatternObj>();
+				RailSounds = new List<RailSound>();
 			}
 		}
 	}

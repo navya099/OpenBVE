@@ -1,10 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Drawing;
-using System.IO;
-using System.Linq;
-using LibRender2.Screens;
+﻿using LibRender2.Screens;
 using OpenBveApi;
 using OpenBveApi.Colors;
 using OpenBveApi.Hosts;
@@ -18,6 +12,11 @@ using OpenBveApi.Trains;
 using OpenBveApi.World;
 using RouteManager2.MessageManager;
 using SoundManager;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.Drawing;
+using System.IO;
 using TrainManager.Trains;
 using Path = OpenBveApi.Path;
 
@@ -34,10 +33,9 @@ namespace OpenBve {
 				case ProblemType.DirectoryNotFound:
 				case ProblemType.FileNotFound:
 				case ProblemType.PathNotFound:
-					if (!MissingFiles.Contains(text))
+					if (ReportMissingFile(text))
 					{
 						Interface.AddMessage(MessageType.Error, true, type + " : " + text);
-						MissingFiles.Add(text);
 					}
 					break;
 				default:
@@ -46,16 +44,16 @@ namespace OpenBve {
 			}
 		}
 
-		public override void AddMessage(MessageType type, bool FileNotFound, string text)
+		public override void AddMessage(MessageType type, bool fileNotFound, string messageText)
 		{
-			Interface.AddMessage(type, FileNotFound, text);
+			Interface.AddMessage(type, fileNotFound, messageText);
 		}
 
 		public override void AddMessage(object Message)
 		{
 			if (Message is string message)
 			{
-				MessageManager.AddMessage(message, MessageDependency.None, GameMode.Expert, MessageColor.Black, InGameTime + 10, null);
+				MessageManager.AddMessage(message, MessageDependency.None, GameMode.Expert, MessageColor.Black, 10, null);
 			}
 			else if(Message is AbstractMessage abstractMessage)
 			{
@@ -83,28 +81,30 @@ namespace OpenBve {
 		/// <returns>Whether querying the dimensions was successful.</returns>
 		public override bool QueryTextureDimensions(string path, out int width, out int height) {
 			if (File.Exists(path) || Directory.Exists(path)) {
-				for (int i = 0; i < Program.CurrentHost.Plugins.Length; i++) {
-					if (Program.CurrentHost.Plugins[i].Texture != null) {
-						try {
-							if (Program.CurrentHost.Plugins[i].Texture.CanLoadTexture(path)) {
-								try {
-									if (Program.CurrentHost.Plugins[i].Texture.QueryTextureDimensions(path, out width, out height)) {
-										return true;
-									}
-									Interface.AddMessage(MessageType.Error, false,
-									                     "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at QueryTextureDimensions"
-									                    );
-								} catch (Exception ex) {
-									Interface.AddMessage(MessageType.Error, false,
-									                     "Plugin " + Program.CurrentHost.Plugins[i].Title + " raised the following exception at QueryTextureDimensions:" + ex.Message
-									                    );
+				for (int i = 0; i < Program.CurrentHost.Plugins.Length; i++)
+				{
+					if (Program.CurrentHost.Plugins[i].Texture == null)
+					{
+						continue;
+					}
+					try {
+						if (Program.CurrentHost.Plugins[i].Texture.CanLoadTexture(path)) {
+							try {
+								if (Program.CurrentHost.Plugins[i].Texture.QueryTextureDimensions(path, out width, out height)) {
+									return true;
 								}
+								Interface.AddMessage(MessageType.Error, false,
+									"Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at QueryTextureDimensions for file " + path);
+							} catch (Exception ex) {
+								Interface.AddMessage(MessageType.Error, false,
+									"Plugin " + Program.CurrentHost.Plugins[i].Title + " raised the following exception at QueryTextureDimensions:" + ex.Message
+								);
 							}
-						} catch (Exception ex) {
-							Interface.AddMessage(MessageType.Error, false,
-							                     "Plugin " + Program.CurrentHost.Plugins[i].Title + " raised the following exception at CanLoadTexture:" + ex.Message
-							                    );
 						}
+					} catch (Exception ex) {
+						Interface.AddMessage(MessageType.Error, false,
+							"Plugin " + Program.CurrentHost.Plugins[i].Title + " raised the following exception at CanLoadTexture:" + ex.Message
+						);
 					}
 				}
 				FileInfo f = new FileInfo(path);
@@ -131,6 +131,15 @@ namespace OpenBve {
 		/// <returns>Whether loading the texture was successful.</returns>
 		public override bool LoadTexture(string path, TextureParameters parameters, out Texture texture)
 		{
+			Stopwatch textureDecodeTimer = Stopwatch.StartNew();
+			bool result = LoadTextureInternal(path, parameters, out texture);
+			TextureDecodeCalls++;
+			TextureDecodeMs += textureDecodeTimer.ElapsedMilliseconds;
+			return result;
+		}
+
+		private bool LoadTextureInternal(string path, TextureParameters parameters, out Texture texture)
+		{
 			if (File.Exists(path) || Directory.Exists(path))
 			{
 				for (int i = 0; i < Program.CurrentHost.Plugins.Length; i++)
@@ -145,14 +154,24 @@ namespace OpenBve {
 								{
 									if (Program.CurrentHost.Plugins[i].Texture.LoadTexture(path, out texture))
 									{
-										texture.CompatibleTransparencyMode = Interface.CurrentOptions.OldTransparencyMode;
+										bool oldTransparencyMode = Interface.CurrentOptions.OldTransparencyMode;
+										if (oldTransparencyMode)
+										{
+											string textureFolder = Path.GetDirectoryName(path);
+											if (textureFolder.EndsWith("2kObj\\StaName1") || textureFolder.EndsWith("2kObj\\00X\\StaName1"))
+											{
+												// Kurumigasaki Railway: Station signs don't play nice with old transparency mode
+												oldTransparencyMode = false;
+											}
+										}
+										
+										texture.CompatibleTransparencyMode = oldTransparencyMode;
 										texture = texture.ApplyParameters(parameters);
 										return true;
 									}
-									if (!FailedTextures.Contains(path))
+									if (ReportFailure(FailedTextures, path))
 									{
-										FailedTextures.Add(path);
-										Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadTexture");
+										Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadTexture for file " + path);
 									}
 
 								}
@@ -172,17 +191,15 @@ namespace OpenBve {
 				FileInfo f = new FileInfo(path);
 				if (f.Length == 0)
 				{
-					if (!FailedTextures.Contains(path))
+					if (ReportFailure(FailedTextures, path))
 					{
-						FailedTextures.Add(path);
 						Interface.AddMessage(MessageType.Error, false, "Zero-byte texture file encountered at " + path);
 					}
 				}
 				else
 				{
-					if (!FailedTextures.Contains(path))
+					if (ReportFailure(FailedTextures, path))
 					{
-						FailedTextures.Add(path);
 						Interface.AddMessage(MessageType.Error, false, "No plugin found that is capable of loading texture " + path);
 					}
 				}
@@ -208,21 +225,17 @@ namespace OpenBve {
 		/// <param name="timeout">The timeout for loading the texture</param>
 		/// <returns>Whether loading the texture was successful.</returns>
 		public override bool RegisterTexture(string path, TextureParameters parameters, out Texture handle, bool loadTexture = false, int timeout = 1000) {
-			if (File.Exists(path) || Directory.Exists(path)) {
-				if (Program.Renderer.TextureManager.RegisterTexture(path, parameters, out var data)) {
-					handle = data;
-					if (loadTexture)
+			if (Program.Renderer.TextureManager.RegisterTexture(path, parameters, out var data)) {
+				handle = data;
+				if (loadTexture)
+				{
+					Program.Renderer.RunInRenderThread(() =>
 					{
-						Program.Renderer.RunInRenderThread(() =>
-						{
-							LoadTexture(ref data, OpenGlTextureWrapMode.ClampClamp);
-						}, timeout);
+						LoadTexture(ref data, OpenGlTextureWrapMode.ClampClamp);
+					}, timeout);
 
-					}
-					return true;
 				}
-			} else {
-				ReportProblem(ProblemType.PathNotFound, path);
+				return true;
 			}
 			handle = null;
 			return false;
@@ -261,7 +274,7 @@ namespace OpenBve {
 									if (Program.CurrentHost.Plugins[i].Sound.LoadSound(path, out sound)) {
 										return true;
 									}
-									Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadSound");
+									Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadSound for file " + path);
 								} catch (Exception ex) {
 									Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " raised the following exception at LoadSound:" + ex.Message);
 								}
@@ -343,7 +356,7 @@ namespace OpenBve {
 										{
 											staticObject.OptimizeObject(PreserveVertices, Interface.CurrentOptions.ObjectOptimizationBasicThreshold, Interface.CurrentOptions.ObjectOptimizationVertexCulling);
 											Object = staticObject;
-											StaticObjectCache.Add(ValueTuple.Create(path, PreserveVertices, File.GetLastWriteTime(path)), Object);
+											StoreStaticObject(ValueTuple.Create(path.ToLowerInvariant(), PreserveVertices, File.GetLastWriteTime(path)), Object);
 											return true;
 										}
 
@@ -351,10 +364,9 @@ namespace OpenBve {
 										// may be trying to load in different places, so leave
 										Interface.AddMessage(MessageType.Error, false, "Attempted to load " + path + " which is an animated object where only static objects are allowed.");
 									}
-									if(!FailedObjects.Contains(path))
+									if (ReportFailure(FailedObjects, path))
 									{
-										FailedObjects.Add(path);
-										Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadObject");
+										Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadObject for file " + path);
 									}
 									
 								} catch (Exception ex) {
@@ -366,9 +378,8 @@ namespace OpenBve {
 						}
 					}
 				}
-				if (!FailedObjects.Contains(path))
+				if (ReportFailure(FailedObjects, path))
 				{
-					FailedObjects.Add(path);
 					Interface.AddMessage(MessageType.Error, false, "No plugin found that is capable of loading object " + path);
 				}
 				
@@ -411,21 +422,20 @@ namespace OpenBve {
 
 										if (Object is StaticObject staticObject)
 										{
-											StaticObjectCache.Add(ValueTuple.Create(path, false, File.GetLastWriteTime(path)), staticObject);
+											StoreStaticObject(ValueTuple.Create(path.ToLowerInvariant(), false, File.GetLastWriteTime(path)), staticObject);
 											return true;
 										}
 
 										if (Object is AnimatedObjectCollection aoc)
 										{
-											AnimatedObjectCollectionCache.Add(path, aoc);
+											StoreAnimatedObject(path.ToLowerInvariant(), aoc);
 										}
 
 										return true;
 									}
-									if (!FailedObjects.Contains(path))
+									if (ReportFailure(FailedObjects, path))
 									{
-										FailedObjects.Add(path);
-										Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadObject");
+										Interface.AddMessage(MessageType.Error, false, "Plugin " + Program.CurrentHost.Plugins[i].Title + " returned unsuccessfully at LoadObject for file " + path);
 									}
 
 								}
@@ -443,19 +453,20 @@ namespace OpenBve {
 					}
 				}
 				FileInfo f = new FileInfo(path);
+				string nullKey = Path.GetFileNameWithoutExtension(path);
 				if (f.Length == 0)
 				{
-					if (!NullFiles.Contains(Path.GetFileNameWithoutExtension(path).ToLowerInvariant()) && !FailedObjects.Contains(path))
+					bool reportZero = !IsNullFile(nullKey) && ReportFailure(FailedObjects, path);
+					if (reportZero)
 					{
-						FailedObjects.Add(path);
 						Interface.AddMessage(MessageType.Error, false, "Zero-byte object file encountered at " + path);
 					}
 				}
 				else
 				{
-					if (!NullFiles.Contains(Path.GetFileNameWithoutExtension(path).ToLowerInvariant()) && !FailedObjects.Contains(path))
+					bool reportNoPlugin = !IsNullFile(nullKey) && ReportFailure(FailedObjects, path);
+					if (reportNoPlugin)
 					{
-						FailedObjects.Add(path);
 						Interface.AddMessage(MessageType.Error, false, "No plugin found that is capable of loading object " + path);
 					}
 				}
@@ -473,14 +484,14 @@ namespace OpenBve {
 			FunctionScripts.ExecuteFunctionScript(functionScript, (TrainBase)train, CarIndex, Position, TrackPosition, SectionIndex, IsPartOfTrain, TimeElapsed, CurrentState);
 		}
 
-		public override int CreateStaticObject(StaticObject Prototype, Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation, double AccurateObjectDisposalZOffset, double StartingDistance, double EndingDistance, double TrackPosition, double Brightness)
+		public override int CreateStaticObject(StaticObject Prototype, Vector3 Position, ObjectCreationParameters Parameters, Transformation WorldTransformation, Transformation LocalTransformation = null)
 		{
-			return Program.Renderer.CreateStaticObject(Prototype, Position, WorldTransformation, LocalTransformation, Program.CurrentRoute.AccurateObjectDisposal, AccurateObjectDisposalZOffset, StartingDistance, EndingDistance, Program.CurrentRoute.BlockLength, TrackPosition, Brightness);
+			return Program.Renderer.CreateStaticObject(Prototype, Position, WorldTransformation, LocalTransformation, Program.CurrentRoute.AccurateObjectDisposal, Parameters, Program.CurrentRoute.BlockLength);
 		}
 
-		public override int CreateStaticObject(StaticObject Prototype, Vector3 Position, Transformation LocalTransformation, Matrix4D Rotate, Matrix4D Translate, double AccurateObjectDisposalZOffset, double StartingDistance, double EndingDistance, double TrackPosition, double Brightness)
+		public override int CreateStaticObject(StaticObject Prototype, Vector3 Position, Transformation LocalTransformation, Matrix4D Rotate, ObjectCreationParameters Parameters)
 		{
-			return Program.Renderer.CreateStaticObject(Position, Prototype, LocalTransformation, Rotate, Translate, Program.CurrentRoute.AccurateObjectDisposal, AccurateObjectDisposalZOffset, StartingDistance, EndingDistance, Program.CurrentRoute.BlockLength, TrackPosition, Brightness);
+			return Program.Renderer.CreateStaticObject(Position, Prototype, LocalTransformation, Rotate, Program.CurrentRoute.AccurateObjectDisposal, Parameters, Program.CurrentRoute.BlockLength);
 		}
 
 		public override void CreateDynamicObject(ref ObjectState internalObject)
@@ -625,18 +636,7 @@ namespace OpenBve {
 
 		public override void AddScore(int Score, string Message, MessageColor Color, double Timeout)
 		{
-			Game.CurrentScore.CurrentValue += Score;
-			int n = Game.ScoreMessages.Length;
-			Array.Resize(ref Game.ScoreMessages, n + 1);
-			Game.ScoreMessages[n] = new Game.ScoreMessage
-			{
-				Value = Score,
-				Color = Color,
-				RendererPosition = Vector2.Null,
-				RendererAlpha = 0.0,
-				Text = Message,
-				Timeout = Timeout
-			};
+			Game.ScoreMessages.Add(new ScoreMessage(Score, Message, Color, Timeout));
 		}
 
 		// ReSharper disable once CoVariantArrayConversion
@@ -644,14 +644,14 @@ namespace OpenBve {
 			
 			
 
-		public override void AddTrain(AbstractTrain ReferenceTrain, AbstractTrain NewTrain, bool Preccedes)
+		public override void AddTrain(AbstractTrain referenceTrain, AbstractTrain newTrain, bool Preccedes)
 		{
 			
 			int trainIndex = -1;
 			// find index of train within trainmanager array
 			for (int i = 0; i < Program.TrainManager.Trains.Count; i++)
 			{
-				if (Program.TrainManager.Trains[i] == ReferenceTrain)
+				if (Program.TrainManager.Trains[i] == referenceTrain)
 				{
 					trainIndex = i;
 					break;
@@ -665,16 +665,16 @@ namespace OpenBve {
 
 			if (trainIndex == -1)
 			{
-				Program.TrainManager.Trains.Add((TrainBase)NewTrain);
+				Program.TrainManager.Trains.Add((TrainBase)newTrain);
 			}
 			else
 			{
-				Program.TrainManager.Trains.Insert(trainIndex, (TrainBase)NewTrain);
+				Program.TrainManager.Trains.Insert(trainIndex, (TrainBase)newTrain);
 			}
 
 		}
 
-		public override AbstractTrain ClosestTrain(AbstractTrain Train)
+		public override AbstractTrain ClosestTrain(AbstractTrain referenceTrain)
 		{
 			AbstractTrain closestTrain = null;
 			double bestLocation = double.MaxValue;
@@ -689,7 +689,7 @@ namespace OpenBve {
 			 * Sort of thing that will probably want a spinning thread to deal with it possibly
 			 */
 
-			if(Train is TrainBase baseTrain)
+			if(referenceTrain is TrainBase baseTrain)
 			{
 				for (int i = 0; i < Program.TrainManager.Trains.Count; i++)
 				{
@@ -709,7 +709,7 @@ namespace OpenBve {
 			return closestTrain;
 		}
 
-		public override AbstractTrain ClosestTrain(double trackPosition)
+		public override AbstractTrain ClosestTrain(Vector3 worldPosition)
 		{
 			// NOTE: It appears to be possible to produce zero-length trains via poorly written XML
 			//		 Add appropriate guards against this here
@@ -719,19 +719,12 @@ namespace OpenBve {
 			{
 				if (Program.TrainManager.Trains[j].State == TrainState.Available && Program.TrainManager.Trains[j].Cars.Length > 0)
 				{
-					double distance;
-					if (Program.TrainManager.Trains[j].Cars[0].FrontAxle.Follower.TrackPosition < trackPosition)
-					{
-						distance = trackPosition - Program.TrainManager.Trains[j].Cars[0].TrackPosition;
-					}
-					else if (Program.TrainManager.Trains[j].Cars[Program.TrainManager.Trains[j].Cars.Length - 1].RearAxle.Follower.TrackPosition > trackPosition)
-					{
-						distance = Program.TrainManager.Trains[j].Cars[Program.TrainManager.Trains[j].Cars.Length - 1].RearAxle.Follower.TrackPosition - trackPosition;
-					}
-					else
-					{
-						distance = 0;
-					}
+					Vector3 frontAxlePosition = Program.TrainManager.Trains[j].Cars[0].FrontAxle.Follower.WorldPosition;
+					Vector3 rearAxlePosition = Program.TrainManager.Trains[j].Cars[Program.TrainManager.Trains[j].Cars.Length - 1].RearAxle.Follower.WorldPosition;
+					double frontAxleDistance = Math.Abs(Math.Sqrt(((worldPosition.X - frontAxlePosition.X) * (worldPosition.X - frontAxlePosition.X)) + ((worldPosition.Y - frontAxlePosition.Y) * (worldPosition.Y - frontAxlePosition.Y))));
+					double rearAxleDistance = Math.Abs(Math.Sqrt(((worldPosition.X - rearAxlePosition.X) * (worldPosition.X - rearAxlePosition.X)) + ((worldPosition.Y - rearAxlePosition.Y) * (worldPosition.Y - rearAxlePosition.Y))));
+					double distance = Math.Min(frontAxleDistance, rearAxleDistance);
+					
 					if (distance < trainDistance)
 					{
 						closestTrain = Program.TrainManager.Trains[j];
@@ -740,23 +733,16 @@ namespace OpenBve {
 				}
 			}
 
-			for (int j = 0; j < Program.TrainManager.TFOs.Length; j++)
+			for (int j = 0; j < Program.TrainManager.TFOs.Count; j++)
 			{
 				if (Program.TrainManager.TFOs[j] is ScriptedTrain scriptedTrain && scriptedTrain.State == TrainState.Available && scriptedTrain.Cars.Length > 0)
 				{
-					double distance;
-					if (scriptedTrain.Cars[0].FrontAxle.Follower.TrackPosition < trackPosition)
-					{
-						distance = trackPosition - scriptedTrain.Cars[0].TrackPosition;
-					}
-					else if (scriptedTrain.Cars[scriptedTrain.Cars.Length - 1].RearAxle.Follower.TrackPosition > trackPosition)
-					{
-						distance = scriptedTrain.Cars[scriptedTrain.Cars.Length - 1].RearAxle.Follower.TrackPosition - trackPosition;
-					}
-					else
-					{
-						distance = 0;
-					}
+					Vector3 frontAxlePosition = scriptedTrain.Cars[0].FrontAxle.Follower.WorldPosition;
+					Vector3 rearAxlePosition = scriptedTrain.Cars[scriptedTrain.Cars.Length - 1].RearAxle.Follower.WorldPosition;
+					double frontAxleDistance = Math.Abs(Math.Sqrt(((worldPosition.X - frontAxlePosition.X) * (worldPosition.X - frontAxlePosition.X)) + ((worldPosition.Y - frontAxlePosition.Y) * (worldPosition.Y - frontAxlePosition.Y))));
+					double rearAxleDistance = Math.Abs(Math.Sqrt(((worldPosition.X - rearAxlePosition.X) * (worldPosition.X - rearAxlePosition.X)) + ((worldPosition.Y - rearAxlePosition.Y) * (worldPosition.Y - rearAxlePosition.Y))));
+					double distance = Math.Min(frontAxleDistance, rearAxleDistance);
+					
 					if (distance < trainDistance)
 					{
 						closestTrain = scriptedTrain;

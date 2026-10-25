@@ -103,7 +103,7 @@ namespace LibRender2
 			if (VertexLayout.UV >= 0)
 			{
 				GL.VertexAttribPointer(VertexLayout.UV, 2, VertexAttribPointerType.Float, false, vertexSize, offset);
-				offset += Vector2.SizeInBytes; //equivialant to API Vector2
+				offset += Vector2.SizeInBytes; //equivalent to API Vector2
 			}
 
 			if (VertexLayout.Color >= 0)
@@ -115,7 +115,7 @@ namespace LibRender2
 			if (VertexLayout.MatrixChain >= 0)
 			{
 				// NOTE: Must use VertexAttribIPointer here, as VertexAttribPointer actually converts to float and normalizes.....
-				GL.VertexAttribIPointer(VertexLayout.MatrixChain, 1, VertexAttribIntegerType.Int, 48 + sizeof(int), (IntPtr)offset);
+				GL.VertexAttribIPointer(VertexLayout.MatrixChain, 3, VertexAttribIntegerType.Int, vertexSize, (IntPtr)offset);
 			}
 		}
 

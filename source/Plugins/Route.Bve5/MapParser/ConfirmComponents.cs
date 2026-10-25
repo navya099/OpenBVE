@@ -25,16 +25,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Bve5_Parsing.MapGrammar;
 using Bve5_Parsing.MapGrammar.EvaluateData;
 using OpenBveApi.Colors;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
+using OpenBveApi.Objects;
 using OpenBveApi.Sounds;
+// ReSharper disable SwitchStatementMissingSomeEnumCasesNoDefault
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
 		private static void ConfirmCurve(IList<Block> Blocks)
 		{
@@ -67,7 +70,7 @@ namespace Route.Bve5
 
 				int StartBlock = i;
 
-				for (int k = i - 1; k >= 1; k--)
+				for (int k = i - 1; k >= 0; k--)
 				{
 					if (Blocks[k].Rails["0"].CurveTransitionEnd)
 					{
@@ -259,11 +262,6 @@ namespace Route.Bve5
 
 				for (int i = 1; i < Blocks.Count; i++)
 				{
-					if (!Blocks[i].Rails[railKey].InterpolateX)
-					{
-						continue;
-					}
-
 					if (Blocks[i].Rails[railKey].InterpolateX)
 					{
 						double StartDistance = Blocks[lastInterpolateX].StartingDistance;
@@ -360,16 +358,14 @@ namespace Route.Bve5
 					if (StartBlock != i)
 					{
 						double StartDistance = Blocks[StartBlock].StartingDistance;
-						double StartRadius = 0.0;
 						double StartCant = Blocks[StartBlock - 1].Rails[railKey].CurveCant;
 						double EndDistance = Blocks[i].StartingDistance;
-						double EndRadius = 0.0;
 						double EndCant = Blocks[i].Rails[railKey].CurveCant;
 
 						for (int k = StartBlock; k < i; k++)
 						{
 							double CurrentDistance = Blocks[k].StartingDistance;
-							CalcCurveTransition(StartDistance, StartRadius, StartCant, EndDistance, EndRadius, EndCant, CurrentDistance, out _, out Blocks[k].Rails[railKey].CurveCant);
+							CalcCurveTransition(StartDistance, 0.0, StartCant, EndDistance, 0.0, EndCant, CurrentDistance, out _, out Blocks[k].Rails[railKey].CurveCant);
 						}
 					}
 				}
@@ -405,16 +401,14 @@ namespace Route.Bve5
 					if (StartBlock != i)
 					{
 						double StartDistance = Blocks[StartBlock].StartingDistance;
-						double StartRadius = 0.0;
 						double StartCant = Blocks[StartBlock].Rails[railKey].CurveCant;
 						double EndDistance = Blocks[i].StartingDistance;
-						double EndRadius = 0.0;
 						double EndCant = Blocks[i].Rails[railKey].CurveCant;
 
 						for (int k = StartBlock + 1; k < i; k++)
 						{
 							double CurrentDistance = Blocks[k].StartingDistance;
-							CalcCurveTransition(StartDistance, StartRadius, StartCant, EndDistance, EndRadius, EndCant, CurrentDistance, out _, out Blocks[k].Rails[railKey].CurveCant);
+							CalcCurveTransition(StartDistance, 0.0, StartCant, EndDistance, 0.0, EndCant, CurrentDistance, out _, out Blocks[k].Rails[railKey].CurveCant);
 						}
 					}
 				}
@@ -430,76 +424,111 @@ namespace Route.Bve5
 
 			IList<Block> Blocks = RouteData.Blocks;
 
-			foreach (var Statement in ParseData.Statements)
+			// One group per block, so groups run in parallel without sharing state.
+			Dictionary<int, List<Statement>> blockStatements = new Dictionary<int, List<Statement>>();
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.Structure)
 				{
 					continue;
 				}
 
-				switch (Statement.FunctionName)
+				int BlockIndex = RouteData.sortedBlocks.FindBlockIndex(Statement.Distance);
+				if (!blockStatements.TryGetValue(BlockIndex, out List<Statement> blockStatementList))
 				{
-					case MapFunctionName.Put:
-					case MapFunctionName.Put0:
-					{
-						dynamic d = Statement; // HACK: as we don't know which type
-						string TrackKey = d.TrackKey;
-						if (string.IsNullOrEmpty(TrackKey))
-						{
-							TrackKey = "0";
-						}
-
-						if (!RouteData.TrackKeyList.Contains(TrackKey, StringComparer.OrdinalIgnoreCase))
-						{
-							Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Attempted to place Structure " + Statement.Key + " on the non-existent track " + d.TrackKey + " at track position " + Statement.Distance + "m");
-							TrackKey = "0";
-						}
-						
-						double RX = Statement.GetArgumentValueAsDouble(ArgumentName.RX);
-						double RY = Statement.GetArgumentValueAsDouble(ArgumentName.RY);
-						double RZ = Statement.GetArgumentValueAsDouble(ArgumentName.RZ);
-						int Tilt = Statement.GetArgumentValueAsInt(ArgumentName.Tilt);
-						double Span = Statement.GetArgumentValueAsDouble(ArgumentName.Span);
-
-						if (Tilt > 3)
-						{
-							Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Invalid ObjectTransformType for Structure " + Statement.Key + " on track " + d.TrackKey + " at track position " + Statement.Distance + "m");
-							Tilt = 0;
-						}
-
-						int BlockIndex = RouteData.sortedBlocks.FindBlockIndex(Statement.Distance);
-
-						if (!Blocks[BlockIndex].FreeObjects.ContainsKey(TrackKey))
-						{
-							Blocks[BlockIndex].FreeObjects.Add(TrackKey, new List<FreeObj>());
-						}
-
-						Vector3 position = new Vector3(Statement.GetArgumentValueAsDouble(ArgumentName.X), Statement.GetArgumentValueAsDouble(ArgumentName.Y), Statement.GetArgumentValueAsDouble(ArgumentName.Z));
-						Blocks[BlockIndex].FreeObjects[TrackKey].Add(new FreeObj(Statement.Distance, Statement.Key, position, RY * 0.0174532925199433, -RX * 0.0174532925199433, RZtoRoll(RY, RZ) * 0.0174532925199433, (ObjectTransformType)Tilt, Span));
-						}
-						break;
-					case MapFunctionName.PutBetween:
-					{
-						string[] TrackKeys = new string[2];
-						if (!Statement.HasArgument(ArgumentName.TrackKey1) || string.IsNullOrEmpty(TrackKeys[0] = Statement.GetArgumentValueAsString(ArgumentName.TrackKey1)))
-						{
-							TrackKeys[0] = "0";
-						}
-						if (!Statement.HasArgument(ArgumentName.TrackKey2) || string.IsNullOrEmpty(TrackKeys[1] = Statement.GetArgumentValueAsString(ArgumentName.TrackKey2)))
-						{
-							TrackKeys[1] = "0";
-						}
-
-						
-						if (RouteData.TrackKeyList.Contains(TrackKeys[0], StringComparer.OrdinalIgnoreCase) && RouteData.TrackKeyList.Contains(TrackKeys[1]))
-						{
-							int BlockIndex = RouteData.sortedBlocks.FindBlockIndex(Statement.Distance);
-							Blocks[BlockIndex].Cracks.Add(new Crack(Statement.Key, Statement.Distance, TrackKeys[0], TrackKeys[1]));
-						}
-					}
-						break;
+					blockStatementList = new List<Statement>();
+					blockStatements.Add(BlockIndex, blockStatementList);
 				}
+				blockStatementList.Add(Statement);
 			}
+
+			Parallel.ForEach(blockStatements, blockStatementGroup =>
+			{
+				if (plugin.Cancel)
+				{
+					return;
+				}
+				int GroupBlockIndex = blockStatementGroup.Key;
+				foreach (Statement Statement in blockStatementGroup.Value)
+				{
+					switch (Statement.FunctionName)
+					{
+						case MapFunctionName.Put:
+						case MapFunctionName.Put0:
+						{
+							string TrackKey = Statement.GetArgumentValueAsString(ArgumentName.TrackKey);
+							if (string.IsNullOrEmpty(TrackKey))
+							{
+								TrackKey = "0";
+							}
+
+							if (!RouteData.Objects.ContainsKey(Statement.Key))
+							{
+								Plugin.CurrentHost.AddMessage(MessageType.Error, true, "BVE5: Structure " + Statement.Key + " was not found on Track " + TrackKey + " at track position " + Statement.Distance + "m");
+								continue;
+							}
+
+							if (!RouteData.TrackKeyList.Contains(TrackKey, StringComparer.OrdinalIgnoreCase))
+							{
+								Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Attempted to place Structure " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
+								TrackKey = "0";
+							}
+
+							double RX = Statement.GetArgumentValueAsDouble(ArgumentName.RX);
+							double RY = Statement.GetArgumentValueAsDouble(ArgumentName.RY);
+							double RZ = Statement.GetArgumentValueAsDouble(ArgumentName.RZ);
+							int Tilt = Statement.GetArgumentValueAsInt(ArgumentName.Tilt);
+							double Span = Statement.GetArgumentValueAsDouble(ArgumentName.Span);
+
+							if (Tilt < 0 || Tilt > 3)
+							{
+								Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Invalid ObjectTransformType for Structure " + Statement.Key + " on track " + TrackKey + " at track position " + Statement.Distance + "m");
+								// Tilt is a bit flag (1 = gradient, 2 = cant): mask, don't drop.
+								Tilt &= 3;
+							}
+
+							if (!Blocks[GroupBlockIndex].FreeObjects.ContainsKey(TrackKey))
+							{
+								Blocks[GroupBlockIndex].FreeObjects.Add(TrackKey, new List<FreeObj>());
+							}
+
+							Vector3 position = new Vector3(Statement.GetArgumentValueAsDouble(ArgumentName.X), Statement.GetArgumentValueAsDouble(ArgumentName.Y), Statement.GetArgumentValueAsDouble(ArgumentName.Z));
+							Blocks[GroupBlockIndex].FreeObjects[TrackKey].Add(new FreeObj(Statement.Distance, Statement.Key, position, RY.ToRadians(), -RX.ToRadians(), RZtoRoll(RY, RZ).ToRadians(), (ObjectTransformType)Tilt, Span));
+						}
+						break;
+						case MapFunctionName.PutBetween:
+						{
+							string[] TrackKeys = new string[2];
+							if (!Statement.HasArgument(ArgumentName.TrackKey1) || string.IsNullOrEmpty(TrackKeys[0] = Statement.GetArgumentValueAsString(ArgumentName.TrackKey1)))
+							{
+								TrackKeys[0] = "0";
+							}
+							if (!Statement.HasArgument(ArgumentName.TrackKey2) || string.IsNullOrEmpty(TrackKeys[1] = Statement.GetArgumentValueAsString(ArgumentName.TrackKey2)))
+							{
+								TrackKeys[1] = "0";
+							}
+
+							if (!RouteData.Objects.ContainsKey(Statement.Key))
+							{
+								Plugin.CurrentHost.AddMessage(MessageType.Error, true, "BVE5: Structure " + Statement.Key + " was not found for PutBetween Track " + TrackKeys[0] + " and Track " + TrackKeys[1] + " at track position " + Statement.Distance + "m");
+								continue;
+							}
+
+							if (RouteData.TrackKeyList.Contains(TrackKeys[0], StringComparer.OrdinalIgnoreCase) && RouteData.TrackKeyList.Contains(TrackKeys[1]))
+							{
+								double Span = InterpolateInterval;
+								if (RouteData.Objects[Statement.Key] is StaticObject staticObject && staticObject.TryGetDeformationSpan(out double objectSpan))
+								{
+									Span = objectSpan;
+								}
+
+								Blocks[GroupBlockIndex].Cracks.Add(new Crack(Statement.Key, Statement.Distance, TrackKeys[0], TrackKeys[1], Span));
+							}
+						}
+						break;
+					}
+				}
+			});
 		}
 
 		private static void ConfirmRepeater(bool PreviewOnly, MapData ParseData, RouteData RouteData)
@@ -510,31 +539,30 @@ namespace Route.Bve5
 			}
 
 			List<Repeater> RepeaterList = new List<Repeater>();
+			Dictionary<string, List<Statement>> statementsByRepeaterKey = new Dictionary<string, List<Statement>>(StringComparer.InvariantCultureIgnoreCase);
 
-			foreach (var Statement in ParseData.Statements)
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.Repeater)
 				{
 					continue;
 				}
 
-				if (!RepeaterList.Exists(Repeater => Repeater.Key.Equals(Statement.Key, StringComparison.InvariantCultureIgnoreCase)))
+				if (!statementsByRepeaterKey.TryGetValue(Statement.Key, out List<Statement> keyStatements))
 				{
+					keyStatements = new List<Statement>();
+					statementsByRepeaterKey.Add(Statement.Key, keyStatements);
 					RepeaterList.Add(new Repeater(Statement.Key));
 				}
+				keyStatements.Add(Statement);
 			}
 
-			foreach (var Repeater in RepeaterList)
+			for (int repeaterIndex = 0; repeaterIndex < RepeaterList.Count; repeaterIndex++)
 			{
-				double lastDistance = -1;
+				Repeater Repeater = RepeaterList[repeaterIndex];
 				bool possibleEnd = false;
-				foreach (var Statement in ParseData.Statements)
+				foreach (Statement Statement in statementsByRepeaterKey[Repeater.Key])
 				{
-					if (Statement.ElementName != MapElementName.Repeater || !Statement.Key.Equals(Repeater.Key, StringComparison.InvariantCultureIgnoreCase))
-					{
-						continue;
-					}
-
 					switch (Statement.FunctionName)
 					{
 						case MapFunctionName.Begin:
@@ -543,12 +571,12 @@ namespace Route.Bve5
 								if (Repeater.StartRefreshed)
 								{
 									Repeater.EndingDistance = Statement.Distance;
-									PutRepeater(RouteData, Repeater);
+									QueueRepeater(RouteData, Repeater);
 									Repeater.StartRefreshed = false;
 								}
 
-								dynamic d = Statement; // HACK: as we don't know which type
-								string TrackKey = d.TrackKey;
+								dynamic d = Statement; // Concrete statement type is only known at runtime
+								string TrackKey = Statement.GetArgumentValueAsString(ArgumentName.TrackKey);
 								if (string.IsNullOrEmpty(TrackKey))
 								{
 									TrackKey = "0";
@@ -556,7 +584,7 @@ namespace Route.Bve5
 
 								if (!RouteData.TrackKeyList.Contains(TrackKey, StringComparer.OrdinalIgnoreCase))
 								{
-									Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Attempted to place Repeater " + Statement.Key + " on the non-existent track " + d.TrackKey + " at track position " + Statement.Distance + "m");
+									Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Attempted to place Repeater " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
 									TrackKey = "0";
 								}
 								double RX = Statement.GetArgumentValueAsDouble(ArgumentName.RX);
@@ -566,18 +594,19 @@ namespace Route.Bve5
 								double Span = Statement.GetArgumentValueAsDouble(ArgumentName.Span);
 								double Interval = Statement.GetArgumentValueAsDouble(ArgumentName.Interval);
 
-								if (Tilt > 3)
+								if (Tilt < 0 || Tilt > 3)
 								{
-									Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Invalid ObjectTransformType for Repeater " + Statement.Key + " on track " + d.TrackKey + " at track position " + Statement.Distance + "m");
-									Tilt = 0;
+									Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Invalid ObjectTransformType for Repeater " + Statement.Key + " on track " + TrackKey + " at track position " + Statement.Distance + "m");
+									// Tilt is a bit flag (1 = gradient, 2 = cant): mask, don't drop.
+									Tilt &= 3;
 								}
 
 								Repeater.StartingDistance = Statement.Distance;
 								Repeater.TrackKey = Convert.ToString(TrackKey);
 								Repeater.Position = new Vector3(Statement.GetArgumentValueAsDouble(ArgumentName.X), Statement.GetArgumentValueAsDouble(ArgumentName.Y), Statement.GetArgumentValueAsDouble(ArgumentName.Z));
-								Repeater.Yaw = RY * 0.0174532925199433;
-								Repeater.Pitch = -RX * 0.0174532925199433;
-								Repeater.Roll = RZtoRoll(RY, RZ) * 0.0174532925199433;
+								Repeater.Yaw = RY.ToRadians();
+								Repeater.Pitch = -RX.ToRadians();
+								Repeater.Roll = RZtoRoll(RY, RZ).ToRadians();
 								Repeater.Type = (ObjectTransformType)Tilt;
 								Repeater.Span = Span;
 								Repeater.Interval = Interval;
@@ -585,7 +614,16 @@ namespace Route.Bve5
 
 								
 								Repeater.ObjectKeys = new string[d.StructureKeys.Count];
+								HashSet<string> missingObjectKeys = new HashSet<string>();
 								d.StructureKeys.CopyTo(Repeater.ObjectKeys, 0);
+								for (int i = 0; i < Repeater.ObjectKeys.Length; i++)
+								{
+									// Empty keys place nothing; report each missing key only once
+									if (!RouteData.Objects.ContainsKey(Repeater.ObjectKeys[i]) && missingObjectKeys.Add(Repeater.ObjectKeys[i]) && !string.IsNullOrEmpty(Repeater.ObjectKeys[i]))
+									{
+										Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Structure " + Repeater.ObjectKeys[i] + " was not found in Repeater " + Statement.Key + " on track " + TrackKey + " at track position " + Statement.Distance + "m");
+									}
+								}
 								possibleEnd = false;
 							}
 							break;
@@ -594,70 +632,42 @@ namespace Route.Bve5
 							break;
 					}
 
-					/*
-					 * HACK: Commands may no longer be in order after sort by TPos (in BVE5_Parsing), but we can
-					 * work around that by triggering the end on the next track position instead
-					 */
+					// HACK: parsing sorts by distance, so an End can detach:
+					// close the run at the next track position instead.
 
-					if (possibleEnd && lastDistance != Statement.Distance && Repeater.StartRefreshed)
+					if (possibleEnd && Repeater.StartRefreshed)
 					{
 						Repeater.EndingDistance = Statement.Distance;
-						PutRepeater(RouteData, Repeater);
+						QueueRepeater(RouteData, Repeater);
 						Repeater.StartRefreshed = false;
 						possibleEnd = false;
 					}
-
-					lastDistance = Statement.Distance;
-
 				}
 
-				// Hack:
+				// Runs without an End last until the end of the route
 				if (Repeater.StartRefreshed)
 				{
-					double EndTrackPosition = Plugin.CurrentRoute.Stations.Last().Stops.First().TrackPosition + Plugin.CurrentOptions.ViewingDistance;
+					double EndTrackPosition = RouteData.Blocks[RouteData.Blocks.Count - 1].CurrentTrackState.StartingTrackPosition + Plugin.CurrentOptions.ViewingDistance;
+					if (Plugin.CurrentRoute.Stations != null && Plugin.CurrentRoute.Stations.Length != 0)
+					{
+						EndTrackPosition = Plugin.CurrentRoute.Stations.Last().Stops.First().TrackPosition + Plugin.CurrentOptions.ViewingDistance;
+					}
+
 					Repeater.EndingDistance = EndTrackPosition;
-					PutRepeater(RouteData, Repeater);
+					QueueRepeater(RouteData, Repeater);
 					Repeater.StartRefreshed = false;
 				}
 			}
 		}
 
-		private static void PutRepeater(RouteData RouteData, Repeater Repeater)
+		private static void QueueRepeater(RouteData RouteData, Repeater Repeater)
 		{
 			if (Repeater.Interval <= 0.0)
 			{
 				return;
 			}
 
-			string TrackKey = Repeater.TrackKey;
-
-			int LoopCount = 0;
-
-			for (double i = Repeater.StartingDistance; i < Repeater.EndingDistance; i += Repeater.Interval)
-			{
-				int BlockIndex = RouteData.sortedBlocks.FindBlockIndex(i);
-
-				if (!RouteData.Blocks[BlockIndex].FreeObjects.ContainsKey(TrackKey))
-				{
-					RouteData.Blocks[BlockIndex].FreeObjects.Add(TrackKey, new List<FreeObj>());
-				}
-
-				/*
-				 * The relationship between span and interval is an absolute pain in the neck
-				 *
-				 * This seems to get stuff on Chuo Rapid Line looking OK in terms of the gradients
-				 */
-				RouteData.Blocks[BlockIndex].FreeObjects[TrackKey].Add(new FreeObj(i, Repeater.ObjectKeys[LoopCount], Repeater.Position, Repeater.Yaw, Repeater.Pitch, Repeater.Roll, Repeater.Type, Math.Max(Repeater.Interval, Repeater.Span)));
-
-				if (LoopCount >= Repeater.ObjectKeys.Length - 1)
-				{
-					LoopCount = 0;
-				}
-				else
-				{
-					LoopCount++;
-				}
-			}
+			RouteData.Repeaters.Add(new Repeater(Repeater));
 		}
 
 		private static void ConfirmSection(bool PreviewOnly, MapData ParseData, RouteData RouteData)
@@ -671,7 +681,7 @@ namespace Route.Bve5
 			}
 
 
-			foreach (var Statement in ParseData.Statements)
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.Section && !(Statement.ElementName == MapElementName.Signal && Statement.FunctionName == MapFunctionName.SpeedLimit))
 				{
@@ -716,6 +726,44 @@ namespace Route.Bve5
 			}
 		}
 
+		private static double[] CollectSortedSectionPositions(RouteData RouteData)
+		{
+			int total = 0;
+			for (int i = 0; i < RouteData.Blocks.Count; i++)
+			{
+				total += RouteData.Blocks[i].Sections.Count;
+			}
+			double[] positions = new double[total];
+			int index = 0;
+			for (int i = 0; i < RouteData.Blocks.Count; i++)
+			{
+				for (int j = 0; j < RouteData.Blocks[i].Sections.Count; j++)
+				{
+					positions[index++] = RouteData.Blocks[i].Sections[j].TrackPosition;
+				}
+			}
+			Array.Sort(positions);
+			return positions;
+		}
+
+		private static int CountSectionsAtOrBefore(double[] sortedPositions, double distance)
+		{
+			int lo = 0, hi = sortedPositions.Length;
+			while (lo < hi)
+			{
+				int mid = lo + ((hi - lo) >> 1);
+				if (sortedPositions[mid] <= distance)
+				{
+					lo = mid + 1;
+				}
+				else
+				{
+					hi = mid;
+				}
+			}
+			return lo;
+		}
+
 		private static void ConfirmSignal(bool PreviewOnly, MapData ParseData, RouteData RouteData)
 		{
 			if (PreviewOnly)
@@ -723,7 +771,9 @@ namespace Route.Bve5
 				return;
 			}
 
-			foreach (var Statement in ParseData.Statements)
+			double[] sectionPositions = CollectSortedSectionPositions(RouteData);
+
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.Signal || Statement.FunctionName != MapFunctionName.Put)
 				{
@@ -732,7 +782,7 @@ namespace Route.Bve5
 
 				dynamic d = Statement;
 
-				string TrackKey = d.TrackKey;
+				string TrackKey = Statement.GetArgumentValueAsString(ArgumentName.TrackKey);
 				object Section = d.Section;
 				if (string.IsNullOrEmpty(TrackKey))
 				{
@@ -741,7 +791,7 @@ namespace Route.Bve5
 
 				if (!RouteData.TrackKeyList.Contains(TrackKey, StringComparer.OrdinalIgnoreCase))
 				{
-					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Attempted to place Signal " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
+					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Attempted to place Signal " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
 					TrackKey = "0";
 				}
 
@@ -753,7 +803,7 @@ namespace Route.Bve5
 
 				if ((int)Tilt > 3)
 				{
-					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Invalid ObjectTransformType for Signal " + Statement.Key + " on track " + d.TrackKey + " at track position " + Statement.Distance + "m");
+					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Invalid ObjectTransformType for Signal " + Statement.Key + " on track " + TrackKey + " at track position " + Statement.Distance + "m");
 					Tilt = 0;
 				}
 
@@ -768,19 +818,15 @@ namespace Route.Bve5
 						RouteData.Blocks[BlockIndex].Signals[RailIndex] = new List<Signal>();
 					}
 
-					int CurrentSection = 0;
-					for (int i = BlockIndex; i >= 0; i--)
-					{
-						CurrentSection += RouteData.Blocks[i].Sections.Count(s => s.TrackPosition <= Statement.Distance);
-					}
+					int CurrentSection = CountSectionsAtOrBefore(sectionPositions, Statement.Distance);
 
 					Vector3 Position = new Vector3(Statement.GetArgumentValueAsDouble(ArgumentName.X), Statement.GetArgumentValueAsDouble(ArgumentName.Y), Statement.GetArgumentValueAsDouble(ArgumentName.Z));
 					RouteData.Blocks[BlockIndex].Signals[RailIndex].Add(new Signal(Statement.Key, Statement.Distance, Tilt, Span, Position)
 					{
 						SectionIndex = CurrentSection + Convert.ToInt32(Section),
-						Yaw = Convert.ToDouble(RY) * 0.0174532925199433,
-						Pitch = -Convert.ToDouble(RX) * 0.0174532925199433,
-						Roll = RZtoRoll(Convert.ToDouble(RY), Convert.ToDouble(RZ)) * 0.0174532925199433,
+						Yaw = Convert.ToDouble(RY).ToRadians(),
+						Pitch = -Convert.ToDouble(RX).ToRadians(),
+						Roll = RZtoRoll(Convert.ToDouble(RY), Convert.ToDouble(RZ)).ToRadians()
 					});
 				}
 			}
@@ -793,7 +839,9 @@ namespace Route.Bve5
 				return;
 			}
 
-			foreach (var Statement in ParseData.Statements)
+			double[] sectionPositions = CollectSortedSectionPositions(RouteData);
+
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.Beacon)
 				{
@@ -806,11 +854,7 @@ namespace Route.Bve5
 				int BlockIndex = RouteData.sortedBlocks.FindBlockIndex(Statement.Distance);
 
 				int Section = Convert.ToInt32(TempSection);
-				int CurrentSection = 0;
-				for (int i = BlockIndex; i >= 0; i--)
-				{
-					CurrentSection += RouteData.Blocks[i].Sections.Count(s => s.TrackPosition <= Statement.Distance);
-				}
+				int CurrentSection = CountSectionsAtOrBefore(sectionPositions, Statement.Distance);
 
 				if (Section < -1)
 				{
@@ -849,25 +893,21 @@ namespace Route.Bve5
 			{
 				case MapFunctionName.Ambient:
 				{
-					double TempRed, TempGreen, TempBlue;
-					if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out TempRed))
+					if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out double Red))
 					{
-						TempRed = 1.0;
+						Red = 1.0;
 					}
 
-					if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out TempGreen))
+					if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out double Green))
 					{
-						TempGreen = 1.0;
+						Green = 1.0;
 					}
 
-					if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out TempBlue))
+					if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out double Blue))
 					{
-						TempBlue = 1.0;
+						Blue = 1.0;
 					}
 
-					double Red = Convert.ToDouble(TempRed);
-					double Green = Convert.ToDouble(TempGreen);
-					double Blue = Convert.ToDouble(TempBlue);
 					if (Red < 0.0 || Red > 1.0)
 					{
 						Red = Red < 0.0 ? 0.0 : 1.0;
@@ -888,25 +928,21 @@ namespace Route.Bve5
 					break;
 				case MapFunctionName.Diffuse:
 				{
-					double TempRed, TempGreen, TempBlue;
-					if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out TempRed))
+					if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out double Red))
 					{
-						TempRed = 1.0;
+						Red = 1.0;
 					}
 
-					if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out TempGreen))
+					if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out double Green))
 					{
-						TempGreen = 1.0;
+						Green = 1.0;
 					}
 
-					if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out TempBlue))
+					if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out double Blue))
 					{
-						TempBlue = 1.0;
+						Blue = 1.0;
 					}
 
-					double Red = Convert.ToDouble(TempRed);
-					double Green = Convert.ToDouble(TempGreen);
-					double Blue = Convert.ToDouble(TempBlue);
 					if (Red < 0.0 || Red > 1.0)
 					{
 						Red = Red < 0.0 ? 0.0 : 1.0;
@@ -927,19 +963,18 @@ namespace Route.Bve5
 					break;
 				case MapFunctionName.Direction:
 				{
-					double Pitch, Yaw;
-					if (!Statement.HasArgument(ArgumentName.Pitch) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Pitch), out Pitch))
+					if (!Statement.HasArgument(ArgumentName.Pitch) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Pitch), out double Pitch))
 					{
 						Pitch = 60.0;
 					}
 
-					if (!Statement.HasArgument(ArgumentName.Yaw) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Yaw), out Yaw))
+					if (!Statement.HasArgument(ArgumentName.Yaw) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Yaw), out double Yaw))
 					{
 						Yaw = -26.565051177078;
 					}
 
-					double Theta = Convert.ToDouble(Pitch) * 0.0174532925199433;
-					double Phi = Convert.ToDouble(Yaw) * 0.0174532925199433;
+					double Theta = Pitch.ToRadians();
+					double Phi = Yaw.ToRadians();
 					double dx = Math.Cos(Theta) * Math.Sin(Phi);
 					double dy = -Math.Sin(Theta);
 					double dz = Math.Cos(Theta) * Math.Cos(Phi);
@@ -1050,7 +1085,7 @@ namespace Route.Bve5
 				return;
 			}
 
-			foreach (var Statement in ParseData.Statements)
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.FlangeNoise)
 				{

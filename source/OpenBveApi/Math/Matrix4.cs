@@ -1,4 +1,4 @@
-﻿/*
+/*
 Some Matrix math code derived from OpenTK-
 
 Copyright (c) 2006 - 2008 The Open Toolkit library.
@@ -137,7 +137,7 @@ namespace OpenBveApi.Math
 		/// <summary>Checks whether the two specified matrices are equal.</summary>
 		/// <param name="a">The first matrix.</param>
 		/// <param name="b">The second matrix.</param>
-		/// <returns>Whether the two matricies are equal.</returns>
+		/// <returns>Whether the two matrices are equal.</returns>
 		public static bool operator ==(Matrix4D a, Matrix4D b)
 		{
 			if (a.Row0 != b.Row0) return false;
@@ -216,8 +216,8 @@ namespace OpenBveApi.Math
 				z = Vector3.Normalize(eyePosition - targetPosition);
 			}
 
-			Vector3 x = Vector3.Cross(Up, z);
-			Vector3 y = Vector3.Cross(z, x);
+			Vector3 x = Vector3.Normalize(Vector3.Cross(Up, z));
+			Vector3 y = Vector3.Normalize(Vector3.Cross(z, x));
 
 
 			Matrix4D rotationMatrix = new Matrix4D
@@ -248,11 +248,11 @@ namespace OpenBveApi.Math
 			return Frustum(xMin, xMax, yMin, yMax, zNear, zFar);
 		}
 
-		/// <summary>Creates a matrix which transforms camera space to the viewing frustrum</summary>
-		/// <param name="left">The left side of the frustrum</param>
-		/// <param name="right">The right side of the frustrum</param>
-		/// <param name="bottom">The bottom of the frustrum</param>
-		/// <param name="top">The top of the frustrum</param>
+		/// <summary>Creates a matrix which transforms camera space to the viewing frustum</summary>
+		/// <param name="left">The left side of the frustum</param>
+		/// <param name="right">The right side of the frustum</param>
+		/// <param name="bottom">The bottom of the frustum</param>
+		/// <param name="top">The top of the frustum</param>
 		/// <param name="zNear">Distance to the near clip plane</param>
 		/// <param name="zFar">Distance to the far clip plane</param>
 		/// <returns></returns>
@@ -278,22 +278,22 @@ namespace OpenBveApi.Math
 			//https://www.cs.rit.edu/usr/local/pub/wrc/graphics/doc/opengl/books/blue/gluPerspective.html
 			if (fieldOfViewY <= 0 || fieldOfViewY > System.Math.PI)
 			{
-				throw new ArgumentOutOfRangeException("fieldOfViewY", @"fieldOfViewY must be positive and less than Pi");
+				throw new ArgumentOutOfRangeException(nameof(fieldOfViewY), @"fieldOfViewY must be positive and less than Pi");
 			}
 
 			if (aspectRatio <= 0)
 			{
-				throw new ArgumentOutOfRangeException("aspectRatio", @"aspectRatio must be positive");
+				throw new ArgumentOutOfRangeException(nameof(aspectRatio), @"aspectRatio must be positive");
 			}
 
 			if (zNear <= 0)
 			{
-				throw new ArgumentOutOfRangeException("zNear", @"zNear must be positive");
+				throw new ArgumentOutOfRangeException(nameof(zNear), @"zNear must be positive");
 			}
 
 			if (zFar <= 0)
 			{
-				throw new ArgumentOutOfRangeException("zFar", @"zFar must be positive");
+				throw new ArgumentOutOfRangeException(nameof(zFar), @"zFar must be positive");
 			}
 
 			double yMax = zNear * System.Math.Tan(fieldOfViewY * System.Math.PI / 6.28319); //360 degrees in radians
@@ -305,10 +305,10 @@ namespace OpenBveApi.Math
 		}
 
 		/// <summary>Creates a perspective projection matrix, assuming that the eye is located at 0,0,0</summary>
-		/// <param name="left">The left side of the frustrum</param>
-		/// <param name="right">The right side of the frustrum</param>
-		/// <param name="bottom">The bottom of the frustrum</param>
-		/// <param name="top">The top of the frustrum</param>
+		/// <param name="left">The left side of the frustum</param>
+		/// <param name="right">The right side of the frustum</param>
+		/// <param name="bottom">The bottom of the frustum</param>
+		/// <param name="top">The top of the frustum</param>
 		/// <param name="zNear">Distance to the near clip plane</param>
 		/// <param name="zFar">Distance to the far clip plane</param>
 		/// <returns>The perspective projection matrix</returns>
@@ -317,17 +317,17 @@ namespace OpenBveApi.Math
 			//https://www.cs.rit.edu/usr/local/pub/wrc/graphics/doc/opengl/books/blue/glFrustum.html
 			if (zNear <= 0)
 			{
-				throw new ArgumentOutOfRangeException("zNear", @"zNear must be positive");
+				throw new ArgumentOutOfRangeException(nameof(zNear), @"zNear must be positive");
 			}
 
 			if (zFar <= 0)
 			{
-				throw new ArgumentOutOfRangeException("zFar", @"zFar must be positive");
+				throw new ArgumentOutOfRangeException(nameof(zFar), @"zFar must be positive");
 			}
 
 			if (zNear >= zFar)
 			{
-				throw new ArgumentOutOfRangeException("zNear", @"zNear must be less than or equal to zFar");
+				throw new ArgumentOutOfRangeException(nameof(zNear), @"zNear must be less than or equal to zFar");
 			}
 
 			double x = (2.0 * zNear) / (right - left);
@@ -366,7 +366,7 @@ namespace OpenBveApi.Math
 			return result;
 		}
 
-		/// <summary>Adds two matricies</summary>
+		/// <summary>Adds two matrices</summary>
 		/// <param name="left">The left matrix</param>
 		/// <param name="right">The right matrix</param>
 		/// <returns>The final matrix</returns>
@@ -500,7 +500,7 @@ namespace OpenBveApi.Math
 		public static void CreateFromQuaternion(ref Quaternion q, out Matrix4D result)
 		{
 			// Adapted from https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix
-			// with the caviat that opentk uses row-major matrices so the matrix we create is transposed
+			// with the caveat that opentk uses row-major matrices so the matrix we create is transposed
 			double sqx = q.X * q.X;
 			double sqy = q.Y * q.Y;
 			double sqz = q.Z * q.Z;
@@ -601,6 +601,62 @@ namespace OpenBveApi.Math
             return mat;
         }
 
+		/// <summary>Computes the inverse of a 4x4 matrix using cofactor expansion.</summary>
+		public static Matrix4D Inverse(Matrix4D m)
+		{
+			// Extract elements for readability
+			double a00 = m.Row0.X, a01 = m.Row0.Y, a02 = m.Row0.Z, a03 = m.Row0.W;
+			double a10 = m.Row1.X, a11 = m.Row1.Y, a12 = m.Row1.Z, a13 = m.Row1.W;
+			double a20 = m.Row2.X, a21 = m.Row2.Y, a22 = m.Row2.Z, a23 = m.Row2.W;
+			double a30 = m.Row3.X, a31 = m.Row3.Y, a32 = m.Row3.Z, a33 = m.Row3.W;
+
+			double b00 = a00 * a11 - a01 * a10;
+			double b01 = a00 * a12 - a02 * a10;
+			double b02 = a00 * a13 - a03 * a10;
+			double b03 = a01 * a12 - a02 * a11;
+			double b04 = a01 * a13 - a03 * a11;
+			double b05 = a02 * a13 - a03 * a12;
+			double b06 = a20 * a31 - a21 * a30;
+			double b07 = a20 * a32 - a22 * a30;
+			double b08 = a20 * a33 - a23 * a30;
+			double b09 = a21 * a32 - a22 * a31;
+			double b10 = a21 * a33 - a23 * a31;
+			double b11 = a22 * a33 - a23 * a32;
+
+			double det = b00 * b11 - b01 * b10 + b02 * b09 +
+			             b03 * b08 - b04 * b07 + b05 * b06;
+
+			if (System.Math.Abs(det) < 1e-12)
+			{
+				return Identity; // singular matrix fallback
+			}
+
+			double invDet = 1.0 / det;
+
+			Matrix4D result;
+			result.Row0.X = (a11 * b11 - a12 * b10 + a13 * b09) * invDet;
+			result.Row0.Y = (-a01 * b11 + a02 * b10 - a03 * b09) * invDet;
+			result.Row0.Z = (a31 * b05 - a32 * b04 + a33 * b03) * invDet;
+			result.Row0.W = (-a21 * b05 + a22 * b04 - a23 * b03) * invDet;
+
+			result.Row1.X = (-a10 * b11 + a12 * b08 - a13 * b07) * invDet;
+			result.Row1.Y = (a00 * b11 - a02 * b08 + a03 * b07) * invDet;
+			result.Row1.Z = (-a30 * b05 + a32 * b02 - a33 * b01) * invDet;
+			result.Row1.W = (a20 * b05 - a22 * b02 + a23 * b01) * invDet;
+
+			result.Row2.X = (a10 * b10 - a11 * b08 + a13 * b06) * invDet;
+			result.Row2.Y = (-a00 * b10 + a01 * b08 - a03 * b06) * invDet;
+			result.Row2.Z = (a30 * b04 - a31 * b02 + a33 * b00) * invDet;
+			result.Row2.W = (-a20 * b04 + a21 * b02 - a23 * b00) * invDet;
+
+			result.Row3.X = (-a10 * b09 + a11 * b07 - a12 * b06) * invDet;
+			result.Row3.Y = (a00 * b09 - a01 * b07 + a02 * b06) * invDet;
+			result.Row3.Z = (-a30 * b03 + a31 * b01 - a32 * b00) * invDet;
+			result.Row3.W = (a20 * b03 - a21 * b01 + a22 * b00) * invDet;
+
+			return result;
+		}
+
         /// <summary>
         /// Inverts a matrix
         /// </summary>
@@ -639,7 +695,7 @@ namespace OpenBveApi.Math
             result.Row3.W = d1 * (m11 * m22 * m33 + m12 * m23 * m31 + m13 * m21 * m32 - m11 * m23 * m32 - m12 * m21 * m33 - m13 * m22 * m31);
         }
 
-        void InvertAffine(ref Matrix4D result)
+        private void InvertAffine(ref Matrix4D result)
         {
             double m11 = Row0.X, m12 = Row0.Y, m13 = Row0.Z, m14 = Row0.W,
             m21 = Row1.X, m22 = Row1.Y, m23 = Row1.Z, m24 = Row1.W,
@@ -788,6 +844,9 @@ namespace OpenBveApi.Math
 		public static readonly Matrix4D NoTransformation = new Matrix4D(Vector4.UnitX, Vector4.UnitY, Vector4.UnitZ, Vector4.UnitW);
 
 		/// <summary>Represents an identity matrix</summary>
-		public static Matrix4D Identity = new Matrix4D(Vector4.UnitX, Vector4.UnitY, Vector4.UnitZ, Vector4.UnitW);
+		public static readonly Matrix4D Identity = new Matrix4D(Vector4.UnitX, Vector4.UnitY, Vector4.UnitZ, Vector4.UnitW);
+
+		/// <summary> A matrix performing a Z-axis flip</summary>
+		public static readonly Matrix4D ZFlip = Matrix4D.CreateFromAxisAngle(Vector3.Down, 3.14159);
 	}
 }

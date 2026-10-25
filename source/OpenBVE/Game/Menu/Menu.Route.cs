@@ -1,11 +1,6 @@
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
-using System.Drawing;
-using System.IO;
-using System.Text;
 using LibRender2.Menu;
 using LibRender2.Primitives;
+using LibRender2.Screens;
 using OpenBveApi;
 using OpenBveApi.Colors;
 using OpenBveApi.Hosts;
@@ -13,6 +8,12 @@ using OpenBveApi.Interface;
 using OpenBveApi.Packages;
 using OpenBveApi.Textures;
 using RouteManager2;
+using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Drawing;
+using System.IO;
+using System.Text;
 using Path = OpenBveApi.Path;
 
 namespace OpenBve
@@ -38,6 +39,8 @@ namespace OpenBve
 		private static readonly Picturebox switchMapPictureBox = new Picturebox(Program.Renderer);
 		private static readonly Button nextImageButton = new Button(Program.Renderer, "->");
 		private static readonly Button previousImageButton = new Button(Program.Renderer, "<-");
+		private static readonly Button nextStepButton = new Button(Program.Renderer, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "start", "train_choose" }));
+
 
 		private static Texture routeImageTexture;
 		private static Texture routeMapTexture;
@@ -73,6 +76,83 @@ namespace OpenBve
 			routePictureBox.Texture = routePictureBox.Texture == routeImageTexture ? routeMapTexture : routeImageTexture;
 		}
 
+		private static void nextStepButton_Click(object sender, EventArgs e)
+		{
+			switch (Instance.Menus[Instance.CurrMenu].Type)
+			{
+				case MenuType.RouteList:
+					// Route not fully processed
+					if (RoutefileState != RouteState.Processed)
+						return;
+					Instance.PushMenu(MenuType.TrainDefault);
+					return;
+				case MenuType.TrainDefault:
+				case MenuType.TrainList:
+					// No train selected
+					if (Interface.CurrentOptions.TrainFolder == string.Empty)
+						return;
+					Instance.Reset();
+					//Launch the game!
+					Loading.Complete = false;
+					MainLoop.currentResult.RouteFile = currentFile;
+					MainLoop.currentResult.TrainFolder = Interface.CurrentOptions.TrainFolder;
+					Loading.LoadAsynchronously(currentFile, Encoding.UTF8, Interface.CurrentOptions.TrainFolder, Encoding.UTF8);
+					OpenBVEGame g = Program.Renderer.GameWindow as OpenBVEGame;
+					// ReSharper disable once PossibleNullReferenceException
+					g.LoadingScreenLoop();
+					Program.Renderer.CurrentInterface = InterfaceType.Normal;
+					return;
+
+				case MenuType.PackageInstall:
+					if (currentPackage != null)
+					{
+						switch (currentPackage.PackageType)
+						{
+							case PackageType.Route:
+								installedFiles = string.Empty;
+								Manipulation.ExtractPackage(currentPackage, Program.FileSystem.RouteInstallationDirectory, Program.FileSystem.PackageDatabaseFolder, ref installedFiles);
+								break;
+							case PackageType.Train:
+								installedFiles = string.Empty;
+								Manipulation.ExtractPackage(currentPackage, Program.FileSystem.TrainInstallationDirectory, Program.FileSystem.PackageDatabaseFolder, ref installedFiles);
+								break;
+							case PackageType.Other:
+								installedFiles = string.Empty;
+								Manipulation.ExtractPackage(currentPackage, Program.FileSystem.OtherInstallationDirectory, Program.FileSystem.PackageDatabaseFolder, ref installedFiles);
+								break;
+						}
+					}
+					break;
+				case MenuType.UninstallRoute:
+				case MenuType.UninstallTrain:
+				case MenuType.UninstallOther:
+					string s = string.Empty;
+					if (Manipulation.UninstallPackage(currentPackage, Program.FileSystem.PackageDatabaseFolder, ref s))
+					{
+						switch (currentPackage.PackageType)
+						{
+							case PackageType.Route:
+								DatabaseFunctions.CleanDirectory(Program.FileSystem.RouteInstallationDirectory, ref s);
+								Database.currentDatabase.InstalledRoutes.Remove(currentPackage);
+								break;
+							case PackageType.Train:
+								DatabaseFunctions.CleanDirectory(Program.FileSystem.TrainInstallationDirectory, ref s);
+								Database.currentDatabase.InstalledTrains.Remove(currentPackage);
+								break;
+							case PackageType.Other:
+								DatabaseFunctions.CleanDirectory(Program.FileSystem.OtherInstallationDirectory, ref s);
+								Database.currentDatabase.InstalledOther.Remove(currentPackage);
+								break;
+						}
+						routeDescriptionBox.Text = s;
+						Database.SaveDatabase();
+					}
+
+					Instance.PopMenu();
+					break;
+			}
+		}
+
 		private static void packageWorkerThread_completed(object sender, RunWorkerCompletedEventArgs e)
 		{
 			if (currentPackage != null)
@@ -94,7 +174,7 @@ namespace OpenBve
 			nextImageButton.IsVisible = false;
 			previousImageButton.IsVisible = false;
 			RouteEncoding = TextEncoding.GetSystemEncodingFromFile(currentFile);
-			Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\loading.png"), new TextureParameters(null, null), out routePictureBox.Texture);
+			Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\loading.png"), TextureParameters.NoChange, out routePictureBox.Texture);
 			routeDescriptionBox.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"start","route_processing"});
 			Game.Reset(false);
 			bool loaded = false;
@@ -104,7 +184,7 @@ namespace OpenBve
 				{
 					// ReSharper disable once RedundantCast
 					object Route = (object)Program.CurrentRoute; // must cast to allow us to use the ref keyword correctly.
-					string RailwayFolder = Loading.GetRailwayFolder(currentFile);
+					string RailwayFolder = Program.FileSystem.GetRailwayFolder(currentFile, System.Windows.Forms.Application.StartupPath);
 					string ObjectFolder = Path.CombineDirectory(RailwayFolder, "Object");
 					string SoundFolder = Path.CombineDirectory(RailwayFolder, "Sound");
 					if (Program.CurrentHost.Plugins[i].Route.LoadRoute(currentFile, RouteEncoding, null, ObjectFolder, SoundFolder, true, ref Route))
@@ -136,7 +216,7 @@ namespace OpenBve
 			RoutefileState = RouteState.Processed;
 			if (e.Error != null || Program.CurrentRoute == null)
 			{
-				Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_error.png"), new TextureParameters(null, null), out routePictureBox.Texture);
+				Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_error.png"), TextureParameters.NoChange, out routePictureBox.Texture);
 				if (e.Error != null)
 				{
 					routeDescriptionBox.Text = e.Error.Message;
@@ -155,11 +235,11 @@ namespace OpenBve
 					{
 						if (File.Exists(Program.CurrentRoute.Image))
 						{
-							Program.CurrentHost.RegisterTexture(Program.CurrentRoute.Image, new TextureParameters(null, null), out routeImageTexture);
+							Program.CurrentHost.RegisterTexture(Program.CurrentRoute.Image, TextureParameters.NoChange, out routeImageTexture);
 						}
 						else
 						{
-							Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_unknown.png"), new TextureParameters(null, null), out routeImageTexture);
+							Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_unknown.png"), TextureParameters.NoChange, out routeImageTexture);
 						}
 
 						
@@ -178,16 +258,16 @@ namespace OpenBve
 						string g = Path.CombineFile(Path.GetDirectoryName(currentFile),
 							System.IO.Path.GetFileNameWithoutExtension(currentFile) + f[i]);
 						if (!File.Exists(g)) continue;
-						Program.CurrentHost.RegisterTexture(g, new TextureParameters(null, null), out routeImageTexture);
+						Program.CurrentHost.RegisterTexture(g, TextureParameters.NoChange, out routeImageTexture);
 						break;
 					}
 					if (i == f.Length)
 					{
-						Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_unknown.png"), new TextureParameters(null, null), out routeImageTexture);
+						Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_unknown.png"), TextureParameters.NoChange, out routeImageTexture);
 					}
 				}
 
-				routeMapTexture = new Texture(Illustrations.CreateRouteMap((int)routePictureBox.Size.X, (int)routePictureBox.Size.Y, false, out _));
+				routeMapTexture = new Texture(Illustrations.CreateRouteMap((int)routePictureBox.Size.X, (int)routePictureBox.Size.Y, false, out _, font: Program.Renderer.Fonts.NormalFont.Font));
 				nextImageButton.IsVisible = true;
 				previousImageButton.IsVisible = true;
 				routePictureBox.Texture = routeImageTexture;
@@ -198,7 +278,7 @@ namespace OpenBve
 			}
 			catch (Exception ex)
 			{
-				Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_error.png"), new TextureParameters(null, null), out routePictureBox.Texture);
+				Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\route_error.png"), TextureParameters.NoChange, out routePictureBox.Texture);
 				routeDescriptionBox.Text = ex.Message;
 				currentFile = null;
 			}

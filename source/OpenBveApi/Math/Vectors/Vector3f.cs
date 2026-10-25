@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Globalization;
 // ReSharper disable MergeCastWithTypeCheck
+// ReSharper disable InconsistentNaming
 
 namespace OpenBveApi.Math {
 	/// <summary>Represents a three-dimensional vector.</summary>
@@ -68,7 +69,7 @@ namespace OpenBveApi.Math {
 		/// <param name="stringToParse">The string to parse</param>
 		/// <param name="separator">The separator character</param>
 		/// <param name="v">The out Vector</param>
-		/// <returns>True if parsing succeded with no errors, false otherwise</returns>
+		/// <returns>True if parsing succeeded with no errors, false otherwise</returns>
 		/// <remarks>This will always return a Vector3f.
 		/// If any part fails parsing, it will be set to zero</remarks>
 		public static bool TryParse(string stringToParse, char separator, out Vector3f v)
@@ -436,10 +437,10 @@ namespace OpenBveApi.Math {
 			double norm = vector.X * vector.X + vector.Y * vector.Y + vector.Z * vector.Z;
 			if (norm == 0.0) {
 				throw new DivideByZeroException();
-			} else {
-				double factor = 1.0 / System.Math.Sqrt(norm);
-				return new Vector3f(vector.X * factor, vector.Y * factor, vector.Z * factor);
 			}
+
+			double factor = 1.0 / System.Math.Sqrt(norm);
+			return new Vector3f(vector.X * factor, vector.Y * factor, vector.Z * factor);
 		}
 		
 		/// <summary>Translates a vector by a specified offset.</summary>
@@ -515,10 +516,10 @@ namespace OpenBveApi.Math {
 			if (norm != 0.0) {
 				normal *= 1.0 / System.Math.Sqrt(norm);
 				return true;
-			} else {
-				normal = Vector3f.Up;
-				return false;
 			}
+
+			normal = Vector3f.Up;
+			return false;
 		}
 		
 		/// <summary>Checks whether three spatial coordinates are colinear.</summary>

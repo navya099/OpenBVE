@@ -18,6 +18,12 @@ namespace OpenBveApi.Objects
 		/// <remarks>Disabled by default</remarks>
 		CrossFadeTexture = 8,
 		/// <summary>Alpha is disabled when rendering</summary>
-		DisableTextureAlpha = 16
+		DisableTextureAlpha = 16,
+		/// <summary>The material casts no shadows</summary>
+		NoShadow = 32,
+		/// <summary>The material has a separate specular light color</summary>
+		Specular = 64,
+		/// <summary>The transparent color is used only if this file is a BMP</summary>
+		TransparentColorBmp = 128
 	}
 }

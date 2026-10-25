@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using OpenBveApi;
@@ -14,7 +14,7 @@ namespace CsvRwRouteParser
 	{
 		internal Dictionary<string, RoutefilePatch> availableRoutefilePatches = new Dictionary<string, RoutefilePatch>();
 
-		private void CheckForAvailablePatch(string FileName, ref RouteData Data, ref Expression[] Expressions, bool PreviewOnly)
+		private void CheckForAvailablePatch(string FileName, ref RouteData Data, ref IList<Expression> Expressions, bool PreviewOnly)
 		{
 			if (Plugin.CurrentOptions.EnableBveTsHacks == false)
 			{
@@ -22,9 +22,8 @@ namespace CsvRwRouteParser
 			}
 
 			string fileHash = Path.GetChecksum(FileName);
-			if (availableRoutefilePatches.ContainsKey(fileHash))
+			if (availableRoutefilePatches.TryGetValue(fileHash, out RoutefilePatch patch))
 			{
-				RoutefilePatch patch = availableRoutefilePatches[fileHash];
 				if (patch.Incompatible)
 				{
 					throw new Exception("This routefile is incompatible with OpenBVE: " + Environment.NewLine + Environment.NewLine + patch.LogMessage);
@@ -38,6 +37,8 @@ namespace CsvRwRouteParser
 
 				EnabledHacks.CylinderHack = patch.CylinderHack;
 				EnabledHacks.DisableSemiTransparentFaces = patch.DisableSemiTransparentFaces;
+				EnabledHacks.InsufficientWallDikeArguments = patch.InsufficientWallDikeArguments;
+				EnabledHacks.RailEndedObject = patch.RailEndedObject;
 				Plugin.CurrentOptions.ObjectDisposalMode = patch.AccurateObjectDisposal ? ObjectDisposalMode.Accurate : ObjectDisposalMode.Legacy;
 
 				for (int i = 0; i < patch.ExpressionFixes.Count; i++)
@@ -53,6 +54,7 @@ namespace CsvRwRouteParser
 				Plugin.CurrentOptions.Derailments = patch.Derailments;
 				Plugin.CurrentOptions.Toppling = patch.Toppling;
 				Plugin.CurrentOptions.DelayedAnimatedUpdates = patch.DelayedAnimatedUpdates;
+				Plugin.CurrentOptions.AdhesionHack = patch.AdhesionHack;
 				SplitLineHack = patch.SplitLineHack;
 				AllowTrackPositionArguments = patch.AllowTrackPositionArguments;
 				foreach (int i in patch.DummyRailTypes)
@@ -90,10 +92,14 @@ namespace CsvRwRouteParser
 				{
 					Plugin.CurrentOptions.ViewingDistance = patch.ViewingDistance;
 				}
+				else if (patch.MaxViewingDistance != int.MaxValue && Plugin.CurrentOptions.ViewingDistance > patch.MaxViewingDistance)
+				{
+					Plugin.CurrentOptions.ViewingDistance = patch.MaxViewingDistance;
+				}
 
 				if (patch.ColonFix)
 				{
-					for (int i = 0; i < Expressions.Length; i++)
+					for (int i = 0; i < Expressions.Count; i++)
 					{
 						Expressions[i].Text = Expressions[i].Text.Replace(':', ';');
 					}
@@ -131,10 +137,10 @@ namespace CsvRwRouteParser
 		/// <summary>Whether toppling is enabled</summary>
 		internal bool Toppling = false;
 		/// <summary>Dummy railtypes to be added to fix broken cycles</summary>
-		internal List<int> DummyRailTypes = new List<int>();
+		internal int[] DummyRailTypes = Array.Empty<int>();
 		/// <summary>Dummy ground types to be added to fix broken cycles</summary>
-		internal List<int> DummyGroundTypes = new List<int>();
-		/// <summary>The compatability signal file to use</summary>
+		internal int[] DummyGroundTypes = Array.Empty<int>();
+		/// <summary>The compatibility signal file to use</summary>
 		internal string CompatibilitySignalSet;
 		/// <summary>Forces accurate object disposal on or off</summary>
 		internal bool AccurateObjectDisposal;
@@ -149,11 +155,19 @@ namespace CsvRwRouteParser
 		internal bool ReducedColorTransparency;
 		/// <summary>The viewing distance to use</summary>
 		internal int ViewingDistance = int.MaxValue;
+		/// <summary>The maximum viewing distance to use</summary>
+		internal int MaxViewingDistance = int.MaxValue;
 		/// <summary>Whether the route is incompatible with OpenBVE</summary>
 		internal bool Incompatible = false;
 		/// <summary>Whether aggressive RW bracket fixing is applied</summary>
 		internal bool AggressiveRwBrackets = false;
 		/// <summary>Whether animated object updates are delayed based upon distance</summary>
 		internal bool DelayedAnimatedUpdates = false;
+		/// <summary>Whether adhesion is infinite (no wheelslip)</summary>
+		internal bool AdhesionHack = false;
+		/// <summary>Whether walls / dikes with insufficient arguments are allowed</summary>
+		internal bool InsufficientWallDikeArguments;
+		/// <summary>Whether the RailEnded object behaviour is reproduced</summary>
+		internal bool RailEndedObject;
 	}
 }

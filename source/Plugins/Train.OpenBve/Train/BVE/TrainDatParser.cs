@@ -27,6 +27,9 @@ namespace Train.OpenBve
 			Plugin = plugin;
 		}
 
+		// Multiply km/h values by this to get m/s
+		private const double KmhToMs = 0.277777777777778;
+
 		/// <summary>
 		/// Read the file of the specified train.dat
 		/// </summary>
@@ -59,8 +62,9 @@ namespace Train.OpenBve
 			}
 			else if (lines.Length == 0)
 			{
-				//Catch zero-length train.dat files
-				throw new Exception("The train.dat file " + fileName + " is of zero length.");
+				// Report empty files and fall back to defaults instead of crashing
+				Plugin.CurrentHost.AddMessage(MessageType.Error, false, "The train.dat file " + fileName + " is of zero length.");
+				return lines;
 			}
 
 			for (int i = 0; i < lines.Length; i++)
@@ -83,6 +87,17 @@ namespace Train.OpenBve
 
 			return lines;
 		}
+
+		// Parse a comma-separated list of numbers, using 0 for anything unreadable
+		private static double[] ParseDoubleArray(string line)
+		{
+			return line.Split(',').Select(x => { double v; NumberFormats.TryParseDoubleVb6(x.Trim(), out v); return v; }).ToArray();
+		}
+
+		// Location suffix shared by every train error message
+		private static string At(int lineNumber, string fileName) =>
+			" at line " + lineNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)
+			+ " in " + fileName;
 
 		/// <summary>Parse the format of the specified train.dat</summary>
 		/// <param name="lines">The array of the specified train.dat</param>
@@ -139,14 +154,13 @@ namespace Train.OpenBve
 							}
 							return TrainDatFormats.openBVE;
 						}
-						else if (t.ToLowerInvariant().StartsWith("bve"))
+
+						if (t.ToLowerInvariant().StartsWith("bve"))
 						{
 							return TrainDatFormats.UnknownBVE;
 						}
-						else
-						{
-							return TrainDatFormats.Unsupported;
-						}
+
+						return TrainDatFormats.Unsupported;
 				}
 			}
 			return TrainDatFormats.Unsupported;
@@ -225,7 +239,7 @@ namespace Train.OpenBve
 			BrakeSystemType locomotiveBrakeType = BrakeSystemType.ElectromagneticStraightAirBrake;
 			EletropneumaticBrakeType ElectropneumaticType = EletropneumaticBrakeType.None;
 			double BrakeControlSpeed = 0.0;
-			double BrakeDeceleration = 0.277777777777778;
+			double BrakeDeceleration = KmhToMs;
 			double JerkPowerUp = 10.0;
 			double JerkPowerDown = 10.0;
 			double JerkBrakeUp = 10.0;
@@ -244,7 +258,7 @@ namespace Train.OpenBve
 			double CarWidth = 2.6;
 			double CarHeight = 3.6;
 			double CenterOfGravityHeight = 1.6;
-			double CarExposedFrontalArea = 0.6 * CarWidth * CarHeight;
+			double CarExposedFrontalArea = 0.65 * CarWidth * CarHeight;
 			double CarUnexposedFrontalArea = 0.2 * CarWidth * CarHeight;
 			bool FrontCarIsMotorCar = true;
 			double DoorWidth = 1000.0;
@@ -295,29 +309,29 @@ namespace Train.OpenBve
 									switch (m) {
 										case 0:
 											if (a <= 0.0) {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "a0 in section #ACCELERATION is expected to be greater than zero at line " + (i + 1).ToString(Culture) + " in file " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "a0 in section #ACCELERATION is expected to be greater than zero" + At(i + 1, FileName));
 											} else {
-												AccelerationCurves[n].StageZeroAcceleration = a * 0.277777777777778;
+												AccelerationCurves[n].StageZeroAcceleration = a * KmhToMs;
 											} break;
 										case 1:
 											if (a <= 0.0) {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "a1 in section #ACCELERATION is expected to be greater than zero at line " + (i + 1).ToString(Culture) + " in file " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "a1 in section #ACCELERATION is expected to be greater than zero" + At(i + 1, FileName));
 											} else {
-												AccelerationCurves[n].StageOneAcceleration = a * 0.277777777777778;
+												AccelerationCurves[n].StageOneAcceleration = a * KmhToMs;
 											} break;
 										case 2:
 											if (a <= 0.0) {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "v1 in section #ACCELERATION is expected to be greater than zero at line " + (i + 1).ToString(Culture) + " in file " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "v1 in section #ACCELERATION is expected to be greater than zero" + At(i + 1, FileName));
 											} else {
-												AccelerationCurves[n].StageOneSpeed = a * 0.277777777777778;
+												AccelerationCurves[n].StageOneSpeed = a * KmhToMs;
 											} break;
 										case 3:
 											if (a <= 0.0) {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "v2 in section #ACCELERATION is expected to be greater than zero at line " + (i + 1).ToString(Culture) + " in file " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "v2 in section #ACCELERATION is expected to be greater than zero" + At(i + 1, FileName));
 											} else {
-												AccelerationCurves[n].StageTwoSpeed = a * 0.277777777777778;
+												AccelerationCurves[n].StageTwoSpeed = a * KmhToMs;
 												if (AccelerationCurves[n].StageTwoSpeed < AccelerationCurves[n].StageOneSpeed) {
-													Plugin.CurrentHost.AddMessage(MessageType.Error, false, "v2 in section #ACCELERATION is expected to be greater than or equal to v1 at line " + (i + 1).ToString(Culture) + " in file " + FileName);
+													Plugin.CurrentHost.AddMessage(MessageType.Error, false, "v2 in section #ACCELERATION is expected to be greater than or equal to v1" + At(i + 1, FileName));
 													AccelerationCurves[n].StageTwoSpeed = AccelerationCurves[n].StageOneSpeed;
 												}
 											} break;
@@ -326,7 +340,7 @@ namespace Train.OpenBve
 												if (currentFormat == TrainDatFormats.BVE1200000 || currentFormat == TrainDatFormats.BVE1210000 || currentFormat == TrainDatFormats.BVE1220000) {
 													if (a <= 0.0) {
 														AccelerationCurves[n].StageTwoExponent = 1.0;
-														Plugin.CurrentHost.AddMessage(MessageType.Error, false, "e in section #ACCELERATION is expected to be positive at line " + (i + 1).ToString(Culture) + " in file " + FileName);
+														Plugin.CurrentHost.AddMessage(MessageType.Error, false, "e in section #ACCELERATION is expected to be positive" + At(i + 1, FileName));
 													} else {
 														const double c = 4.439346232277577;
 														AccelerationCurves[n].StageTwoExponent = 1.0 - Math.Log(a) * AccelerationCurves[n].StageTwoSpeed * c;
@@ -354,15 +368,16 @@ namespace Train.OpenBve
 								switch (n) {
 									case 0:
 										if (a < 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeDeceleration is expected to be non-negative at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeDeceleration is expected to be non-negative" + At(i + 1, FileName));
 										} else {
-											BrakeDeceleration = a * 0.277777777777778;
+											BrakeDeceleration = a * KmhToMs;
 										} break;
 									case 1:
 										if (a < 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CoefficientOfStaticFriction is expected to be non-negative at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CoefficientOfStaticFriction is expected to be non-negative" + At(i + 1, FileName));
 										} else {
-											if (Plugin.CurrentOptions.EnableBveTsHacks && (a > 0.1 || a < 1.0))
+											// With BVE-TS hacks on, skip implausible values instead of using them
+											if (Plugin.CurrentOptions.EnableBveTsHacks && (a <= 0.1 || a >= 1.0))
 											{
 												break;
 											}
@@ -370,13 +385,13 @@ namespace Train.OpenBve
 										} break;
 									case 3:
 										if (a < 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CoefficientOfRollingResistance is expected to be non-negative at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CoefficientOfRollingResistance is expected to be non-negative" + At(i + 1, FileName));
 										} else {
 											CoefficientOfRollingResistance = a;
 										} break;
 									case 4:
 										if (a < 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "AerodynamicDragCoefficient is expected to be non-negative at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "AerodynamicDragCoefficient is expected to be non-negative" + At(i + 1, FileName));
 										} else {
 											AerodynamicDragCoefficient = a;
 										} break;
@@ -391,7 +406,7 @@ namespace Train.OpenBve
 									case 0:
 										if (currentFormat == TrainDatFormats.openBVE && myVersion >= 1534)
 										{
-											powerDelayUp = Lines[i].Split( ',').Select(x => Double.Parse(x, Culture)).ToArray();
+											powerDelayUp = ParseDoubleArray(Lines[i]);
 										}
 										else
 										{
@@ -405,7 +420,7 @@ namespace Train.OpenBve
 									case 1:
 										if (currentFormat == TrainDatFormats.openBVE && myVersion >= 1534)
 										{
-											powerDelayDown = Lines[i].Split(',').Select(x => Double.Parse(x, Culture)).ToArray();
+											powerDelayDown = ParseDoubleArray(Lines[i]);
 										}
 										else
 										{
@@ -419,7 +434,7 @@ namespace Train.OpenBve
 									case 2:
 										if (currentFormat == TrainDatFormats.openBVE && myVersion >= 1534)
 										{
-											brakeDelayUp = Lines[i].Split(',').Select(x => Double.Parse(x, Culture)).ToArray();
+											brakeDelayUp = ParseDoubleArray(Lines[i]);
 										}
 										else
 										{
@@ -433,7 +448,7 @@ namespace Train.OpenBve
 									case 3:
 										if (currentFormat == TrainDatFormats.openBVE && myVersion >= 1534)
 										{
-											brakeDelayDown = Lines[i].Split(',').Select(x => Double.Parse(x, Culture)).ToArray();
+											brakeDelayDown = ParseDoubleArray(Lines[i]);
 										}
 										else
 										{
@@ -464,7 +479,7 @@ namespace Train.OpenBve
 												}
 												else if (myVersion >= 1534)
 												{
-													locoBrakeDelayUp = Lines[i].Split(',').Select(x => Double.Parse(x, Culture)).ToArray();
+													locoBrakeDelayUp = ParseDoubleArray(Lines[i]);
 												}
 												else
 												{
@@ -491,7 +506,7 @@ namespace Train.OpenBve
 												}
 												else if(myVersion >= 1534)
 												{
-													locoBrakeDelayDown = Lines[i].Split(',').Select(x => Double.Parse(x, Culture)).ToArray();
+													locoBrakeDelayDown = ParseDoubleArray(Lines[i]);
 												}
 												else
 												{
@@ -521,7 +536,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkPowerUp is expected to be non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkPowerUp is expected to be non-zero" + At(i + 1, FileName));
 										}
 										break;
 									case 1:
@@ -531,7 +546,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkPowerDown is expected to be non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkPowerDown is expected to be non-zero" + At(i + 1, FileName));
 										}
 										break;
 									case 2:
@@ -541,7 +556,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkBrakeUp is expected to be non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkBrakeUp is expected to be non-zero" + At(i + 1, FileName));
 										}
 										break;
 									case 3:
@@ -551,7 +566,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkBrakeDown is expected to be non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "JerkBrakeDown is expected to be non-zero" + At(i + 1, FileName));
 										}
 										break;
 									case 4:
@@ -561,7 +576,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderUp is expected to be greater than zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderUp is expected to be non-negative" + At(i + 1, FileName));
 										}
 										break;
 									case 5:
@@ -571,7 +586,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderDown is expected to be greater than zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderDown is expected to be non-negative" + At(i + 1, FileName));
 										}
 										break;
 								}
@@ -592,7 +607,7 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "The setting for BrakeType is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "The setting for BrakeType is invalid" + At(i + 1, FileName));
 											trainBrakeType = BrakeSystemType.ElectromagneticStraightAirBrake;
 										}
 										break;
@@ -604,22 +619,22 @@ namespace Train.OpenBve
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "The setting for ElectropneumaticType is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "The setting for ElectropneumaticType is invalid" + At(i + 1, FileName));
 											ElectropneumaticType = EletropneumaticBrakeType.None;
 										}
 										break;
 									case 2:
 										if (a < 0)
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeControlSpeed must be non-negative at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeControlSpeed must be non-negative" + At(i + 1, FileName));
 											break;
 										}
 										if (a != 0 && trainBrakeType == BrakeSystemType.AutomaticAirBrake)
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BrakeControlSpeed will be ignored due to the current brake setup at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BrakeControlSpeed will be ignored due to the current brake setup" + At(i + 1, FileName));
 											break;
 										}
-										BrakeControlSpeed = a * 0.277777777777778; //Convert to m/s
+										BrakeControlSpeed = a * KmhToMs; //Convert to m/s
 										break;
 									case 3:
 										b = (int) Math.Round(a);
@@ -649,31 +664,31 @@ namespace Train.OpenBve
 								switch (n) {
 									case 0:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderServiceMaximumPressure is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderServiceMaximumPressure is expected to be positive" + At(i + 1, FileName));
 										} else {
 											BrakeCylinderServiceMaximumPressure = a * 1000.0;
 										} break;
 									case 1:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderEmergencyMaximumPressure is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakeCylinderEmergencyMaximumPressure is expected to be positive" + At(i + 1, FileName));
 										} else {
 											BrakeCylinderEmergencyMaximumPressure = a * 1000.0;
 										} break;
 									case 2:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "MainReservoirMinimumPressure is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "MainReservoirMinimumPressure is expected to be positive" + At(i + 1, FileName));
 										} else {
 											MainReservoirMinimumPressure = a * 1000.0;
 										} break;
 									case 3:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "MainReservoirMaximumPressure is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "MainReservoirMaximumPressure is expected to be positive" + At(i + 1, FileName));
 										} else {
 											MainReservoirMaximumPressure = a * 1000.0;
 										} break;
 									case 4:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakePipePressure is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BrakePipePressure is expected to be positive" + At(i + 1, FileName));
 										} else {
 											BrakePipePressure = a * 1000.0;
 										} break;
@@ -712,7 +727,7 @@ namespace Train.OpenBve
 										else
 										{
 											powerNotches = 8;
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfPowerNotches is expected to be positive and non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfPowerNotches is expected to be positive and non-zero" + At(i + 1, FileName));
 										}
 										break;
 									case 2:
@@ -730,7 +745,7 @@ namespace Train.OpenBve
 												 * Whilst this value is invalid, it doesn't actually get used so get
 												 * rid of the pointless error message it generates
 												 */
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfBrakeNotches is expected to be positive and non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfBrakeNotches is expected to be positive and non-zero" + At(i + 1, FileName));
 											}											
 										}
 										break;
@@ -740,7 +755,7 @@ namespace Train.OpenBve
 									case 4:
 										if (a < 0 || a > 3)
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "EbHandleBehaviour is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "EbHandleBehaviour is invalid" + At(i + 1, FileName));
 											break;
 										}
 										Train.Handles.EmergencyBrake.OtherHandlesBehaviour = (EbHandleBehaviour) a;
@@ -754,7 +769,7 @@ namespace Train.OpenBve
 										else
 										{
 											locoBrakeNotches = 8;
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfLocoBrakeNotches is expected to be positive and non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfLocoBrakeNotches is expected to be non-negative" + At(i + 1, FileName));
 										}
 										
 										break;
@@ -771,7 +786,7 @@ namespace Train.OpenBve
 											else
 											{
 												driverPowerNotches = 8;
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfDriverPowerNotches is expected to be positive and non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfDriverPowerNotches is expected to be positive and non-zero" + At(i + 1, FileName));
 											}
 										}
 										break;
@@ -785,7 +800,7 @@ namespace Train.OpenBve
 											else
 											{
 												driverBrakeNotches = 8;
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfDriverBrakeNotches is expected to be positive and non-zero at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfDriverBrakeNotches is expected to be positive and non-zero" + At(i + 1, FileName));
 											}
 										}
 										break;
@@ -810,33 +825,50 @@ namespace Train.OpenBve
 								switch (n) {
 									case 0:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "MotorCarMass is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "MotorCarMass is expected to be positive" + At(i + 1, FileName));
 										} else {
 											MotorCarMass = a * 1000.0;
 										} break;
 									case 1:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfMotorCars is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfMotorCars is expected to be positive" + At(i + 1, FileName));
 										} else {
 											MotorCars = (int)Math.Round(a);
 										} break;
 									case 2: TrailerCarMass = a * 1000.0; break;
 									case 3:
 										if (a < 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfTrailerCars is expected to be non-negative at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "NumberOfTrailerCars is expected to be non-negative" + At(i + 1, FileName));
 										} else {
 											TrailerCars = (int)Math.Round(a);
 										} break;
 									case 4:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "LengthOfACar is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "LengthOfACar is expected to be positive" + At(i + 1, FileName));
 										} else {
 											CarLength = a;
 										} break;
 									case 5: FrontCarIsMotorCar = a == 1.0; break;
+
+									/* WARNING:
+									 * --------
+									 * See discussion in this PR
+									 * https://github.com/leezer3/OpenBVE/pull/1439
+									 * Width, height and frontal area appear to be an OpenBVE addition.
+									 *
+									 * Unfortunately, it's unclear when this was, or when the train editor
+									 * began using the OPENBVE header.
+									 *
+									 * There also appears to have been a discrepancy as to whether 0.65 or
+									 * 0.6 is used when calculating exposed frontal area.
+									 * Standardising on 0.65 (as this will have been the actual value used by OpenBVE
+									 * native content) and updating the documentation.
+									 *
+									 */
+
 									case 6:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "WidthOfACar is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "WidthOfACar is expected to be positive" + At(i + 1, FileName));
 										} else {
 											CarWidth = a;
 											CarExposedFrontalArea = 0.65 * CarWidth * CarHeight;
@@ -844,7 +876,7 @@ namespace Train.OpenBve
 										} break;
 									case 7:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "HeightOfACar is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "HeightOfACar is expected to be positive" + At(i + 1, FileName));
 										} else {
 											CarHeight = a;
 											CarExposedFrontalArea = 0.65 * CarWidth * CarHeight;
@@ -853,17 +885,23 @@ namespace Train.OpenBve
 									case 8: CenterOfGravityHeight = a; break;
 									case 9:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "ExposedFrontalArea is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "ExposedFrontalArea is expected to be positive" + At(i + 1, FileName));
 										} else {
 											CarExposedFrontalArea = a;
 											CarUnexposedFrontalArea = 0.2 * CarWidth * CarHeight;
 										} break;
 									case 10:
 										if (a <= 0.0) {
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "UnexposedFrontalArea is expected to be positive at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "UnexposedFrontalArea is expected to be positive" + At(i + 1, FileName));
 										} else {
 											CarUnexposedFrontalArea = a;
 										} break;
+								}
+
+								if (Plugin.CurrentOptions.EnableBveTsHacks && currentFormat < TrainDatFormats.BVE1220000 && n == 3)
+								{
+									// Length, width etc. not valid in prior versions, so don't read in any present junk
+									break;
 								}
 							} i++; n++;
 						} i--; break;
@@ -902,7 +940,7 @@ namespace Train.OpenBve
 										else
 										{
 											ReAdhesionDevice = ReadhesionDeviceType.NotFitted;
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "ReAdhesionDeviceType is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "ReAdhesionDeviceType is invalid" + At(i + 1, FileName));
 										}
 										break;
 									case 7:
@@ -911,7 +949,7 @@ namespace Train.OpenBve
 											if (b >= 0 & b <= 2) {
 												passAlarm = (PassAlarmType)b;
 											} else {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "PassAlarm is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "PassAlarm is invalid" + At(i + 1, FileName));
 											} break;
 										}
 									case 8:
@@ -920,7 +958,7 @@ namespace Train.OpenBve
 											if (b >= 0 & b <= 2) {
 												Train.Specs.DoorOpenMode = (DoorMode)b;
 											} else {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorOpenMode is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorOpenMode is invalid" + At(i + 1, FileName));
 											} break;
 										}
 									case 9:
@@ -929,7 +967,7 @@ namespace Train.OpenBve
 											if (b >= 0 & b <= 2) {
 												Train.Specs.DoorCloseMode = (DoorMode)b;
 											} else {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorCloseMode is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorCloseMode is invalid" + At(i + 1, FileName));
 											} break;
 										}
 									case 10:
@@ -937,7 +975,7 @@ namespace Train.OpenBve
 											if (a >= 0.0) {
 												DoorWidth = a;
 											} else {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorWidth is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorWidth is invalid" + At(i + 1, FileName));
 											} break;
 										}
 									case 11:
@@ -945,7 +983,7 @@ namespace Train.OpenBve
 											if (a >= 0.0) {
 												DoorTolerance = a;
 											} else {
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorMaxTolerance is invalid at line " + (i + 1).ToString(Culture) + " in " + FileName);
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "DoorMaxTolerance is invalid" + At(i + 1, FileName));
 											} break;
 										}
 								}
@@ -1056,7 +1094,8 @@ namespace Train.OpenBve
 			Train.Handles.Power = new PowerHandle(powerNotches, driverPowerNotches, powerDelayUp, powerDelayDown, Train);
 			if (powerReduceSteps != -1)
 			{
-				Train.Handles.Power.ReduceSteps = powerReduceSteps;
+				PowerHandle powerHandle = Train.Handles.Power as PowerHandle;
+				powerHandle.ReduceSteps = powerReduceSteps;
 			}
 
 			if (trainBrakeType == BrakeSystemType.AutomaticAirBrake)
@@ -1157,29 +1196,32 @@ namespace Train.OpenBve
 					MaximumAcceleration = AccelerationCurves[i].MaximumAcceleration;
 				}
 			}
+
+			bool[] motorCars = new bool[Train.Cars.Length];
+
 			// assign motor cars
 			if (MotorCars == 1) {
 				if (FrontCarIsMotorCar | TrailerCars == 0) {
-					Train.Cars[0].Specs.IsMotorCar = true;
+					motorCars[0] = true;
 				} else {
-					Train.Cars[Cars - 1].Specs.IsMotorCar = true;
+					motorCars[Cars - 1] = true;
 				}
 			} else if (MotorCars == 2) {
 				if (FrontCarIsMotorCar | TrailerCars == 0) {
-					Train.Cars[0].Specs.IsMotorCar = true;
-					Train.Cars[Cars - 1].Specs.IsMotorCar = true;
+					motorCars[0] = true;
+					motorCars[Cars - 1] = true;
 				} else if (TrailerCars == 1) {
-					Train.Cars[1].Specs.IsMotorCar = true;
-					Train.Cars[2].Specs.IsMotorCar = true;
+					motorCars[1] = true;
+					motorCars[2] = true;
 				} else {
 					int i = (int)Math.Ceiling(0.25 * (Cars - 1));
 					int j = (int)Math.Floor(0.75 * (Cars - 1));
-					Train.Cars[i].Specs.IsMotorCar = true;
-					Train.Cars[j].Specs.IsMotorCar = true;
+					motorCars[i] = true;
+					motorCars[j] = true;
 				}
 			} else if (MotorCars > 0) {
 				if (FrontCarIsMotorCar) {
-					Train.Cars[0].Specs.IsMotorCar = true;
+					motorCars[0] = true;
 					double t = 1.0 + TrailerCars / (double)(MotorCars - 1);
 					double r = 0.0;
 					double x = 0.0;
@@ -1189,10 +1231,10 @@ namespace Train.OpenBve
 						r = x - y;
 						int i = (int)x;
 						if (i >= Cars) break;
-						Train.Cars[i].Specs.IsMotorCar = true;
+						motorCars[i] = true;
 					}
 				} else {
-					Train.Cars[1].Specs.IsMotorCar = true;
+					motorCars[1] = true;
 					double t = 1.0 + (TrailerCars - 1) / (double)(MotorCars - 1);
 					double r = 0.0;
 					double x = 1.0;
@@ -1202,7 +1244,7 @@ namespace Train.OpenBve
 						r = x - y;
 						int i = (int)x;
 						if (i >= Cars) break;
-						Train.Cars[i].Specs.IsMotorCar = true;
+						motorCars[i] = true;
 					}
 				}
 			}
@@ -1244,30 +1286,48 @@ namespace Train.OpenBve
 					}
 				}
 
-				if (Train.Cars[i].Specs.IsMotorCar || Train.IsPlayerTrain && i == Train.DriverCar || trainBrakeType == BrakeSystemType.ElectricCommandBrake)
+				if (motorCars[i])
 				{
-					Train.Cars[i].CarBrake.brakeType = BrakeType.Main;
+					Train.Cars[i].TractionModel = new BVEMotorCar(Train.Cars[i], AccelerationCurves);
 				}
 				else
 				{
-					Train.Cars[i].CarBrake.brakeType = BrakeType.Auxiliary;
+					Train.Cars[i].TractionModel = new BVETrailerCar(Train.Cars[i]);
 				}
-				Train.Cars[i].CarBrake.mainReservoir = new MainReservoir(MainReservoirMinimumPressure, MainReservoirMaximumPressure, 0.01, (trainBrakeType == BrakeSystemType.AutomaticAirBrake ? 0.25 : 0.075) / Cars);
-				Train.Cars[i].CarBrake.airCompressor = new Compressor(5000.0, Train.Cars[i].CarBrake.mainReservoir, Train.Cars[i]);
-				Train.Cars[i].CarBrake.equalizingReservoir = new EqualizingReservoir(50000.0, 250000.0, 200000.0);
-				Train.Cars[i].CarBrake.equalizingReservoir.NormalPressure = 1.005 * OperatingPressure;
-				
-				Train.Cars[i].CarBrake.brakePipe = new BrakePipe(OperatingPressure, 10000000.0, 1500000.0, 5000000.0, trainBrakeType == BrakeSystemType.ElectricCommandBrake);
+
+				Train.Cars[i].CarBrake.MainReservoir = new MainReservoir(MainReservoirMinimumPressure, MainReservoirMaximumPressure, 0.01, (trainBrakeType == BrakeSystemType.AutomaticAirBrake ? 0.25 : 0.075) / Cars);
+				Train.Cars[i].CarBrake.MainReservoir.Volume = 0.5; // Organization for Co-Operation between Railways specifies 340L to 680L main reservoir capacity for EMU, so let's pick something in the middle (in m³)
+
+				Train.Cars[i].CarBrake.EqualizingReservoir = new EqualizingReservoir(50000.0, 250000.0, 200000.0);
+				Train.Cars[i].CarBrake.EqualizingReservoir.NormalPressure = 1.005 * OperatingPressure;
+				Train.Cars[i].CarBrake.EqualizingReservoir.Volume = 0.015; // very small reservoir for observation, so guess at 15L
+
+				Train.Cars[i].CarBrake.BrakePipe = new BrakePipe(OperatingPressure, 10000000.0, 1500000.0, 5000000.0, trainBrakeType == BrakeSystemType.ElectricCommandBrake);
+				Train.Cars[i].CarBrake.BrakePipe.Volume = Math.Pow(0.0175 * Math.PI, 2) * (Train.Cars.Length * 1.05); // Assuming Railway Group Standards 3.5cm diameter brake pipe, 5% extra length for bends etc.
+
+				AirBrake airBrake = Train.Cars[i].CarBrake as AirBrake;
+				if (Train.Cars[i].TractionModel.ProvidesPower || Train.IsPlayerTrain && i == Train.DriverCar || trainBrakeType == BrakeSystemType.ElectricCommandBrake)
+				{
+					Train.Cars[i].CarBrake.BrakeType = BrakeType.Main;
+					airBrake.Compressor = new Compressor(5000.0, Train.Cars[i].CarBrake.MainReservoir, Train.Cars[i]);
+				}
+				else
+				{
+					Train.Cars[i].CarBrake.BrakeType = BrakeType.Auxiliary;
+				}
+				airBrake.StraightAirPipe = new StraightAirPipe(300000.0, 400000.0, 200000.0);
 				{
 					double r = 200000.0 / BrakeCylinderEmergencyMaximumPressure - 1.0;
 					if (r < 0.1) r = 0.1;
 					if (r > 1.0) r = 1.0;
-					Train.Cars[i].CarBrake.auxiliaryReservoir = new AuxiliaryReservoir(0.975 * OperatingPressure, 200000.0, 0.5, r);
+					Train.Cars[i].CarBrake.AuxiliaryReservoir = new AuxiliaryReservoir(0.975 * OperatingPressure, 200000.0, 0.5, r);
+					Train.Cars[i].CarBrake.AuxiliaryReservoir.Volume = 0.16; // guessed 1/3 of main reservoir volume
 				}
-				Train.Cars[i].CarBrake.brakeCylinder = new BrakeCylinder(BrakeCylinderServiceMaximumPressure, BrakeCylinderEmergencyMaximumPressure, trainBrakeType == BrakeSystemType.AutomaticAirBrake ? BrakeCylinderUp : 0.3 * BrakeCylinderUp, BrakeCylinderUp, BrakeCylinderDown);
-				Train.Cars[i].CarBrake.straightAirPipe = new StraightAirPipe(300000.0, 400000.0, 200000.0);
+				Train.Cars[i].CarBrake.BrakeCylinder = new BrakeCylinder(BrakeCylinderServiceMaximumPressure, BrakeCylinderEmergencyMaximumPressure, trainBrakeType == BrakeSystemType.AutomaticAirBrake ? BrakeCylinderUp : 0.3 * BrakeCylinderUp, BrakeCylinderUp, BrakeCylinderDown);
+				Train.Cars[i].CarBrake.BrakeCylinder.Volume = 0.14; // 35cm diameter, 15cm stroke
 				Train.Cars[i].CarBrake.JerkUp = JerkBrakeUp;
 				Train.Cars[i].CarBrake.JerkDown = JerkBrakeDown;
+				Train.Cars[i].CarBrake.Initialize(Plugin.CurrentOptions.TrainStart);
 			}
 			if (Train.Handles.HasHoldBrake & Train.Handles.Brake.MaximumNotch > 1) {
 				Train.Handles.Brake.MaximumNotch--;
@@ -1277,22 +1337,24 @@ namespace Train.OpenBve
 				Train.Handles.HandleType = HandleType.TwinHandle;
 				Train.Handles.HasHoldBrake = false;
 			}
+			/*
+			 * Register the overspeed message on every car, rather than just the current driver car.
+			 * The driver car changes when the train is reversed (e.g. reverse-direction routes or
+			 * an initially reversed consist), and only the current driver car's safety systems are
+			 * updated. Without this, the route speed limit warning disappears after reversing.
+			 */
+			for (int i = 0; i < Train.Cars.Length; i++)
+			{
+				Train.Cars[i].SafetySystems.Add(SafetySystem.OverspeedMessage, new OverspeedMessage(Train.Cars[i]));
+			}
 			Train.SafetySystems.PassAlarm = new PassAlarm(passAlarm, Train.Cars[DriverCar]);
 			Train.SafetySystems.PilotLamp = new PilotLamp(Train.Cars[DriverCar]);
-			Train.SafetySystems.OverspeedDevice = new OverspeedDevice(Train);
 			Train.SafetySystems.StationAdjust = new StationAdjustAlarm(Train);
-			Train.SafetySystems.Headlights = new LightSource(1);
+			Train.SafetySystems.Headlights = new LightSource(Train, 1);
 			switch (Plugin.CurrentOptions.TrainStart)
 			{
 				// starting mode
 				case TrainStartMode.ServiceBrakesAts:
-					for (int i = 0; i < Cars; i++) {
-						Train.Cars[i].CarBrake.brakeCylinder.CurrentPressure = Train.Cars[i].CarBrake.brakeCylinder.ServiceMaximumPressure;
-						Train.Cars[i].CarBrake.brakePipe.CurrentPressure = Train.Cars[i].CarBrake.brakePipe.NormalPressure;
-						Train.Cars[i].CarBrake.straightAirPipe.CurrentPressure = Train.Cars[i].CarBrake.brakeCylinder.ServiceMaximumPressure;
-						Train.Cars[i].CarBrake.equalizingReservoir.CurrentPressure = Train.Cars[i].CarBrake.equalizingReservoir.NormalPressure;
-					}
-
 					if (trainBrakeType == BrakeSystemType.AutomaticAirBrake)
 					{
 						Train.Handles.Brake.Driver = (int)AirBrakeHandleState.Service;
@@ -1311,13 +1373,6 @@ namespace Train.OpenBve
 					Train.Handles.Reverser.Actual = ReverserPosition.Forwards;
 					break;
 				case TrainStartMode.EmergencyBrakesAts:
-					for (int i = 0; i < Cars; i++) {
-						Train.Cars[i].CarBrake.brakeCylinder.CurrentPressure = Train.Cars[i].CarBrake.brakeCylinder.EmergencyMaximumPressure;
-						Train.Cars[i].CarBrake.brakePipe.CurrentPressure = 0.0;
-						Train.Cars[i].CarBrake.straightAirPipe.CurrentPressure = 0.0;
-						Train.Cars[i].CarBrake.equalizingReservoir.CurrentPressure = 0.0;
-					}
-
 					if (trainBrakeType == BrakeSystemType.AutomaticAirBrake)
 					{
 						Train.Handles.Brake.Driver = (int)AirBrakeHandleState.Service;
@@ -1334,13 +1389,6 @@ namespace Train.OpenBve
 					Train.Handles.EmergencyBrake.Actual = true;
 					break;
 				default:
-					for (int i = 0; i < Cars; i++) {
-						Train.Cars[i].CarBrake.brakeCylinder.CurrentPressure = Train.Cars[i].CarBrake.brakeCylinder.EmergencyMaximumPressure;
-						Train.Cars[i].CarBrake.brakePipe.CurrentPressure = 0.0;
-						Train.Cars[i].CarBrake.straightAirPipe.CurrentPressure = 0.0;
-						Train.Cars[i].CarBrake.equalizingReservoir.CurrentPressure = 0.0;
-					}
-
 					if (trainBrakeType == BrakeSystemType.AutomaticAirBrake)
 					{
 						Train.Handles.Brake.Driver = (int)AirBrakeHandleState.Service;
@@ -1371,11 +1419,7 @@ namespace Train.OpenBve
 				{
 					Train.Cars[i].Breaker = new Breaker(Train.Cars[i]);
 				}
-				Train.Cars[i].CurrentCarSection = -1;
 				Train.Cars[i].ChangeCarSection(CarSectionType.NotVisible);
-				Train.Cars[i].FrontBogie.ChangeSection(-1);
-				Train.Cars[i].RearBogie.ChangeSection(-1);
-				Train.Cars[i].Coupler.ChangeSection(-1);
 				Train.Cars[i].FrontAxle.Follower.TriggerType = i == 0 ? EventTriggerType.FrontCarFrontAxle : EventTriggerType.OtherCarFrontAxle;
 				Train.Cars[i].RearAxle.Follower.TriggerType = i == Cars - 1 ? EventTriggerType.RearCarRearAxle : EventTriggerType.OtherCarRearAxle;
 				Train.Cars[i].BeaconReceiver.TriggerType = i == 0 ? EventTriggerType.TrainFront : EventTriggerType.None;
@@ -1413,25 +1457,23 @@ namespace Train.OpenBve
 
 			// assign motor/trailer-specific settings
 			for (int i = 0; i < Cars; i++) {
-				Train.Cars[i].ConstSpeed = new CarConstSpeed(Train.Cars[i]);
+				Train.Cars[i].SafetySystems.Add(SafetySystem.ConstantSpeedDevice, new CarConstSpeed(Train.Cars[i]));
 				Train.Cars[i].HoldBrake = new CarHoldBrake(Train.Cars[i]);
 				Train.Cars[i].ReAdhesionDevice = new BveReAdhesionDevice(Train.Cars[i], ReAdhesionDevice);
-				if (Train.Cars[i].Specs.IsMotorCar) {
+				if (Train.Cars[i].TractionModel.ProvidesPower) {
 					// motor car
 					Train.Cars[i].EmptyMass = MotorCarMass;
 					Train.Cars[i].CargoMass = 0;
-					Array.Resize(ref Train.Cars[i].Specs.AccelerationCurves, AccelerationCurves.Length);
+					Array.Resize(ref Train.Cars[i].TractionModel.AccelerationCurves, AccelerationCurves.Length);
 					for (int j = 0; j < AccelerationCurves.Length; j++)
 					{
-						Train.Cars[i].Specs.AccelerationCurves[j] = AccelerationCurves[j].Clone(1.0 + TrailerCars * TrailerCarMass / (MotorCars * MotorCarMass));
+						Train.Cars[i].TractionModel.AccelerationCurves[j] = AccelerationCurves[j].Clone(1.0 + TrailerCars * TrailerCarMass / (MotorCars * MotorCarMass));
 					}
-					Train.Cars[i].Specs.AccelerationCurveMaximum = MaximumAcceleration;
+					Train.Cars[i].TractionModel.MaximumPossibleAcceleration = MaximumAcceleration;
 				} else {
 					// trailer car
 					Train.Cars[i].EmptyMass = TrailerCarMass;
 					Train.Cars[i].CargoMass = 0;
-					Train.Cars[i].Specs.AccelerationCurves = new AccelerationCurve[] { };
-					Train.Cars[i].Specs.AccelerationCurveMaximum = 0;
 				}
 			}
 			// driver
@@ -1443,9 +1485,57 @@ namespace Train.OpenBve
 			{
 				Train.Cars[DriverCar].HasInteriorView = true;
 			}
+
 			
-			// finish
-			
+			/*
+			 * Determine the maximum width of the handle strings for drawing purposes
+			 * (As translators may use much longer strings than we expect)
+			 */
+			if (Plugin.Renderer?.Fonts?.NormalFont != null && Translations.QuickReferences != null)
+			{
+				Vector2 rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandleForward);
+				if (rs.X > Train.Handles.Reverser.MaxWidth)
+				{
+					Train.Handles.Reverser.MaxWidth = rs.X;
+				}
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandleNeutral);
+				if (rs.X > Train.Handles.Reverser.MaxWidth)
+				{
+					Train.Handles.Reverser.MaxWidth = rs.X;
+				}
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandleBackward);
+				if (rs.X > Train.Handles.Reverser.MaxWidth)
+				{
+					Train.Handles.Reverser.MaxWidth = rs.X;
+				}
+
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandlePower);
+				if (rs.X > Train.Handles.Power.MaxWidth)
+				{
+					Train.Handles.Power.MaxWidth = rs.X;
+				}
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandlePowerNull);
+				if (rs.X > Train.Handles.Power.MaxWidth)
+				{
+					Train.Handles.Power.MaxWidth = rs.X;
+				}
+
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandleBrake);
+				if (rs.X > Train.Handles.Brake.MaxWidth)
+				{
+					Train.Handles.Brake.MaxWidth = rs.X;
+				}
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandleBrakeNull);
+				if (rs.X > Train.Handles.Brake.MaxWidth)
+				{
+					Train.Handles.Brake.MaxWidth = rs.X;
+				}
+				rs = Plugin.Renderer.Fonts.NormalFont.MeasureString(Translations.QuickReferences.HandleEmergency);
+				if (rs.X > Train.Handles.Brake.MaxWidth)
+				{
+					Train.Handles.Brake.MaxWidth = rs.X;
+				}
+			}
 		}
 
 	}

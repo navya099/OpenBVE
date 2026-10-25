@@ -1,4 +1,4 @@
-﻿//Simplified BSD License (BSD-2-Clause)
+//Simplified BSD License (BSD-2-Clause)
 //
 //Copyright (c) 2020, Christopher Lees, The OpenBVE Project
 //
@@ -22,18 +22,19 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Threading;
 using OpenBveApi;
+using OpenBveApi.Colors;
 using OpenBveApi.FileSystem;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
 using OpenBveApi.Routes;
 using RouteManager2;
 using RouteManager2.Stations;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
 using Path = OpenBveApi.Path;
 
 namespace MechanikRouteParser
@@ -43,8 +44,6 @@ namespace MechanikRouteParser
 	    internal static HostInterface CurrentHost;
 
 	    internal static CurrentRoute CurrentRoute;
-
-	    internal static Random RandomNumberGenerator = new Random();
 
 	    internal static FileSystem FileSystem;
 
@@ -60,9 +59,9 @@ namespace MechanikRouteParser
 		    CurrentHost = host;
 		    FileSystem = fileSystem;
 		    CurrentOptions = Options;
-		    Parser.knownRoutes = new Dictionary<string, RouteProperties>();
-		    Parser.knownModules = new List<string>();
-			RoutePropertiesDatabaseParser.LoadRoutePropertyDatabase(ref Parser.knownRoutes, ref Parser.knownModules);
+		    Parser.KnownRoutes = new Dictionary<string, RouteProperties>();
+		    Parser.KnownModules = new List<string>();
+			RoutePropertiesDatabaseParser.LoadRoutePropertyDatabase(ref Parser.KnownRoutes, ref Parser.KnownModules);
 	    }
 
 	    public override void Unload()
@@ -87,7 +86,7 @@ namespace MechanikRouteParser
 		    {
 			    try
 			    {
-					if (Parser.knownModules.Contains(Path.GetChecksum(path)) || File.ReadLines(path).Count() < 800)
+					if (Parser.KnownModules.Contains(Path.GetChecksum(path)) || File.ReadLines(path).Count() < 800)
 				    {
 					    /*
 					     * Slightly hacky check if not found in the known modules list:
@@ -113,14 +112,14 @@ namespace MechanikRouteParser
 
 	    /// <summary>Loads the specified route.</summary>
 	    /// <param name="path">The path to the file or folder that contains the route.</param>
-	    /// <param name="Encoding">The user-selected encoding (if appropriate)</param>
+	    /// <param name="textEncoding">The user-selected encoding (if appropriate)</param>
 	    /// <param name="trainPath">The path to the selected train</param>
 	    /// <param name="objectPath">The base object folder path</param>
 	    /// <param name="soundPath">The base sound folder path</param>
 	    /// <param name="PreviewOnly">Whether this is a preview</param>
 	    /// <param name="route">Receives the route.</param>
 	    /// <returns>Whether loading the sound was successful.</returns>
-	    public override bool LoadRoute(string path, System.Text.Encoding Encoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly, ref object route)
+	    public override bool LoadRoute(string path, System.Text.Encoding textEncoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly, ref object route)
 	    {
 		    LastException = null;
 		    Cancel = false;
@@ -142,7 +141,8 @@ namespace MechanikRouteParser
 					return false;
 				}
 				IsLoading = false;
-			    return true;
+				CurrentOptions.ClearColor = new Color24(170, 170, 170);
+				return true;
 		    }
 		    catch(Exception ex)
 		    {

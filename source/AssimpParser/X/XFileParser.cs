@@ -43,7 +43,7 @@
 // their respective creators, which may impose additional requirements
 // on the use of their work. For any of these models, see
 // <model-name>.source.txt for more legal information. Contact us if you
-// are a copyright holder and believe that we credited you inproperly or
+// are a copyright holder and believe that we credited you improperly or
 // if you don't want your files to appear in the repository.
 //
 //
@@ -309,12 +309,6 @@ namespace AssimpNET.X
 
 			Scene = new Scene();
 			ParseFile();
-
-			// filter the imported hierarchy for some degenerated cases
-			if (Scene.RootNode != null)
-			{
-				FilterHierarchy(Scene.RootNode);
-			}
 		}
 
 		/** Returns the temporary representation of the imported data */
@@ -366,6 +360,9 @@ namespace AssimpNET.X
 					case "}":
 						// whatever?
 						Debug.WriteLine("} found in dataObject");
+						break;
+					case "header":
+						ParseUnknownDataObject();
 						break;
 					default:
 						// unknown format
@@ -891,17 +888,17 @@ namespace AssimpNET.X
 				{
 					break; // material finished
 				}
-				else if (objectName == "TextureFilename" || objectName == "TextureFileName")
+				else if (string.Equals(objectName,"TextureFileName", StringComparison.InvariantCultureIgnoreCase))
 				{
 					// some exporters write "TextureFileName" instead.
-					ParseDataObjectTextureFilename(out string texname);
-					material.Textures.Add(new TexEntry(texname));
+					ParseDataObjectTextureFilename(out string textureName);
+					material.Textures.Add(new TexEntry(textureName));
 				}
-				else if (objectName == "NormalmapFilename" || objectName == "NormalmapFileName")
+				else if (string.Equals(objectName, "NormalMapFileName", StringComparison.InvariantCultureIgnoreCase))
 				{
 					// one exporter writes out the normal map in a separate filename tag
-					ParseDataObjectTextureFilename(out string texname);
-					material.Textures.Add(new TexEntry(texname, true));
+					ParseDataObjectTextureFilename(out string textureName);
+					material.Textures.Add(new TexEntry(textureName, true));
 				}
 				else
 				{
@@ -1021,7 +1018,7 @@ namespace AssimpNET.X
 							quat.Y = ReadFloat();
 							quat.Z = ReadFloat();
 
-							QuatKey key = new QuatKey((double)time, quat);
+							QuatKey key = new QuatKey(time, quat);
 							animBone.RotKeys.Add(key);
 
 							CheckForSemicolon();
@@ -1035,7 +1032,7 @@ namespace AssimpNET.X
 							{
 								ThrowException("Invalid number of arguments for vector key in animation");
 							}
-							VectorKey key = new VectorKey((double)time, ReadVector3());
+							VectorKey key = new VectorKey(time, ReadVector3());
 
 							if (keyType == 2)
 							{
@@ -1075,7 +1072,7 @@ namespace AssimpNET.X
 							matrix.Row3.Z = ReadFloat();
 							matrix.Row3.W = ReadFloat();
 
-							MatrixKey key = new MatrixKey((double)time, matrix);
+							MatrixKey key = new MatrixKey(time, matrix);
 							animBone.TrafoKeys.Add(key);
 
 							CheckForSemicolon();
@@ -1360,7 +1357,23 @@ namespace AssimpNET.X
 		//! checks for closing curly brace
 		protected void CheckForClosingBrace()
 		{
-			if (GetNextToken() != "}")
+			string s = GetNextToken();
+			/*
+			 * 3;0,0,0,0;;
+			 *
+			 * if we have unexpected extra components in an array, s
+			 * will be a number (note that at this point it will not
+			 * be , or ; as these have been consumed by the caller)
+			 *
+			 * In this case, parse and discard the number and any
+			 * following separators / terminators
+			 *
+			 */
+			while (double.TryParse(s, out _) || s == "," || s == ";")
+			{
+				s = GetNextToken();
+			}
+			if (s != "}")
 			{
 				ThrowException("Closing brace expected.");
 			}
@@ -1410,7 +1423,7 @@ namespace AssimpNET.X
 			}
 
 			// test and skip
-			if (Buffer[currentPosition] == ';' || Buffer[currentPosition] == ',')
+			while (Buffer[currentPosition] == ';' || Buffer[currentPosition] == ',')
 			{
 				currentPosition++;
 			}
@@ -1515,47 +1528,43 @@ namespace AssimpNET.X
 				{
 					return ReadBinDWord();
 				}
-				else
-				{
-					currentPosition = End;
-					return 0;
-				}
+
+				currentPosition = End;
+				return 0;
 			}
-			else
+
+			FindNextNoneWhiteSpace();
+
+			// TODO: consider using strtol10 instead???
+
+			// check preceding minus sign
+			bool isNegative = false;
+			if (Buffer[currentPosition] == '-')
 			{
-				FindNextNoneWhiteSpace();
+				isNegative = true;
+				currentPosition++;
+			}
 
-				// TODO: consider using strtol10 instead???
+			// at least one digit expected
+			if (!char.IsDigit((char)Buffer[currentPosition]))
+			{
+				ThrowException("Number expected.");
+			}
 
-				// check preceding minus sign
-				bool isNegative = false;
-				if (Buffer[currentPosition] == '-')
-				{
-					isNegative = true;
-					currentPosition++;
-				}
-
-				// at least one digit expected
+			// read digits
+			uint number = 0;
+			while (currentPosition < End)
+			{
 				if (!char.IsDigit((char)Buffer[currentPosition]))
 				{
-					ThrowException("Number expected.");
+					break;
 				}
-
-				// read digits
-				uint number = 0;
-				while (currentPosition < End)
-				{
-					if (!char.IsDigit((char)Buffer[currentPosition]))
-					{
-						break;
-					}
-					number = number * 10 + (uint)(Buffer[currentPosition] - 48);
-					currentPosition++;
-				}
-
-				CheckForSeparator();
-				return isNegative ? (uint)(-(int)number) : number;
+				number = number * 10 + (uint)(Buffer[currentPosition] - 48);
+				currentPosition++;
 			}
+
+			CheckForSeparator();
+			return isNegative ? (uint)(-(int)number) : number;
 		}
 
 		protected float ReadFloat()
@@ -1616,7 +1625,8 @@ namespace AssimpNET.X
 				CheckForSeparator();
 				return 0.0f;
 			}
-			else if (Ascii.GetString(Buffer, currentPosition, 8) == "1.#QNAN0")
+
+			if (Ascii.GetString(Buffer, currentPosition, 8) == "1.#QNAN0")
 			{
 				currentPosition += 8;
 				CheckForSeparator();
@@ -1654,22 +1664,21 @@ namespace AssimpNET.X
 		protected Color128 ReadRGBA()
 		{
 			Color128 color;
-			color.R = ReadFloat();
-			color.G = ReadFloat();
-			color.B = ReadFloat();
-			color.A = ReadFloat();
+			color.R = Math.Max(0, Math.Min(1, ReadFloat()));
+			color.G = Math.Max(0, Math.Min(1, ReadFloat()));
+			color.B = Math.Max(0, Math.Min(1, ReadFloat()));
+			color.A = Math.Max(0, Math.Min(1, ReadFloat()));
 			TestForSeparator();
 
 			return color;
 		}
 
-		protected Color128 ReadRGB()
+		protected Color96 ReadRGB()
 		{
-			Color128 color;
-			color.R = ReadFloat();
-			color.G = ReadFloat();
-			color.B = ReadFloat();
-			color.A = 1.0f;
+			Color96 color;
+			color.R = Math.Max(0, Math.Min(1, ReadFloat()));
+			color.G = Math.Max(0, Math.Min(1, ReadFloat()));
+			color.B = Math.Max(0, Math.Min(1, ReadFloat()));
 			TestForSeparator();
 
 			return color;
@@ -1682,39 +1691,6 @@ namespace AssimpNET.X
 				throw new Exception(text);
 			}
 			throw new Exception("Line " + LineNumber + ": " + text);
-		}
-
-		// Filters the imported hierarchy for some degenerated cases that some exporters produce.
-		protected void FilterHierarchy(Node node)
-		{
-			// if the node has just a single unnamed child containing a mesh, remove
-			// the anonymous node between. The 3DSMax kwXport plugin seems to produce this
-			// mess in some cases
-			if (node.Children.Count == 1 && node.Meshes.Count == 0)
-			{
-				Node child = node.Children.First();
-				if (child.Name.Length == 0 && child.Meshes.Count > 0)
-				{
-					// transfer its meshes to us
-					for (int a = 0; a < child.Meshes.Count; a++)
-					{
-						node.Meshes.Add(child.Meshes[a]);
-					}
-					child.Meshes.Clear();
-
-					// transfer the transform as well
-					node.TrafoMatrix *= child.TrafoMatrix;
-
-					// then kill it
-					node.Children.Clear();
-				}
-			}
-
-			// recurse
-			for (int a = 0; a < node.Children.Count; a++)
-			{
-				FilterHierarchy(node.Children[a]);
-			}
 		}
 
 		protected int ConvertToFloat(int position, out float result, bool check_comma = true)

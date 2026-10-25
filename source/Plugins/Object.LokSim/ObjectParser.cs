@@ -1,4 +1,4 @@
-﻿//Simplified BSD License (BSD-2-Clause)
+//Simplified BSD License (BSD-2-Clause)
 //
 //Copyright (c) 2020, Christopher Lees, The OpenBVE Project
 //
@@ -22,17 +22,13 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-using System;
 using System.Collections.Generic;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.IO;
-using System.Runtime.InteropServices;
+using System.Linq;
 using System.Xml;
 using OpenBveApi.Colors;
 using OpenBveApi.Math;
-using System.Linq;
 using OpenBveApi.Interface;
 using OpenBveApi.Objects;
 
@@ -44,19 +40,19 @@ namespace Plugin
 		/// <summary>Loads a Loksim3D object from a file.</summary>
 		/// <param name="FileName">The text file to load the animated object from. Must be an absolute file name.</param>
 		/// <param name="Rotation">The rotation to be applied</param>
+		/// <param name="autoRotate">Whether auto-rotation (billboarding) is to be applied</param>
 		/// <returns>The object loaded.</returns>
-		internal static StaticObject ReadObject(string FileName, Vector3 Rotation)
+		internal static StaticObject ReadObject(string FileName, Vector3 Rotation, ref bool autoRotate)
 		{
 			string BaseDir = Path.GetDirectoryName(FileName);
 			XmlDocument currentXML = new XmlDocument();
 			//Initialise the object
 			StaticObject Object = new StaticObject(Plugin.currentHost);
 			MeshBuilder Builder = new MeshBuilder(Plugin.currentHost);
-			List<Vector3> Normals = new List<Vector3>();
 			bool PropertiesFound = false;
 
-			VertexTemplate[] tempVertices = new VertexTemplate[0];
-			Vector3[] tempNormals = new Vector3[0];
+			List<VertexTemplate> tempVertices = new List<VertexTemplate>();
+			List<Vector3> tempNormals = new List<Vector3>();
 			Color24 transparentColor = new Color24();
 			string tday = null;
 			string tnight = null;
@@ -78,7 +74,6 @@ namespace Plugin
 				{
 					return null;
 				}
-
 			}
 			else
 			{
@@ -211,10 +206,14 @@ namespace Plugin
 														Face2 = false;
 													}
 													break;
-
+												case "AutoRotate":
+													if (attribute.Value == "TRUE")
+													{
+														autoRotate = true;
+													}
+													break;
 												/*
 												 * MISSING PROPERTIES:
-												 * AutoRotate - Rotate with tracks?? LS3D presumably uses a 3D world system.
 												 * Beleuchtet- Translates as illuminated. Presume something to do with lighting? - What emissive color?
 												 * FileAuthor
 												 * FileInfo
@@ -257,20 +256,17 @@ namespace Plugin
 														break;
 												}
 											}
-											//Resize temp arrays
-											Array.Resize(ref tempVertices, tempVertices.Length + 1);
-											Array.Resize(ref tempNormals, tempNormals.Length + 1);
+											
 											//Add vertex and normals to temp array
 											if (vF == false)
 											{
 												Plugin.currentHost.AddMessage(MessageType.Warning, true, "Vertex with no co-ordinates supplied encountered in Ls3d object file.");
 												continue;
 											}
-											tempVertices[tempVertices.Length - 1] = new Vertex(v);
-											tempNormals[tempNormals.Length - 1] = new Vector3(n);
-											tempNormals[tempNormals.Length - 1].Normalize();
+											tempVertices.Add(new Vertex(v));
+											tempNormals.Add(new Vector3(n));
+											tempNormals[tempNormals.Count - 1].Normalize();
 											Builder.Vertices.Add(new Vertex(new Vector3(v)));
-											Normals.Add(new Vector3(n));
 										}
 									}
 								}
@@ -335,7 +331,6 @@ namespace Plugin
 															//Calculate openBVE co-ords
 															currentCoords.X = (OpenBVEWidth / TextureWidth);
 															currentCoords.Y = (OpenBVEHeight / TextureHeight);
-
 														}
 														else
 														{
@@ -344,8 +339,6 @@ namespace Plugin
 															currentCoords.Y = 0;
 														}
 														Builder.Vertices[Builder.Vertices.Count - 1].TextureCoordinates = currentCoords;
-
-
 													}
 												}
 												if (Face2)
@@ -366,12 +359,18 @@ namespace Plugin
 				}
 
 				//Apply rotation
-				/*
-                 * NOTES:
-                 * No rotation order is specified
-                 * The rotation string in a .l3dgrp file is ordered Y, Z, X    ??? Can't find a good reason for this ???
-                 * Rotations must still be performed in X,Y,Z order to produce correct results
-                 */
+				if (Rotation.X != 0.0)
+				{
+					Rotation.X = Rotation.X.ToRadians();
+					//Apply rotation
+					Builder.ApplyRotation(Vector3.Down, Rotation.X);
+				}
+				if (Rotation.Y != 0.0)
+				{
+					Rotation.Y = Rotation.Y.ToRadians();
+					//Apply rotation
+					Builder.ApplyRotation(Vector3.Forward, Rotation.Y);
+				}
 
 				if (Rotation.Z != 0.0)
 				{
@@ -379,23 +378,6 @@ namespace Plugin
 					//Apply rotation
 					Builder.ApplyRotation(Vector3.Right, Rotation.Z);
 				}
-
-
-				if (Rotation.X != 0.0)
-				{
-					//This is actually the Y-Axis rotation
-					Rotation.X = Rotation.X.ToRadians();
-					//Apply rotation
-					Builder.ApplyRotation(Vector3.Down, Rotation.X);
-				}
-				if (Rotation.Y != 0.0)
-				{
-					//This is actually the X-Axis rotation
-					Rotation.Y = Rotation.Y.ToRadians();
-					//Apply rotation
-					Builder.ApplyRotation(Vector3.Forward, Rotation.Y);
-				}
-
 
 				//These files appear to only have one texture defined
 				//Therefore import later- May have to change
@@ -419,100 +401,8 @@ namespace Plugin
 
 			}
 			Builder.Apply(ref Object);
-			Object.Mesh.CreateNormals();
+			Object.Mesh.FinalizeMesh();
 			return Object;
-		}
-		
-
-		private static Bitmap ResizeImage(Image image, int width, int height)
-		{
-			var destRect = new Rectangle(0, 0, width, height);
-			var destImage = new Bitmap(width, height, PixelFormat.Format24bppRgb);
-
-			destImage.SetResolution(image.HorizontalResolution, image.VerticalResolution);
-
-			using (var graphics = Graphics.FromImage(destImage))
-			{
-				graphics.CompositingMode = CompositingMode.SourceCopy;
-				graphics.CompositingQuality = CompositingQuality.HighQuality;
-				graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
-				graphics.SmoothingMode = SmoothingMode.HighQuality;
-				graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-
-				using (var wrapMode = new ImageAttributes())
-				{
-					wrapMode.SetWrapMode(WrapMode.TileFlipXY);
-					graphics.DrawImage(image, destRect, 0, 0, image.Width, image.Height, GraphicsUnit.Pixel, wrapMode);
-				}
-			}
-			return destImage;
-		}
-
-		private static Bitmap MergeAlphaBitmap(Bitmap Main, Bitmap Alpha)
-		{
-			Bitmap Output = new Bitmap(Main.Width, Main.Height, PixelFormat.Format32bppArgb);
-
-			Rectangle rect = new Rectangle(0, 0, Main.Width, Main.Height);
-
-			BitmapData bmp1Data = Main.LockBits(rect, ImageLockMode.ReadOnly, Main.PixelFormat);
-			BitmapData bmp2Data = Alpha.LockBits(rect, ImageLockMode.ReadOnly, Alpha.PixelFormat);
-			BitmapData bmp3Data = Output.LockBits(rect, ImageLockMode.ReadWrite, PixelFormat.Format32bppArgb);
-
-			int size1 = bmp1Data.Stride * bmp1Data.Height;
-			int size2 = bmp2Data.Stride * bmp2Data.Height;
-			int size3 = bmp3Data.Stride * bmp3Data.Height;
-			byte[] data1 = new byte[size1];
-			byte[] data2 = new byte[size2];
-			byte[] data3 = new byte[size3];
-			Marshal.Copy(bmp1Data.Scan0, data1, 0, size1);
-			Marshal.Copy(bmp2Data.Scan0, data2, 0, size2);
-			Marshal.Copy(bmp3Data.Scan0, data3, 0, size3);
-
-			for (int y = 0; y < Main.Height; y++)
-			{
-				for (int x = 0; x < Main.Width; x++)
-				{
-					int index1 = y * bmp1Data.Stride + x * 3;
-					int index2;
-					int index3 = y * bmp3Data.Stride + x * 4;
-					//Copy alpha pixel data
-					switch (Alpha.PixelFormat)
-					{
-						case PixelFormat.Format1bppIndexed:
-							//Find the index in the bitmap's data
-							var idx = y * bmp2Data.Stride + (x >> 3);
-							var mask = (byte)(0x80 >> (x & 0x7));
-							//Use mask to find whether this pixel is trans (8 pixels per byte)
-							data3[index3 + 3] = (data2[idx] & mask) == 0 ? (byte)0 : (byte)255;
-							break;
-						case PixelFormat.Format8bppIndexed:
-							//Likely 256 color grayscale so just copy the raw bytes
-							index2 = y * bmp2Data.Stride + x;
-							data3[index3 + 3] = data2[index2];
-							break;
-						case PixelFormat.Format24bppRgb:
-							//This is a full-color RGB bitmap, so cast our color to grayscale first
-							index2 = y * bmp2Data.Stride + x * 3;
-							var c2 = Color.FromArgb(255, data2[index2 + 2], data2[index2 + 1], data2[index2 + 0]);
-							data3[index3 + 3] = (byte)(255 * c2.GetBrightness());
-							break;
-						default:
-							//Not supported, so set our bitmap to fully opaque
-							data3[index3 + 3] = 255;
-							break;
-					}
-					var c1 = Color.FromArgb(255, data1[index1 + 2], data1[index1 + 1], data1[index1 + 0]);
-					data3[index3 + 0] = c1.B;
-					data3[index3 + 1] = c1.G;
-					data3[index3 + 2] = c1.R;
-				}
-			}
-
-			Marshal.Copy(data3, 0, bmp3Data.Scan0, data3.Length);
-			Main.UnlockBits(bmp1Data);
-			Alpha.UnlockBits(bmp2Data);
-			Output.UnlockBits(bmp3Data);
-			return Output;
 		}
 	}
 }

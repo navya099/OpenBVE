@@ -1,9 +1,7 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
 using LibRender2;
 using LibRender2.MotionBlurs;
 using LibRender2.Objects;
+using LibRender2.Overlays;
 using LibRender2.Screens;
 using LibRender2.Shaders;
 using LibRender2.Viewports;
@@ -17,30 +15,18 @@ using OpenBveApi.Interface;
 using OpenBveApi.Math;
 using OpenBveApi.Objects;
 using OpenBveApi.Routes;
-using OpenBveApi.World;
+using OpenBveApi.Textures;
 using OpenTK.Graphics.OpenGL;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using TrainManager.Trains;
 using Vector3 = OpenBveApi.Math.Vector3;
 
 namespace OpenBve.Graphics
 {
 	internal class NewRenderer : BaseRenderer
 	{
-		// interface options
-		internal enum GradientDisplayMode
-		{
-			Percentage, UnitOfChange, Permil, None
-		}
-
-		internal enum SpeedDisplayMode
-		{
-			None, Kmph, Mph
-		}
-
-		internal enum DistanceToNextStationDisplayMode
-		{
-			None, Km, Mile
-		}
-
 		internal bool OptionClock = false;
 		internal GradientDisplayMode OptionGradient = GradientDisplayMode.None;
 		internal SpeedDisplayMode OptionSpeed = SpeedDisplayMode.None;
@@ -57,27 +43,15 @@ namespace OpenBve.Graphics
 		public override void Initialize()
 		{
 			base.Initialize();
-			if (!ForceLegacyOpenGL && Interface.CurrentOptions.IsUseNewRenderer) // GL3 has already failed. Don't trigger unneccessary exceptions
+			if (pickingShader == null)
 			{
-				try
-				{
-					if (pickingShader == null)
-					{
-						pickingShader = new Shader(this, "default", "picking", true);
-					}
-
-					pickingShader.Activate();
-					pickingShader.Deactivate();
-				}
-				catch
-				{
-					Interface.AddMessage(MessageType.Error, false, "Initializing the touch shader failed- Falling back to legacy openGL.");
-					Interface.CurrentOptions.IsUseNewRenderer = false;
-					ForceLegacyOpenGL = true;
-				}
+				pickingShader = new Shader(this, "default", "picking", true);
 			}
 
-			events = new Events(this);
+			pickingShader.Activate();
+			pickingShader.Deactivate();
+
+            events = new Events(this);
 			overlays = new Overlays(this);
 			Touch = new Touch(this);
 			ObjectsSortedByStart = new int[] { };
@@ -87,21 +61,11 @@ namespace OpenBve.Graphics
 			Program.FileSystem.AppendToLogFile("Renderer initialised successfully.");
 		}
 		
-		internal int CreateStaticObject(UnifiedObject Prototype, Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation, ObjectDisposalMode AccurateObjectDisposal, double AccurateObjectDisposalZOffset, double StartingDistance, double EndingDistance, double BlockLength, double TrackPosition, double Brightness)
-		{
-			if (!(Prototype is StaticObject obj))
-			{
-				Interface.AddMessage(MessageType.Error, false, "Attempted to use an animated object where only static objects are allowed.");
-				return -1;
-			}
-			return base.CreateStaticObject(obj, Position, WorldTransformation, LocalTransformation, AccurateObjectDisposal, AccurateObjectDisposalZOffset, StartingDistance, EndingDistance, BlockLength, TrackPosition, Brightness);
-		}
-
-		public override void UpdateViewport(int Width, int Height)
+		protected override void UpdateViewport(int width, int height)
 		{
 			_programLogo = null;
-			Screen.Width = Width;
-			Screen.Height = Height;
+			Screen.Width = width;
+			Screen.Height = height;
 			GL.Viewport(0, 0, Screen.Width, Screen.Height);
 
 			Screen.AspectRatio = Screen.Width / (double)Screen.Height;
@@ -111,17 +75,18 @@ namespace OpenBve.Graphics
 			{
 				case ViewportMode.Scenery:
 					double cd = Program.CurrentRoute.CurrentBackground is BackgroundObject b ? Math.Max(Program.CurrentRoute.CurrentBackground.BackgroundImageDistance, b.ClipDistance) : Program.CurrentRoute.CurrentBackground.BackgroundImageDistance;
-					CurrentProjectionMatrix = Matrix4D.CreatePerspectiveFieldOfView(Camera.VerticalViewingAngle, Screen.AspectRatio, 0.5, cd);
+					double nearClipScenery = Math.Max(0.01, Interface.CurrentOptions.NearClipScenery);
+					CurrentProjectionMatrix = Matrix4D.CreatePerspectiveFieldOfView(Camera.VerticalViewingAngle, Screen.AspectRatio, nearClipScenery, cd);
 					break;
 				case ViewportMode.Cab:
-					CurrentProjectionMatrix = Matrix4D.CreatePerspectiveFieldOfView(Camera.VerticalViewingAngle, Screen.AspectRatio, 0.025, 50.0);
+					double nearClipCab = Math.Max(0.01, Interface.CurrentOptions.NearClipCab);
+					CurrentProjectionMatrix = Matrix4D.CreatePerspectiveFieldOfView(Camera.VerticalViewingAngle, Screen.AspectRatio, nearClipCab, 50.0);
 					break;
 			}
 
 			Touch.UpdateViewport();
 		}
 		
-		// render scene
 		internal void RenderScene(double TimeElapsed, double RealTimeElapsed)
 		{
 			ReleaseResources();
@@ -146,27 +111,26 @@ namespace OpenBve.Graphics
 			}
 			else
 			{
-				GL.ClearColor(0.67f, 0.67f, 0.67f, 1.0f);
+				GL.ClearColor(Interface.CurrentOptions.ClearColor.R * inv255, Interface.CurrentOptions.ClearColor.G * inv255, Interface.CurrentOptions.ClearColor.B * inv255, 1.0f);
 			}
 
 			GL.Clear(ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
+			
+			// set up camera and lighting early for shadows
+			CurrentViewMatrix = Matrix4D.LookAt(Vector3.Zero, new Vector3(Camera.AbsoluteDirection.X, Camera.AbsoluteDirection.Y, -Camera.AbsoluteDirection.Z), new Vector3(Camera.AbsoluteUp.X, Camera.AbsoluteUp.Y, -Camera.AbsoluteUp.Z));
+			TransformedLightPosition = new Vector3(Lighting.OptionLightPosition.X, Lighting.OptionLightPosition.Y, -Lighting.OptionLightPosition.Z);
+			TransformedLightPosition.Transform(CurrentViewMatrix);
 
 			UpdateViewport(ViewportChangeMode.ChangeToScenery);
 
-			// set up camera and lighting
-			CurrentViewMatrix = Matrix4D.LookAt(Vector3.Zero, new Vector3(Camera.AbsoluteDirection.X, Camera.AbsoluteDirection.Y, -Camera.AbsoluteDirection.Z), new Vector3(Camera.AbsoluteUp.X, Camera.AbsoluteUp.Y, -Camera.AbsoluteUp.Z));
-			if (Lighting.ShouldInitialize)
+			PerformCSMShadowPass();
+
+            if (Lighting.ShouldInitialize)
 			{
 				Lighting.Initialize();
 				Lighting.ShouldInitialize = false;
 			}
-			TransformedLightPosition = new Vector3(Lighting.OptionLightPosition.X, Lighting.OptionLightPosition.Y, -Lighting.OptionLightPosition.Z);
-			TransformedLightPosition.Transform(CurrentViewMatrix);
-			if (!AvailableNewRenderer)
-			{
-				GL.Light(LightName.Light0, LightParameter.Position, new[] { (float)TransformedLightPosition.X, (float)TransformedLightPosition.Y, (float)TransformedLightPosition.Z, 0.0f });
-			}
-
+			
 			Lighting.OptionLightingResultingAmount = (Lighting.OptionAmbientColor.R + Lighting.OptionAmbientColor.G + Lighting.OptionAmbientColor.B) / 480.0f;
 
 			if (Lighting.OptionLightingResultingAmount > 1.0f)
@@ -194,12 +158,17 @@ namespace OpenBve.Graphics
 			{
 				Program.CurrentRoute.CurrentFog = Program.CurrentRoute.PreviousFog;
 			}
-			
-			// render background
-			GL.Disable(EnableCap.DepthTest);
-			Program.CurrentRoute.UpdateBackground(TimeElapsed, Program.Renderer.CurrentInterface != InterfaceType.Normal);
 
-			events.Render(Camera.AbsolutePosition);
+			DefaultShader.Activate();
+			BindCSMToDefaultShader();
+
+            // render background
+            // n.b. must disable shadows
+            GL.Disable(EnableCap.DepthTest);
+			DefaultShader.SetShadowEnabled(false);
+			Program.CurrentRoute.UpdateBackground(TimeElapsed, Program.Renderer.CurrentInterface != InterfaceType.Normal);
+			DefaultShader.SetShadowEnabled(ShadowsEnabled);
+
 
 			// fog
 			float aa = Program.CurrentRoute.CurrentFog.Start;
@@ -207,47 +176,36 @@ namespace OpenBve.Graphics
 
 			if (aa < bb & aa < Program.CurrentRoute.CurrentBackground.BackgroundImageDistance)
 			{
-				OptionFog = true;
+				Fog.Enabled = true;
 				Fog.Start = aa;
 				Fog.End = bb;
 				Fog.Color = Program.CurrentRoute.CurrentFog.Color;
 				Fog.Density = Program.CurrentRoute.CurrentFog.Density;
 				Fog.IsLinear = Program.CurrentRoute.CurrentFog.IsLinear;
-				if (!AvailableNewRenderer)
-				{
-					Fog.SetForImmediateMode();
-				}
-				
+				Fog.Set();
 			}
 			else
 			{
-				OptionFog = false;
+				Fog.Enabled = false;
 			}
 
-			// world layer
-			// opaque face
-			if (AvailableNewRenderer)
-			{
-				//Setup the shader for rendering the scene
-				DefaultShader.Activate();
-				if (OptionLighting)
-				{
-					DefaultShader.SetIsLight(true);
-					DefaultShader.SetLightPosition(TransformedLightPosition);
-					DefaultShader.SetLightAmbient(Lighting.OptionAmbientColor);
-					DefaultShader.SetLightDiffuse(Lighting.OptionDiffuseColor);
-					DefaultShader.SetLightSpecular(Lighting.OptionSpecularColor);
-					DefaultShader.SetLightModel(Lighting.LightModel);
-				}
-				if (OptionFog)
-				{
-					DefaultShader.SetIsFog(true);
-					DefaultShader.SetFog(Fog);
-				}
-				DefaultShader.SetTexture(0);
-				DefaultShader.SetCurrentProjectionMatrix(CurrentProjectionMatrix);
-			}
-			ResetOpenGlState();
+            // world layer
+            // opaque face
+            //Setup the shader for rendering the scene
+            if (OptionLighting)
+            {
+	            DefaultShader.SetIsLight(true);
+	            DefaultShader.SetLightPosition(TransformedLightPosition);
+	            DefaultShader.SetLightAmbient(Lighting.OptionAmbientColor);
+	            DefaultShader.SetLightDiffuse(Lighting.OptionDiffuseColor);
+	            DefaultShader.SetLightSpecular(Lighting.OptionSpecularColor);
+	            DefaultShader.SetLightModel(Lighting.LightModel);
+            }
+            Fog.Set();
+            DefaultShader.SetTexture(0);
+            DefaultShader.SetCurrentProjectionMatrix(CurrentProjectionMatrix);
+
+            ResetOpenGlState();
 			List<FaceState> opaqueFaces, alphaFaces, overlayOpaqueFaces, overlayAlphaFaces;
 			lock (VisibleObjects.LockObject)
 			{
@@ -307,8 +265,6 @@ namespace OpenBve.Graphics
 							UnsetAlphaFunc();
 							additive = true;
 						}
-
-						face.Draw();
 					}
 					else
 					{
@@ -317,8 +273,8 @@ namespace OpenBve.Graphics
 							SetAlphaFunc();
 							additive = false;
 						}
-						face.Draw();
 					}
+					face.Draw();
 				}
 			}
 
@@ -331,27 +287,64 @@ namespace OpenBve.Graphics
 
 			if (Interface.CurrentOptions.MotionBlur != MotionBlurMode.None)
 			{
-				if (AvailableNewRenderer)
-				{
-					DefaultShader.Deactivate();
-				}
-				MotionBlur.RenderFullscreen(Interface.CurrentOptions.MotionBlur, FrameRate, Math.Abs(Camera.CurrentSpeed));
+				DefaultShader.Deactivate();
+                MotionBlur.RenderFullscreen(Interface.CurrentOptions.MotionBlur, FrameRate, Math.Abs(Camera.CurrentSpeed));
 			}
-			// overlay layer
-			OptionFog = false;
-			UpdateViewport(ViewportChangeMode.ChangeToCab);
-			
-			if (AvailableNewRenderer)
+
+			// particle sources
+			SetBlendFunc();
+			SetAlphaFunc(AlphaFunction.Greater, 0.0f);
+			if(CurrentInterface != InterfaceType.GLMainMenu)
 			{
-				/*
-				 * We must reset the shader between overlay and world layers for correct lighting results.
-				 * Additionally, the viewport change updates the projection matrix
-				 */
-				DefaultShader.Activate();
-				ResetShader(DefaultShader);
-				DefaultShader.SetCurrentProjectionMatrix(CurrentProjectionMatrix);
+				foreach (TrainBase train in Program.TrainManager.Trains)
+				{
+					train.UpdateParticleSources(TimeElapsed);
+				}
+
+				// ReSharper disable once PossibleInvalidCastExceptionInForeachLoop
+				foreach (ScriptedTrain scriptedTrain in Program.TrainManager.TFOs)
+				{
+					scriptedTrain.UpdateParticleSources(TimeElapsed);
+				}
+				
 			}
-			CurrentViewMatrix = Matrix4D.LookAt(Vector3.Zero, new Vector3(Camera.AbsoluteDirection.X, Camera.AbsoluteDirection.Y, -Camera.AbsoluteDirection.Z), new Vector3(Camera.AbsoluteUp.X, Camera.AbsoluteUp.Y, -Camera.AbsoluteUp.Z));
+
+			if (Interface.CurrentOptions.ShowEvents)
+			{
+				if (Math.Abs(CameraTrackFollower.TrackPosition - events.LastTrackPosition) > 50)
+				{
+					events.LastTrackPosition = CameraTrackFollower.TrackPosition;
+					CubesToDraw.Clear();
+					for (int i = 0; i < Program.CurrentRoute.Tracks.Count; i++)
+					{
+						int railIndex = Program.CurrentRoute.Tracks.ElementAt(i).Key;
+						events.FindEvents(railIndex);
+					}
+				}
+
+				for (int i = 0; i < CubesToDraw.Count; i++)
+				{
+					Texture T = CubesToDraw.ElementAt(i).Key;
+					foreach (Vector3 v in CubesToDraw[T])
+					{
+						Cube.Draw(v, Camera.AbsoluteDirection, Camera.AbsoluteUp, Camera.AbsoluteSide, 0.2, Camera.AbsolutePosition, T);
+					}
+				}
+			}
+
+			// overlay (cab / interior) layer
+			Fog.Enabled = false;
+			UpdateViewport(ViewportChangeMode.ChangeToCab);
+
+			/*
+			 * We must reset the shader between overlay and world layers for correct lighting results.
+			 * Additionally, the viewport change updates the projection matrix
+			 */
+			DefaultShader.Activate();
+			ResetShader(DefaultShader);
+			DefaultShader.SetCurrentProjectionMatrix(CurrentProjectionMatrix);
+
+            CurrentViewMatrix = Matrix4D.LookAt(Vector3.Zero, new Vector3(Camera.AbsoluteDirection.X, Camera.AbsoluteDirection.Y, -Camera.AbsoluteDirection.Z), new Vector3(Camera.AbsoluteUp.X, Camera.AbsoluteUp.Y, -Camera.AbsoluteUp.Z));
 			
 			if (Camera.CurrentRestriction == CameraRestrictionMode.NotAvailable || Camera.CurrentRestriction == CameraRestrictionMode.Restricted3D)
 			{
@@ -362,25 +355,17 @@ namespace OpenBve.Graphics
 				Color24 prevOptionDiffuseColor = Lighting.OptionDiffuseColor;
 				Lighting.OptionAmbientColor = Color24.LightGrey;
 				Lighting.OptionDiffuseColor = Color24.LightGrey;
-				if (AvailableNewRenderer)
-				{
-					DefaultShader.SetIsLight(true);
-					TransformedLightPosition = new Vector3(Lighting.OptionLightPosition.X, Lighting.OptionLightPosition.Y, -Lighting.OptionLightPosition.Z);
-					DefaultShader.SetLightPosition(TransformedLightPosition);
-					DefaultShader.SetLightAmbient(Lighting.OptionAmbientColor);
-					DefaultShader.SetLightDiffuse(Lighting.OptionDiffuseColor);
-					DefaultShader.SetLightSpecular(Lighting.OptionSpecularColor);
-					DefaultShader.SetLightModel(Lighting.LightModel);
-				}
-				else
-				{
-					GL.Light(LightName.Light0, LightParameter.Ambient, new[] { inv255 * 178, inv255 * 178, inv255 * 178, 1.0f });
-					GL.Light(LightName.Light0, LightParameter.Diffuse, new[] { inv255 * 178, inv255 * 178, inv255 * 178, 1.0f });	
-				}
-				
 
-				// overlay opaque face
-				foreach (FaceState face in overlayOpaqueFaces)
+				DefaultShader.SetIsLight(true);
+				TransformedLightPosition = new Vector3(Lighting.OptionLightPosition.X, Lighting.OptionLightPosition.Y, -Lighting.OptionLightPosition.Z);
+				DefaultShader.SetLightPosition(TransformedLightPosition);
+				DefaultShader.SetLightAmbient(Lighting.OptionAmbientColor);
+				DefaultShader.SetLightDiffuse(Lighting.OptionDiffuseColor);
+				DefaultShader.SetLightSpecular(Lighting.OptionSpecularColor);
+				DefaultShader.SetLightModel(Lighting.LightModel);
+
+                // overlay opaque face
+                foreach (FaceState face in overlayOpaqueFaces)
 				{
 					face.Draw();
 				}
@@ -429,8 +414,6 @@ namespace OpenBve.Graphics
 								UnsetAlphaFunc();
 								additive = true;
 							}
-
-							face.Draw();
 						}
 						else
 						{
@@ -439,9 +422,8 @@ namespace OpenBve.Graphics
 								SetAlphaFunc();
 								additive = false;
 							}
-
-							face.Draw();
 						}
+						face.Draw();
 					}
 				}
 
@@ -457,12 +439,9 @@ namespace OpenBve.Graphics
                  */
 				ResetOpenGlState();
 				OptionLighting = false;
-				if (AvailableNewRenderer)
-				{
-					DefaultShader.SetIsLight(false);
-				}
-				
-				SetBlendFunc();
+				DefaultShader.SetIsLight(false);
+
+                SetBlendFunc();
 				UnsetAlphaFunc();
 				GL.Disable(EnableCap.DepthTest);
 				GL.DepthMask(false);
@@ -481,10 +460,20 @@ namespace OpenBve.Graphics
 			SetBlendFunc(BlendingFactor.SrcAlpha, BlendingFactor.OneMinusSrcAlpha); //FIXME: Remove when text switches between two renderer types
 			GL.Disable(EnableCap.DepthTest);
 			overlays.Render(RealTimeElapsed);
+			switch (CurrentInterface)
+			{
+				case InterfaceType.Menu:
+				case InterfaceType.GLMainMenu:
+					Game.Menu.Draw(TimeElapsed);
+					break;
+				case InterfaceType.SwitchChangeMap:
+					Game.SwitchChangeDialog.Draw();
+					break;
+			}
 			OptionLighting = true;
 		}
 
-		public NewRenderer(HostInterface CurrentHost, BaseOptions CurrentOptions, FileSystem FileSystem) : base(CurrentHost, CurrentOptions, FileSystem)
+		public NewRenderer(HostInterface currentHost, BaseOptions CurrentOptions, FileSystem fileSystem) : base(currentHost, CurrentOptions, fileSystem)
 		{
 		}
 	}

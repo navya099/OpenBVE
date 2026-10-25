@@ -3,7 +3,7 @@
 	/// <summary>Contains color palettes</summary>
 	public class ColorPalettes
 	{
-		/// <summary>Standard Windows 16-color pallette</summary>
+		/// <summary>Standard Windows 16-color palette</summary>
 		public static readonly Color24[] Windows16ColorPalette =
 		{
 			new Color24(0, 0, 0),
@@ -24,7 +24,7 @@
 			new Color24(255, 255, 255),
 		};
 
-		/// <summary>Standard Windows 256-color pallette</summary>
+		/// <summary>Standard Windows 256-color palette</summary>
 		public static readonly Color24[] Windows256ColorPalette =
 		{
 			new Color24(0, 0, 0),
@@ -284,8 +284,8 @@
 			new Color24(0, 0, 0),
 		};
 
-		/// <summary>Standard Windows monochrome pallette</summary>
-		public static Color24[] MonochromePalette =
+		/// <summary>Standard Windows monochrome palette</summary>
+		public static readonly Color24[] MonochromePalette =
 		{
 			Color24.Black,
 			Color24.White

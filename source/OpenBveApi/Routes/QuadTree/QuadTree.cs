@@ -14,15 +14,16 @@ namespace OpenBveApi.Routes
 		/// <summary>The side length of a leaf node.</summary>
 		internal readonly double SideLength;
 
-		internal readonly List<ObjectState> Objects;
+		internal readonly HashSet<ObjectState> Objects;
 
 		/// <summary>Creates an empty quad with a null root node.</summary>
 		/// <param name="sideLength">The side length of a leaf node.</param>
 		public QuadTree(double sideLength)
 		{
 			Root = null;
-			SideLength = sideLength;
-			Objects = new List<ObjectState>();
+			// ensure that we're using a sensible side length
+			SideLength = System.Math.Min(sideLength, 500);
+			Objects = new HashSet<ObjectState>();
 		}
 
 		/// <summary>Clears the quad tree</summary>
@@ -47,7 +48,7 @@ namespace OpenBveApi.Routes
 			{
 				// the root node does not exist yet
 				// as our object must be in world-space, it's world position is a good starting point for the tree, as
-				// routes may start at any arbritary track position
+				// routes may start at any arbitrary track position
 				Vector3 quadPosition = new Vector3(0.0, objectState.WorldPosition.Y, 0.0);
 				QuadTreePopulatedLeafNode leaf = new QuadTreePopulatedLeafNode(
 					null,
@@ -109,14 +110,13 @@ namespace OpenBveApi.Routes
 									{
 										index = 0;
 										right = centerX;
-										far = centerZ;
 									}
 									else
 									{
 										index = 1;
 										left = centerX;
-										far = centerZ;
 									}
+									far = centerZ;
 								}
 								else
 								{
@@ -124,14 +124,13 @@ namespace OpenBveApi.Routes
 									{
 										index = 2;
 										right = centerX;
-										near = centerZ;
 									}
 									else
 									{
 										index = 3;
 										left = centerX;
-										near = centerZ;
 									}
+									near = centerZ;
 								}
 
 								if (intern.Children[index] is QuadTreeUnpopulatedLeafNode)

@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <ProjectGuid>{27134980-4415-4375-A564-40A9014DFA5F}</ProjectGuid>
@@ -7,7 +7,7 @@
     <OutputType>Library</OutputType>
     <RootNamespace>OpenBveApi</RootNamespace>
     <AssemblyName>OpenBveApi</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <AppDesignerFolder>Properties</AppDesignerFolder>
     <AllowUnsafeBlocks>False</AllowUnsafeBlocks>
     <NoStdLib>False</NoStdLib>
@@ -70,31 +70,35 @@
     <Reference Include="CSScriptLibrary, Version=3.30.3.0, Culture=neutral, PublicKeyToken=70fcc3d18c749033, processorArchitecture=MSIL">
       <HintPath>..\..\packages\CS-Script.lib.3.30.3\lib\net46\CSScriptLibrary.dll</HintPath>
     </Reference>
+    <Reference Include="Microsoft.Bcl.AsyncInterfaces, Version=8.0.0.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\Microsoft.Bcl.AsyncInterfaces.8.0.0\lib\net462\Microsoft.Bcl.AsyncInterfaces.dll</HintPath>
+    </Reference>
     <Reference Include="Microsoft.CSharp" />
-    <Reference Include="SharpCompress, Version=0.32.2.0, Culture=neutral, PublicKeyToken=afb0a02973931d96, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\SharpCompress.0.32.2\lib\net461\SharpCompress.dll</HintPath>
+    <Reference Include="SharpCompress, Version=0.50.4.0, Culture=neutral, PublicKeyToken=afb0a02973931d96, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\SharpCompress.0.50.4\lib\net48\SharpCompress.dll</HintPath>
     </Reference>
     <Reference Include="System" />
-    <Reference Include="System.Buffers, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
+    <Reference Include="System.Buffers, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Buffers.4.6.1\lib\net462\System.Buffers.dll</HintPath>
     </Reference>
     <Reference Include="System.Drawing" />
-    <Reference Include="System.Memory, Version=4.0.1.2, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
+    <Reference Include="System.Memory, Version=4.0.5.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Memory.4.6.3\lib\net462\System.Memory.dll</HintPath>
     </Reference>
-    <Reference Include="System.Numerics.Vectors, Version=4.1.4.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
+    <Reference Include="System.Numerics" />
+    <Reference Include="System.Numerics.Vectors, Version=4.1.6.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Numerics.Vectors.4.6.1\lib\net462\System.Numerics.Vectors.dll</HintPath>
     </Reference>
-    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe, Version=6.0.3.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Runtime.CompilerServices.Unsafe.6.1.2\lib\net462\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
     </Reference>
     <Reference Include="System.Runtime.Serialization" />
     <Reference Include="System.ServiceModel" />
-    <Reference Include="System.Text.Encoding.CodePages, Version=6.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\System.Text.Encoding.CodePages.6.0.0\lib\net461\System.Text.Encoding.CodePages.dll</HintPath>
+    <Reference Include="System.Text.Encoding.CodePages, Version=8.0.0.0, Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Text.Encoding.CodePages.8.0.0\lib\net462\System.Text.Encoding.CodePages.dll</HintPath>
     </Reference>
-    <Reference Include="System.ValueTuple, Version=4.0.3.0, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
-      <HintPath>..\..\packages\System.ValueTuple.4.5.0\lib\net461\System.ValueTuple.dll</HintPath>
+    <Reference Include="System.Threading.Tasks.Extensions, Version=4.2.0.1, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51, processorArchitecture=MSIL">
+      <HintPath>..\..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
     </Reference>
     <Reference Include="System.Xml" />
     <Reference Include="System.Windows.Forms" />
@@ -111,7 +115,11 @@
     <Compile Include="FunctionScripts\Instructions.cs" />
     <Compile Include="Graphics\Camera.RestrictionModes.cs" />
     <Compile Include="Graphics\Colors.ColorPalettes.cs" />
-    <Compile Include="Graphics\Colors.cs" />
+    <Compile Include="Graphics\Colors.Color24.cs" />
+    <Compile Include="Graphics\Colors.Color32.cs" />
+    <Compile Include="Graphics\Colors.Color96.cs" />
+    <Compile Include="Graphics\Colors.Color128.cs" />
+    <Compile Include="Graphics\Colors.MessageColors.cs" />
     <Compile Include="Interface\Input\Control.cs" />
     <Compile Include="Interface\Input\ControlMethod.cs" />
     <Compile Include="Interface\Input\DigitalControlState.cs" />
@@ -121,22 +129,26 @@
     <Compile Include="Interface\Key.cs" />
     <Compile Include="Interface\Logging\LogMessage.cs" />
     <Compile Include="Interface\Logging\LogMessage.MessageType.cs" />
+    <Compile Include="Interface\ShadowMapResolution.cs" />
     <Compile Include="Interface\Time.cs" />
     <Compile Include="Interface\Translations\Language\InterfaceQuickReference.cs" />
     <Compile Include="Interface\Translations\Language\Language.cs" />
     <Compile Include="Interface\Translations\Language\TranslationGroup.cs" />
     <Compile Include="Interface\Translations\Language\TranslationString.cs" />
     <Compile Include="Math\Endianness.cs" />
+    <Compile Include="Math\Extensions.cs" />
     <Compile Include="Math\Matrix4.cs" />
     <Compile Include="Math\Quaternion.cs" />
     <Compile Include="Math\Vectors\Vector2f.cs" />
     <Compile Include="Math\Vectors\Vector3f.cs" />
+    <Compile Include="Math\Vectors\Vector3i.cs" />
     <Compile Include="Math\Vectors\Vector4.cs" />
     <Compile Include="Objects\FaceType.cs" />
     <Compile Include="Objects\Glow.cs" />
     <Compile Include="Objects\Helpers\Material.cs" />
     <Compile Include="Objects\Helpers\MeshBuilder.cs" />
     <Compile Include="Objects\Helpers\ModelExporter.cs" />
+    <Compile Include="Objects\Helpers\ObjectCreationParameters.cs" />
     <Compile Include="Objects\Mesh.cs" />
     <Compile Include="Objects\MeshFace.cs" />
     <Compile Include="Objects\MeshFaceVertex.cs" />
@@ -145,7 +157,6 @@
     <Compile Include="Objects\MeshMaterial.Flags.cs" />
     <Compile Include="Objects\ObjectInterface.cs" />
     <Compile Include="Objects\ObjectState.cs" />
-    <Compile Include="Objects\ObjectTypes\AnimatedObject\AnimatedObject.AnimatedObjectState.cs" />
     <Compile Include="Objects\ObjectTypes\AnimatedObject\AnimatedObject.cs" />
     <Compile Include="Objects\ObjectTypes\AnimatedObject\AnimatedObjectCollection.cs" />
     <Compile Include="Objects\ObjectTypes\AnimatedObject\AnimatedWorldObject.cs" />
@@ -169,6 +180,7 @@
     <Compile Include="Objects\ObjectTypes\WorldSound.cs" />
     <Compile Include="Objects\Parsers\ObjParsers.cs" />
     <Compile Include="Objects\Parsers\XParsers.cs" />
+    <Compile Include="Objects\BlackTransparencyMode.cs" />
     <Compile Include="Plugins\ContentLoadingPlugin.cs" />
     <Compile Include="Resource.Designer.cs">
       <AutoGen>True</AutoGen>
@@ -183,6 +195,9 @@
     <Compile Include="Routes\Events.TriggerTypes.cs" />
     <Compile Include="Routes\LightDefinition.cs" />
     <Compile Include="Routes\ObjectDisposalMode.cs" />
+    <Compile Include="Routes\PowerSupply.cs" />
+    <Compile Include="Routes\PowerSupply.Types.cs" />
+    <Compile Include="Routes\PowerSupply.VoltageTypes.cs" />
     <Compile Include="Routes\QuadTree\QuadNode.cs" />
     <Compile Include="Routes\QuadTree\QuadNode.Internal.cs" />
     <Compile Include="Routes\QuadTree\QuadNode.Leaf.cs" />
@@ -225,6 +240,7 @@
     <Compile Include="System\BaseOptions.OptionsKey.cs" />
     <Compile Include="System\BaseOptions.OptionsSection.cs" />
     <Compile Include="System\BinaryExtensions.cs" />
+    <Compile Include="System\DictionaryExtensions.cs" />
     <Compile Include="System\Files.cs" />
     <Compile Include="System\FileSystem.cs" />
     <Compile Include="Graphics\InterpolationModes.cs" />
@@ -259,6 +275,9 @@
     <Compile Include="Train\CarBrightness.cs" />
     <Compile Include="Train\AbstractCoupler.cs" />
     <Compile Include="Train\GeneralAI.cs" />
+    <Compile Include="Train\Motor\ComponentTypes.cs" />
+    <Compile Include="Train\Motor\EngineType.cs" />
+    <Compile Include="Train\Motor\PantographState.cs" />
     <Compile Include="Train\RequestStop.cs" />
     <Compile Include="Train\StopSkipMode.cs" />
     <Compile Include="Train\TrainInterface.cs" />
@@ -267,7 +286,7 @@
     <Compile Include="Train\TrainStopState.cs" />
     <Compile Include="Train\TrainType.cs" />
     <Compile Include="Train\TravelDirection.cs" />
-    <Compile Include="Train\Wheels.cs" />
+    <Compile Include="Train\Wheels\Wheels.cs" />
     <Compile Include="World\Orientation3.cs" />
     <Compile Include="Packages\Packages.cs" />
     <Compile Include="Packages\Packages.Database.cs" />
@@ -291,6 +310,7 @@
     </Compile>
     <Compile Include="Textures\Textures.OpenGLWrapMode.cs" />
     <Compile Include="Textures\Textures.BitmapOrigin.cs" />
+    <Compile Include="Textures\Textures.StreamingGifOrigin.cs" />
     <Compile Include="Textures\Textures.TextureInterface.cs" />
     <Compile Include="Textures\Textures.TextureOrigin.cs" />
     <Compile Include="Textures\Textures.TextureParameters.cs" />
@@ -302,10 +322,17 @@
     <Compile Include="World\UnitConversions\Force.cs" />
     <Compile Include="World\UnitConversions\Length.cs" />
     <Compile Include="World\UnitConversions\Pressure.cs" />
+    <Compile Include="World\UnitConversions\Torque.cs" />
     <Compile Include="World\UnitConversions\UnitConvertor.cs" />
+    <Compile Include="World\UnitConversions\Velocity.cs" />
     <Compile Include="World\UnitConversions\Volume.cs" />
+    <Compile Include="World\UnitConversions\Volumetric.cs" />
     <Compile Include="World\UnitConversions\Weight.cs" />
-    <Compile Include="World\LightMappedVertex.cs" />
+    <Compile Include="World\Verticies\AnimatedVertex.cs" />
+    <Compile Include="World\Verticies\ColoredVertex.cs" />
+    <Compile Include="World\Verticies\LightMappedVertex.cs" />
+    <Compile Include="World\Verticies\Vertex.cs" />
+    <Compile Include="World\Verticies\VertexTemplate.cs" />
   </ItemGroup>
   <ItemGroup>
     <EmbeddedResource Include="Resource.resx">
@@ -325,5 +352,12 @@
     </ItemGroup>
     <Message Importance="High" Text="Resoloving dependencies" />
     <Copy SkipUnchangedFiles="true" SourceFiles="@(DependentFiles)" DestinationFiles="@(DependentFiles->'$(TargetDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+  <Import Project="..\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net48.1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net48.targets" Condition="Exists('..\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net48.1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net48.targets')" />
+  <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
+    <PropertyGroup>
+      <ErrorText>This project references NuGet package(s) that are missing on this computer. Enable NuGet Package Restore to download them.  For more information, see http://go.microsoft.com/fwlink/?LinkID=322105.The missing file is {0}.</ErrorText>
+    </PropertyGroup>
+    <Error Condition="!Exists('..\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net48.1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net48.targets')" Text="$([System.String]::Format('$(ErrorText)', '..\..\packages\Microsoft.NETFramework.ReferenceAssemblies.net48.1.0.3\build\Microsoft.NETFramework.ReferenceAssemblies.net48.targets'))" />
   </Target>
 </Project>

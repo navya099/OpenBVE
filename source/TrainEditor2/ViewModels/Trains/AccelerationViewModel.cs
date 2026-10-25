@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Globalization;
 using System.Reactive.Linq;
+using Formats.OpenBve;
 using Reactive.Bindings;
 using Reactive.Bindings.Extensions;
 using TrainEditor2.Extensions;
@@ -47,13 +48,12 @@ namespace TrainEditor2.ViewModels.Trains
 					.ToReactivePropertyAsSynchronized(
 						x => x.A0,
 						x => x.ToString(culture),
-						x => double.Parse(x, NumberStyles.Float, culture),
+						x => x.Parse(),
 						ignoreValidationErrorValue: true
 					)
 					.SetValidateNotifyError(x =>
 					{
-						Utilities.TryParse(x, NumberRange.Positive, out double result, out string message);
-
+						Utilities.TryValidate(x, NumberRange.Positive, out string message);
 						return message;
 					})
 					.AddTo(disposable);
@@ -62,13 +62,12 @@ namespace TrainEditor2.ViewModels.Trains
 					.ToReactivePropertyAsSynchronized(
 						x => x.A1,
 						x => x.ToString(culture),
-						x => double.Parse(x, NumberStyles.Float, culture),
+						x => x.Parse(),
 						ignoreValidationErrorValue: true
 					)
 					.SetValidateNotifyError(x =>
 					{
-						Utilities.TryParse(x, NumberRange.Positive, out double result, out string message);
-
+						Utilities.TryValidate(x, NumberRange.Positive, out string message);
 						return message;
 					})
 					.AddTo(disposable);
@@ -77,13 +76,12 @@ namespace TrainEditor2.ViewModels.Trains
 					.ToReactivePropertyAsSynchronized(
 						x => x.V1,
 						x => x.ToString(culture),
-						x => double.Parse(x, NumberStyles.Float, culture),
+						x => x.Parse(),
 						ignoreValidationErrorValue: true
 					)
 					.SetValidateNotifyError(x =>
 					{
-						Utilities.TryParse(x, NumberRange.Positive, out double result, out string message);
-
+						Utilities.TryValidate(x, NumberRange.Positive, out string message);
 						return message;
 					})
 					.AddTo(disposable);
@@ -92,13 +90,12 @@ namespace TrainEditor2.ViewModels.Trains
 					.ToReactivePropertyAsSynchronized(
 						x => x.V2,
 						x => x.ToString(culture),
-						x => double.Parse(x, NumberStyles.Float, culture),
+						x => x.Parse(),
 						ignoreValidationErrorValue: true
 					)
 					.SetValidateNotifyError(x =>
 					{
-						Utilities.TryParse(x, NumberRange.Positive, out double result, out string message);
-
+						Utilities.TryValidate(x, NumberRange.Positive, out string message);
 						return message;
 					})
 					.AddTo(disposable);
@@ -107,13 +104,12 @@ namespace TrainEditor2.ViewModels.Trains
 					.ToReactivePropertyAsSynchronized(
 						x => x.E,
 						x => x.ToString(culture),
-						x => double.Parse(x, NumberStyles.Float, culture),
+						x => x.Parse(),
 						ignoreValidationErrorValue: true
 					)
 					.SetValidateNotifyError(x =>
 					{
-						Utilities.TryParse(x, NumberRange.Positive, out double result, out string message);
-
+						Utilities.TryValidate(x, NumberRange.Positive, out string message);
 						return message;
 					})
 					.AddTo(disposable);
@@ -250,7 +246,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MinVelocity,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -259,7 +255,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MaxVelocity,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -268,7 +264,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MinAcceleration,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -277,7 +273,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MaxAcceleration,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);

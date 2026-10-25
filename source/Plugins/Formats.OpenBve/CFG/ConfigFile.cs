@@ -1,4 +1,4 @@
-﻿//Simplified BSD License (BSD-2-Clause)
+//Simplified BSD License (BSD-2-Clause)
 //
 //Copyright (c) 2020, Christopher Lees, The OpenBVE Project
 //
@@ -22,40 +22,35 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-using OpenBveApi.Colors;
 using OpenBveApi.FunctionScripting;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
-using OpenBveApi.Math;
 using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using OpenBveApi;
 using Path = OpenBveApi.Path;
-using OpenBveApi.Objects;
 
 namespace Formats.OpenBve
 {
 	/// <summary>Root block for a .CFG type file</summary>
 	public class ConfigFile<T1, T2> : Block<T1, T2> where T1 : struct, Enum where T2 : struct, Enum
 	{
-		private readonly List<Block<T1, T2>> subBlocks;
-
-		public ConfigFile(string fileName, HostInterface currentHost, string expectedHeader = null) : this(File.ReadAllLines(fileName, TextEncoding.GetSystemEncodingFromFile(fileName)), currentHost, expectedHeader)
+		/// <summary>The version of the file (if set)</summary>
+		public readonly double Version;
+		public ConfigFile(string fileName, HostInterface currentHost, string expectedHeader = null, double minVersion = 0, double maxVersion = 0, bool defaultFirstBlock = false) 
+			: this(File.ReadAllLines(fileName, TextEncoding.GetSystemEncodingFromFile(fileName)), fileName, currentHost, expectedHeader, minVersion, maxVersion, defaultFirstBlock)
 		{
 		}
 
-		public ConfigFile(string[] lines, HostInterface currentHost, string expectedHeader = null) : base(-1, default, currentHost)
+		public ConfigFile(string[] lines, string fileName, HostInterface currentHost, string expectedHeader = null, double minVersion = 0, double maxVersion = 0, bool defaultFirstBlock = false) : base(-1, default, fileName, currentHost)
 		{
-			subBlocks = new List<Block<T1, T2>>();
 			List<string> blockLines = new List<string>();
-			bool addToBlock = false;
+			bool addToBlock = defaultFirstBlock;
 			int idx = -1;
 			int previousIdx = -1;
-			T1 previousSection = default(T1);
+			T1 previousSection = default;
 
 			// ReSharper disable once InconsistentNaming
 			bool headerOK = string.IsNullOrEmpty(expectedHeader);
@@ -77,14 +72,30 @@ namespace Formats.OpenBve
 				}
 				if (headerOK == false)
 				{
+					int vi = lines[i].Length - 1;
+					if (minVersion > 0 || maxVersion > 0)
+					{
+						while (char.IsDigit(lines[i][vi]) || lines[i][vi] == '.')
+						{
+							vi--;
+						}
+
+						Version = double.Parse(lines[i].Substring(vi));
+						lines[i] = lines[i].Substring(0, vi);
+						if (Version < minVersion || Version > maxVersion)
+						{
+							currentHost.AddMessage(MessageType.Error, false, "Expected a version between " + minVersion + " and " + maxVersion + " , found " + Version);
+                        }
+					}
+					
 					if (!string.IsNullOrEmpty(lines[i]) && string.Compare(lines[i], expectedHeader, StringComparison.OrdinalIgnoreCase) == 0)
 					{
 						headerOK = true;
 					}
 				}
+
 				if (lines[i].StartsWith("[") && lines[i].EndsWith("]"))
 				{
-					startingLine = i;
 					if (!headerOK)
 					{
 						currentHost.AddMessage(MessageType.Error, false, "The expected header " + expectedHeader + " was not found.");
@@ -112,7 +123,7 @@ namespace Formats.OpenBve
 						sct = sct.Substring(0, c);
 
 					}
-					if (!Enum.TryParse(sct, true, out T1 currentSection))
+					if (!EnumCache<T1>.TryParse(sct, out T1 currentSection))
 					{
 						addToBlock = false;
 						currentHost.AddMessage(MessageType.Error, false, "Unknown Section " + sct + " encountered at line " + i);
@@ -124,9 +135,10 @@ namespace Formats.OpenBve
 
 					if (blockLines.Count > 0)
 					{
-						subBlocks.Add(new ConfigSection<T1, T2>(previousIdx, startingLine + 1, previousSection, blockLines.ToArray(), currentHost));
+						subBlocks.Add(new ConfigSection<T1, T2>(previousIdx, startingLine + 1, previousSection, blockLines.ToArray(), fileName, currentHost));
 						blockLines.Clear();
 					}
+					startingLine = i;
 					previousSection = currentSection;
 					previousIdx = idx;
 				}
@@ -141,43 +153,13 @@ namespace Formats.OpenBve
 			// final block
 			if (blockLines.Count > 0)
 			{
-				subBlocks.Add(new ConfigSection<T1, T2>(idx, startingLine + 1, previousSection, blockLines.ToArray(), currentHost));
+				subBlocks.Add(new ConfigSection<T1, T2>(idx, startingLine + 1, previousSection, blockLines.ToArray(), fileName, currentHost));
 			}
 		}
-
-		public override Block<T1, T2> ReadNextBlock()
-		{
-			Block<T1, T2> b = subBlocks.First();
-			subBlocks.RemoveAt(0);
-			return b;
-		}
-
-		public override bool ReadBlock(T1 blockToRead, out Block<T1, T2> block)
-		{
-			for (int i = 0; i < subBlocks.Count; i++)
-			{
-				if (EqualityComparer<T1>.Default.Equals(subBlocks[i].Key, blockToRead))
-				{
-					block = subBlocks[i];
-					subBlocks.RemoveAt(i);
-					return true;
-				}
-			}
-
-			block = null;
-			return false;
-		}
-
-		public override int RemainingSubBlocks => subBlocks.Count;
 	}
 
 	public class ConfigSection<T1, T2> : Block<T1, T2> where T1 : struct, Enum where T2 : struct, Enum
 	{
-		private readonly ConcurrentDictionary<T2, KeyValuePair<int, string>> keyValuePairs;
-
-		private readonly ConcurrentDictionary<int, KeyValuePair<int, string>> indexedValues;
-
-		private readonly Queue<KeyValuePair<int, string>> rawValues;
 		public override Block<T1, T2> ReadNextBlock()
 		{
 			currentHost.AddMessage(MessageType.Error, false, "A section in a CFG file cannot contain sub-blocks.");
@@ -191,13 +173,21 @@ namespace Formats.OpenBve
 			return false;
 		}
 
-		public override int RemainingDataValues => keyValuePairs.Count + indexedValues.Count + rawValues.Count;
-
-		internal ConfigSection(int myIndex, int startingLine, T1 myKey, string[] myLines, HostInterface currentHost) : base(myIndex, myKey, currentHost)
+		public override bool ReadBlock(T1[] validBlocks, out Block<T1, T2> block)
 		{
-			keyValuePairs = new ConcurrentDictionary<T2, KeyValuePair<int, string>>();
-			indexedValues = new ConcurrentDictionary<int, KeyValuePair<int, string>>();
-			rawValues = new Queue<KeyValuePair<int, string>>();
+			currentHost.AddMessage(MessageType.Error, false, "A section in a CFG file cannot contain sub-blocks.");
+			block = null;
+			return false;
+		}
+
+		public override List<Block<T1, T2>> ReadBlocks(T1[] blocks)
+		{
+			currentHost.AddMessage(MessageType.Error, false, "A section in a CFG file cannot contain sub-blocks.");
+			return null;
+		}
+		
+		internal ConfigSection(int myIndex, int startingLine, T1 myKey, string[] myLines, string fileName, HostInterface currentHost) : base(myIndex, myKey, fileName, currentHost)
+		{
 			for (int i = 0; i < myLines.Length; i++)
 			{
 				int j = myLines[i].IndexOf("=", StringComparison.Ordinal);
@@ -205,7 +195,7 @@ namespace Formats.OpenBve
 				{
 					string a = myLines[i].Substring(0, j).TrimEnd();
 					string b = myLines[i].Substring(j + 1).TrimStart();
-					if (int.TryParse(a, out var idx))
+					if (int.TryParse(a, out int idx))
 					{
 						if (idx >= 0)
 						{
@@ -226,7 +216,7 @@ namespace Formats.OpenBve
 						}
 
 					}
-					else if (Enum.TryParse(a.Replace(" ", ""), true, out T2 key))
+					else if (EnumCache<T2>.TryParse(a.Replace(" ", ""), out T2 key))
 					{
 						keyValuePairs.TryAdd(key, new KeyValuePair<int, string>(i + startingLine, b));
 					}
@@ -239,181 +229,20 @@ namespace Formats.OpenBve
 				{
 					if (!string.IsNullOrEmpty(myLines[i]))
 					{
-						rawValues.Enqueue(new KeyValuePair<int, string>(i, myLines[i]));
+						rawValues.Enqueue(new KeyValuePair<int, string>(i + startingLine, myLines[i]));
 					}
 				}
 			}
 		}
 
-		public override bool GetVector2(T2 key, char separator, out Vector2 value)
-		{
-			value = Vector2.Null;
-			if (keyValuePairs.TryRemove(key, out var rawValue))
-			{
-				string[] splitStrings = rawValue.Value.Split(separator);
-				if (splitStrings.Length > 2)
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Unexpected extra " + (splitStrings.Length - 2) + " paramaters " + key + " encountered in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[0], out value.X))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "X was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[1], out value.Y))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Y was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				return true;
-			}
-			return false;
-		}
-
-		public override bool TryGetVector2(T2 key, char separator, ref Vector2 value)
-		{
-			if (keyValuePairs.TryRemove(key, out var rawValue))
-			{
-				string[] splitStrings = rawValue.Value.Split(separator);
-				if (splitStrings.Length > 2)
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Unexpected extra " + (splitStrings.Length - 2) + " paramaters " + key + " encountered in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-
-				bool error = false;
-
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[0], out double X))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "X was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-					error = true;
-				}
-				else
-				{
-					value.X = X;
-				}
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[1], out double Y))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Y was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-					error = true;
-				}
-				else
-				{
-					value.Y = Y;
-				}
-				return !error;
-			}
-			return false;
-		}
-
-		public override bool GetVector3(T2 key, char separator, out Vector3 value)
-		{
-			value = Vector3.Zero;
-			if (keyValuePairs.TryRemove(key, out var rawValue))
-			{
-				string[] splitStrings = rawValue.Value.Split(separator);
-				if (splitStrings.Length > 3)
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Unexpected extra " + (splitStrings.Length - 2) + " paramaters " + key + " encountered in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[0], out value.X))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "X was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[1], out value.Y))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Y was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[2], out value.Z))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Z was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				return true;
-			}
-			return false;
-		}
-
-		public override bool TryGetVector3(T2 key, char separator, ref Vector3 value)
-		{
-			if (keyValuePairs.TryRemove(key, out var rawValue))
-			{
-				string[] splitStrings = rawValue.Value.Split(separator);
-				if (splitStrings.Length > 3)
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Unexpected extra " + (splitStrings.Length - 2) + " paramaters " + key + " encountered in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[0], out value.X))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "X was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[1], out value.Y))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Y was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				if (!NumberFormats.TryParseDoubleVb6(splitStrings[2], out value.Z))
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "Z was invalid in " + key + " in Section " + Key + " at line " + rawValue.Key);
-				}
-				return true;
-			}
-			return false;
-		}
-
-		public override bool TryGetStringArray(T2 key, char separator, ref string[] values)
-		{
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				values = value.Value.Split(separator);
-				return true;
-			}
-			currentHost.AddMessage(MessageType.Warning, false, "Key " + key + " was not found in Section " + Key + " at line " + value.Key);
-			return false;
-		}
-
-		public override bool GetPathArray(T2 key, char separator, string absolutePath, ref string[] values)
-		{
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				string[] splitValues = value.Value.Split(separator);
-				if (splitValues.Length > 0)
-				{
-					values = new string[splitValues.Length];
-					for (int i = 0; i < splitValues.Length; i++)
-					{
-						try
-						{
-							values[i] = Path.CombineFile(absolutePath, splitValues[i].Trim());
-						}
-						catch
-						{
-							if (!string.IsNullOrEmpty(splitValues[i]))
-							{
-								// allow empty states etc.
-								currentHost.AddMessage(MessageType.Warning, false, "The path for state " + i + " was invalid in " + key + " in Section " + Key + " at line " + value.Key);
-							}
-						}
-					}
-					return true;
-				}
-				else
-				{
-					currentHost.AddMessage(MessageType.Warning, false, "An empty path list was provided for " + key + " in Section " + Key + " at line " + value.Key);
-					return false;
-				}
-				
-			}
-			currentHost.AddMessage(MessageType.Warning, false, "Key " + key + " was not found in Section " + Key + " at line " + value.Key);
-			return false;
-		}
-
-		public override bool GetFunctionScript(T2 key, out AnimationScript function)
+		public override bool GetFunctionScript(T2 key, out AnimationScript function, int totalStates = 0)
 		{
 			if (keyValuePairs.TryRemove(key, out var script))
 			{
 				try
 				{
 					bool isInfix = key.ToString().IndexOf("RPN", StringComparison.Ordinal) == -1;
-					function = new FunctionScript(currentHost, script.Value, isInfix);
+					function = new FunctionScript(currentHost, script.Value, isInfix, totalStates);
 					return true;
 				}
 				catch
@@ -428,7 +257,7 @@ namespace Formats.OpenBve
 			return false;
 		}
 
-		public override bool GetFunctionScript(T2[] keys, string absolutePath, out AnimationScript function)
+		public override bool GetFunctionScript(T2[] keys, string absolutePath, out AnimationScript function, int totalStates = 0)
 		{
 
 			foreach (T2 key in keys)
@@ -459,7 +288,7 @@ namespace Formats.OpenBve
 						try
 						{
 							bool isInfix = key.ToString().IndexOf("RPN", StringComparison.Ordinal) == -1;
-							function = new FunctionScript(currentHost, script.Value, isInfix);
+							function = new FunctionScript(currentHost, script.Value, isInfix, totalStates);
 							return true;
 						}
 						catch
@@ -485,7 +314,7 @@ namespace Formats.OpenBve
 					string relativePath = value.Value;
 					try
 					{
-						finalPath = Path.CombineFile(absolutePath, relativePath);
+						finalPath = relativePath != string.Empty ? Path.CombineFile(absolutePath, relativePath) : string.Empty;
 					}
 					catch
 					{
@@ -496,7 +325,7 @@ namespace Formats.OpenBve
 					{
 						return true;
 					}
-					if (!System.IO.Path.HasExtension(relativePath))
+					if (!Path.HasExtension(relativePath))
 					{
 						// HACK: BVE allows bmp without extension
 						relativePath += ".bmp";
@@ -524,420 +353,8 @@ namespace Formats.OpenBve
 				}
 
 				currentHost.AddMessage(MessageType.Warning, false, "Path contains invalid characters for " + key + " in Section " + Key + " at line " + value.Key);
-				finalPath = string.Empty;
-				return false;
-
 			}
 			finalPath = string.Empty;
-			return false;
-		}
-
-		public override bool GetIndexedPath(string absolutePath, out int index, out string finalPath)
-		{
-			if (indexedValues.Count > 0)
-			{
-				index = indexedValues.ElementAt(0).Key;
-				indexedValues.TryRemove(index, out var value);
-
-				try
-				{
-					finalPath = Path.CombineFile(absolutePath, value.Value);
-				}
-				catch
-				{
-					finalPath = string.Empty;
-					return false;
-				}
-				
-				if (File.Exists(finalPath))
-				{
-					return true;
-				}
-
-				currentHost.AddMessage(MessageType.Warning, false, "File " + value.Value + " was not found for Index " + value.Key + " in Section " + Key);
-				return true;
-			}
-			index = -1;
-			finalPath = string.Empty;
-			return false;
-		}
-
-		public override bool TryGetValue(T2 key, ref string stringValue)
-		{
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				stringValue = value.Value;
-				return true;
-			}
-			return false;
-		}
-
-		public override bool TryGetValue(T2 key, ref bool boolValue)
-		{
-			if (keyValuePairs.TryRemove(key, out var s))
-			{
-				var ss = s.Value.ToLowerInvariant().Trim();
-				if (ss == "1" || ss == "true")
-				{
-					boolValue = true;
-					return true;
-				}
-			}
-			return false;
-		}
-
-		public override bool GetValue(T2 key, out string stringValue)
-		{
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				stringValue = value.Value;
-				return true;
-			}
-			stringValue = string.Empty;
-			return false;
-		}
-
-		public override bool GetValue(T2 key, out double value)
-		{
-			if (keyValuePairs.TryRemove(key, out var s))
-			{
-				if (NumberFormats.TryParseDoubleVb6(s.Value, out value))
-				{
-					return true;
-				}
-				currentHost.AddMessage(MessageType.Warning, false, "Value " + s + " is not a valid double in Key " + key + " in Section " + Key + " at line " + s.Key);
-				return false;
-
-			}
-			value = 0;
-			return false;
-		}
-
-		public override bool TryGetValue(T2 key, ref double value)
-		{
-			if (keyValuePairs.TryRemove(key, out var s))
-			{
-				if (NumberFormats.TryParseDoubleVb6(s.Value, out double newValue))
-				{
-					value = newValue;
-					return true;
-				}
-				currentHost.AddMessage(MessageType.Warning, false, "Value " + s + " is not a valid double in Key " + key + " in Section " + Key + " at line " + s.Key);
-				return false;
-
-			}
-			return false;
-		}
-
-		public override bool GetValue(T2 key, out int value)
-		{
-			if (keyValuePairs.TryRemove(key, out var s))
-			{
-				if (NumberFormats.TryParseIntVb6(s.Value, out value))
-				{
-					if (!int.TryParse(s.Value, out _))
-					{
-						currentHost.AddMessage(MessageType.Warning, false, "Value " + s.Value + " is a double, not an integer and precision will be lost in Key " + key + " in Section " + Key + " at line " + s.Key);
-					}
-					return true;
-				}
-				
-				currentHost.AddMessage(MessageType.Warning, false, "Value " + s.Value + " is not a valid integer in Key " + key + " in Section " + Key + " at line " + s.Key);
-				return false;
-			}
-			value = 0;
-			return false;
-		}
-
-		public override bool TryGetValue(T2 key, ref int value)
-		{
-			if (keyValuePairs.TryRemove(key, out var s))
-			{
-				if (NumberFormats.TryParseIntVb6(s.Value, out int newValue))
-				{
-					if (!int.TryParse(s.Value, out _))
-					{
-						currentHost.AddMessage(MessageType.Warning, false, "Value " + s.Value + " is a double, not an integer and precision will be lost in Key " + key + " in Section " + Key + " at line " + s.Key);
-					}
-					value = newValue;
-					return true;
-				}
-				currentHost.AddMessage(MessageType.Warning, false, "Value " + s.Value + " is not a valid integer in Key " + key + " in Section " + Key + " at line " + s.Key);
-				return false;
-
-			}
-			return false;
-		}
-
-		public override bool GetValue(T2 key, out bool value)
-		{
-			if (keyValuePairs.TryRemove(key, out var s))
-			{
-				var ss = s.Value.ToLowerInvariant().Trim();
-				if (ss == "1" || ss == "true")
-				{
-					value = true;
-					return true;
-				}
-			}
-			value = false;
-			return false;
-		}
-
-		public override bool GetColor24(T2 key, out Color24 value)
-		{
-			if (keyValuePairs.TryRemove(key, out var color))
-			{
-				if (Color24.TryParseHexColor(color.Value, out value))
-				{
-					return true;
-				}
-
-				if (Color24.TryParseColor(color.Value, ',', out value))
-				{
-					return true;
-				}
-				currentHost.AddMessage(MessageType.Error, false, "Color is invalid in " + key + " in " + Key + " at line " + color.Key);
-			}
-
-			value = Color24.White;
-			return false;
-		}
-
-		public override bool TryGetColor24(T2 key, ref Color24 value)
-		{
-			if (keyValuePairs.TryRemove(key, out var color))
-			{
-				if (Color24.TryParseHexColor(color.Value, out Color24 newValue))
-				{
-					value = newValue;
-					return true;
-				}
-
-				if (Color24.TryParseColor(color.Value, ',', out value))
-				{
-					return true;
-				}
-				currentHost.AddMessage(MessageType.Error, false, "Color is invalid in " + key + " in " + Key + " at line " + color.Key);
-			}
-
-			return false;
-		}
-
-		public override bool GetEnumValue<T3>(T2 key, out T3 enumValue)
-		{
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				if (Enum.TryParse(value.Value, true, out enumValue))
-				{
-					return true;
-				}
-
-				currentHost.AddMessage(MessageType.Error, false, "Value is invalid in " + key + " in " + Key + " at line " + value.Key);
-			}
-
-			enumValue = default;
-			return false;
-		}
-
-		public override bool GetEnumValue<T3>(T2 key, out T3 enumValue, out int index, out string Suffix)
-		{
-			index = -1;
-			Suffix = string.Empty;
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				string s = value.Value.ToLowerInvariant();
-
-				// detect d# suffix
-				int i;
-				for (i = s.Length - 1; i >= 0; i--)
-				{
-					int a = char.ConvertToUtf32(s, i);
-					if (a < 48 | a > 57) break;
-				}
-				if (i >= 0 & i < s.Length - 1)
-				{
-					if (s[i] == 'd')
-					{
-						if (int.TryParse(s.Substring(i + 1), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n))
-						{
-							if (n == 0)
-							{
-								Suffix = " floor 10 mod";
-							}
-							else
-							{
-								string t0 = Math.Pow(10.0, n).ToString(CultureInfo.InvariantCulture);
-								string t1 = Math.Pow(10.0, -n).ToString(CultureInfo.InvariantCulture);
-								Suffix = " ~ " + t0 + " >= <> " + t1 + " * floor 10 mod 10 ?";
-							}
-							s = s.Substring(0, i);
-						}
-					}
-				}
-
-				string num = string.Empty;
-				if (s.StartsWith("ats"))
-				{
-					num = s.Substring(3);
-					s = s.Substring(0, 3);
-				}
-				else if (s.StartsWith("doorl"))
-				{
-					num = s.Substring(5);
-					s = s.Substring(0, 5);
-				}
-				else if (s.StartsWith("doorr"))
-				{
-					num = s.Substring(5);
-					s = s.Substring(0, 5);
-				}
-
-				if (Enum.TryParse(s, true, out enumValue))
-				{
-					int.TryParse(num, out index);
-					return true;
-				}
-				
-				currentHost.AddMessage(MessageType.Error, false, "Value is invalid in " + key + " in " + Key + " at line " + value.Key);
-			}
-
-			enumValue = default;
-			return false;
-		}
-
-		public override bool GetEnumValue<T3>(T2 key, out T3 enumValue, out Color32 Color)
-		{
-			Color = Color32.Black;
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				int colonIndex = value.Value.IndexOf(':');
-				string colorValue = value.Value.Substring(colonIndex + 1);
-				string s = value.Value.Substring(0, colonIndex);
-				
-				if (Enum.TryParse(s, true, out enumValue))
-				{
-					if (Color32.TryParseColor(colorValue.Split(','), out var newColor))
-					{
-						Color = newColor;
-					}
-					else
-					{
-						currentHost.AddMessage(MessageType.Error, false, "Color is invalid in " + key + " in " + Key + " at line " + value.Key);
-					}
-					return true;
-				}
-
-				currentHost.AddMessage(MessageType.Error, false, "Value is invalid in " + key + " in " + Key + " at line " + value.Key);
-			}
-			
-			enumValue = default;
-			return false;
-		}
-
-		public override bool GetIndexedEncoding(out TextEncoding.Encoding e, out string path)
-		{
-			if (indexedValues.Count > 0)
-			{
-				int encodingIdx = indexedValues.ElementAt(0).Key;
-				indexedValues.TryRemove(encodingIdx, out var value);
-				if (File.Exists(value.Value))
-				{
-					path = value.Value;
-					e = (TextEncoding.Encoding)encodingIdx;
-					return true;
-				}
-			}
-
-			e = TextEncoding.Encoding.Unknown;
-			path = string.Empty;
-			return false;
-		}
-
-		public override bool GetNextRawValue(out string s)
-		{
-			if (rawValues.Count > 0)
-			{
-				s = rawValues.Dequeue().Value;
-				return true;
-			}
-
-			s = string.Empty;
-			return false;
-		}
-
-		public override bool GetNextPath(string absolutePath, out string finalPath)
-		{
-			if (rawValues.Count > 0)
-			{
-				var fileName = rawValues.Dequeue();
-				if (!Path.ContainsInvalidChars(fileName.Value))
-				{
-					try
-					{
-						finalPath = Path.CombineFile(absolutePath, fileName.Value);
-					}
-					catch
-					{
-						finalPath = string.Empty;
-					}
-
-					if (File.Exists(finalPath))
-					{
-						return true;
-					}
-					
-					currentHost.AddMessage(MessageType.Warning, false, "File " + fileName + " was not found at line " + fileName.Key + " in Section " + Key);
-					finalPath = string.Empty;
-					return false;
-				}
-
-				currentHost.AddMessage(MessageType.Warning, false, "Path contains invalid characters for " + fileName + " at line " + fileName.Key + " in Section " + Key);
-				finalPath = string.Empty;
-				return false;
-			}
-
-			finalPath = string.Empty;
-			return false;
-		}
-
-		public override bool GetDamping(T2 key, char separator, out Damping damping)
-		{
-			damping = null;
-			if (keyValuePairs.TryRemove(key, out var value))
-			{
-				string[] s = value.Value.Split(separator);
-				if (s.Length == 2)
-				{
-					if (!double.TryParse(s[0], NumberStyles.Float, CultureInfo.InvariantCulture, out double nf))
-					{
-						currentHost.AddMessage(MessageType.Error, false, "NaturalFrequency is invalid in " + key + " at line " + value.Key + " in the Section " + Key);
-						return false;
-					}
-					if (!double.TryParse(s[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double dr))
-					{
-						currentHost.AddMessage(MessageType.Error, false, "DampingRatio is invalid in " + key + " at line " + value.Key + " in the Section " + Key);
-						return false;
-					}
-					if (nf <= 0.0)
-					{
-						currentHost.AddMessage(MessageType.Error, false, "NaturalFrequency is expected to be positive in " + key + " at line " + value.Key + " in the Section " + Key);
-						return false;
-					}
-					if (dr <= 0.0)
-					{
-						currentHost.AddMessage(MessageType.Error, false, "DampingRatio is expected to be positive in " + key + " at line " + value.Key + " in the Section " + Key);
-						return false;
-					}
-
-					damping = new Damping(nf, dr);
-
-				}
-				else
-				{
-					currentHost.AddMessage(MessageType.Error, false, "Exactly 2 arguments are expected in " + key + " at line " + value.Key + " in the Section " + Key);
-				}
-			}
 			return false;
 		}
 	}

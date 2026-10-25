@@ -36,13 +36,14 @@ namespace CarXmlConvertor
 		internal static double CenterOfGravityHeight = 1.6;
 		internal static double ExposedFrontalArea = -1;
 		internal static double UnexposedFrontalArea = -1;
+		internal static Vector3 DriverPosition = Vector3.Zero;
 		private static MainForm mainForm;
 		internal static List<AccelerationCurve> AccelerationCurves = new List<AccelerationCurve>();
 
 		internal static void Process(MainForm form)
 		{
 			mainForm = form;
-
+			AccelerationCurves.Clear();
 			if (!System.IO.File.Exists(FileName))
 			{
 				MessageBox.Show("The selected folder does not contain a valid train.dat \r\n Please retry.", @"CarXML Convertor", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -54,7 +55,24 @@ namespace CarXmlConvertor
 			int currentVersion = ParseFormat(Lines);
 
 			for (int i = 0; i < Lines.Length; i++)
+			{
+				int j = Lines[i].IndexOf(';');
+				if (j >= 0)
+				{
+					Lines[i] = Lines[i].Substring(0, j).Trim();
+				}
+				else
+				{
+					Lines[i] = Lines[i].Trim();
+				}
+				if (Lines[i].EndsWith(","))
+				{
+					//File edited with MSExcel may have additional commas at the end of a line
+					Lines[i] = Lines[i].TrimEnd(',');
+				}
+			}
 
+			for (int i = 0; i < Lines.Length; i++)
 			{
 				int n = 0;
 				switch (Lines[i].ToLowerInvariant())
@@ -68,13 +86,13 @@ namespace CarXmlConvertor
 								switch (n)
 								{
 									case 0:
-										ConvertSoundCfg.DriverPosition.X = 0.001 * a;
+										DriverPosition.X = 0.001 * a;
 										break;
 									case 1:
-										ConvertSoundCfg.DriverPosition.Y = 0.001 * a;
+										DriverPosition.Y = 0.001 * a;
 										break;
 									case 2:
-										ConvertSoundCfg.DriverPosition.Z = 0.001 * a;
+										DriverPosition.Z = 0.001 * a;
 										break;
 									case 3:
 										DriverCar = (int)Math.Round(a);
@@ -437,6 +455,7 @@ namespace CarXmlConvertor
 					}
 				}
 			}
+			ConvertSoundCfg.DriverPosition = DriverPosition;
 			ConvertSoundCfg.DriverPosition.Z = 0.5 * CarLength + ConvertSoundCfg.DriverPosition.Z;
 			for (int i = 0; i < AccelerationCurves.Count; i++)
 			{

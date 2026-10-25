@@ -1,6 +1,6 @@
-//Simplified BSD License (BSD-2-Clause)
+﻿//Simplified BSD License (BSD-2-Clause)
 //
-//Copyright (c) 2023, Christopher Lees, The OpenBVE Project
+//Copyright (c) 2023- 2025, Christopher Lees, The OpenBVE Project
 //
 //Redistribution and use in source and binary forms, with or without
 //modification, are permitted provided that the following conditions are met:
@@ -23,8 +23,10 @@
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
+using System.Runtime.CompilerServices;
 using System.Text;
 using OpenBveApi;
 using OpenBveApi.Hosts;
@@ -89,17 +91,17 @@ namespace Plugin.PNG
 					}
 
 					int currentChunk = 0;
+					List<byte[]> idatChunks = new List<byte[]>(8);
 					while (true)
 					{
-						byte[] chunkHeader = new byte[8];
-						if (fileReader.Read(chunkHeader, 0, chunkHeader.Length) != 8)
+						if (fileReader.Read(buffer, 0,8) != 8)
 						{
 							Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "Insufficient Header data for Chunk " + currentChunk + " in PNG file " + fileName);
 							return false;
 						}
 
-						int chunkSize = (int)BinaryExtensions.GetUInt32(chunkHeader, 0, Endianness.Big);
-						ChunkType chunkType = ReadChunkType(chunkHeader);
+						int chunkSize = (int)BinaryExtensions.GetUInt32(buffer, 0, Endianness.Big);
+						ChunkType chunkType = ReadChunkType(buffer);
 
 						if (chunkType == ChunkType.IEND)
 						{
@@ -133,11 +135,9 @@ namespace Plugin.PNG
 										ScanlineLength = 2;
 										break;
 									case 8:
+									case 16:
 										ScanlineLength = 1;
 										break;
-									case 16:
-										Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "16-bit PNG files are not currently supported by this decoder in file " + fileName);
-										return false;
 									default:
 										Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "Invalid or unsupported BitDepth in PNG file " + fileName);
 										return false;
@@ -150,7 +150,7 @@ namespace Plugin.PNG
 
 								switch (ColorType)
 								{
-									case ColorType.Palleted: // each filtered byte becomes a pallete index
+									case ColorType.Paletted: // each filtered byte becomes a palette index
 									case ColorType.Grayscale:
 										BytesPerPixel = 1;
 										break;
@@ -158,7 +158,7 @@ namespace Plugin.PNG
 										BytesPerPixel = 3;
 										break;
 									case ColorType.Rgba:
-										BytesPerPixel = 4;
+										BytesPerPixel = BitDepth == 8 ? 4 : 8;
 										break;
 									case ColorType.GrayscaleAlpha:
 										BytesPerPixel = 2;
@@ -168,36 +168,35 @@ namespace Plugin.PNG
 										return false;
 								}
 
-								ScanlineLength = Math.Max(1, (int)Math.Ceiling((Width * BytesPerPixel) / (double)ScanlineLength)); // scanline must be a minumum of 1 byte in length. Always round up
+								ScanlineLength = Math.Max(1, (int)Math.Ceiling((Width * BytesPerPixel) / (double)ScanlineLength)); // scanline must be a minimum of 1 byte in length. Always round up
 
-								pixelBuffer = ColorType != ColorType.Palleted && ColorType != ColorType.GrayscaleAlpha ? new byte[Width * Height * BytesPerPixel] : new byte[Width * Height * 4];
+								pixelBuffer = ColorType != ColorType.Paletted && ColorType != ColorType.GrayscaleAlpha && BytesPerPixel != 8 ? new byte[Width * Height * BytesPerPixel] : new byte[Width * Height * 4];
 								break;
 							case ChunkType.PLTE:
 								colorPalette = new Palette(chunkBuffer);
 								break;
 							case ChunkType.tRNS:
-								if (colorPalette == null)
+								if (colorPalette != null)
 								{
-									Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "The tRNS chunk must be preceeded by a PLTE chunk in PNG file " + fileName);
-									return false;
+									colorPalette.SetAlphaValues(chunkBuffer);
+									break;
 								}
-								colorPalette.SetAlphaValues(chunkBuffer);
-								return false;
+
+								for (int i = 0; i < chunkBuffer.Length; i++)
+								{
+									if (chunkBuffer[i] != 0)
+									{
+										// if tRNS chunk actually contains no alpha, ignore it silently with no errors
+										// e.g. Estobr\Scenarios\瀬戸大橋・予讃・土讃線\Structures\gojikisha\ship\tag\Tag_A03.png
+										Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "The tRNS chunk must be preceded by a PLTE chunk in PNG file " + fileName);
+										return false;
+									}
+								}
+								break;
 							case ChunkType.IDAT:
 								// IDAT chunks contain image data
 								// Data may be split over one or more chunks
-								if (idatBuffer == null)
-								{
-									// First chunk
-									idatBuffer = chunkBuffer;
-								}
-								else
-								{
-									// Combine the new chunk with the old
-									int idatLength = idatBuffer.Length;
-									Array.Resize(ref idatBuffer, idatLength + chunkBuffer.Length);
-									Buffer.BlockCopy(chunkBuffer, 0, idatBuffer, idatLength, chunkBuffer.Length);
-								}
+								idatChunks.Add(chunkBuffer);
 								break;
 							case ChunkType.CgBI:
 								Plugin.CurrentHost.ReportProblem(ProblemType.InvalidOperation, "CgBI encoded PNGs are not supported by this decoder in PNG file " + fileName);
@@ -214,10 +213,30 @@ namespace Plugin.PNG
 						currentChunk++;
 					}
 
-					if (idatBuffer == null)
+					if (idatChunks.Count == 0)
 					{
 						Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "No IDAT chunk found in PNG file " + fileName);
 						return false;
+					}
+
+					if (idatChunks.Count == 1)
+					{
+						idatBuffer = idatChunks[0];
+					}
+					else
+					{
+						int totalLength = 0;
+						for (int i = 0; i < idatChunks.Count; i++)
+						{
+							totalLength += idatChunks[i].Length;
+						}
+						idatBuffer = new byte[totalLength];
+						int offset = 0;
+						for (int i = 0; i < idatChunks.Count; i++)
+						{
+							Buffer.BlockCopy(idatChunks[i], 0, idatBuffer, offset, idatChunks[i].Length);
+							offset += idatChunks[i].Length;
+						}
 					}
 
 					using (MemoryStream chunkDataStream = new MemoryStream(idatBuffer))
@@ -231,16 +250,29 @@ namespace Plugin.PNG
 							switch (interlaceMethod)
 							{
 								case InterlaceMethod.Disabled:
-									byte[] scanline = new byte[ScanlineLength];
-									byte[] previousScanline = new byte[ScanlineLength];
-									for (int i = 0; i < Height; i++)
 									{
-										ScanlineFilterAlgorithm scanlineFilterAlgorithm = (ScanlineFilterAlgorithm)deflate.ReadByte();
-										if (deflate.Read(scanline, 0, ScanlineLength) != ScanlineLength)
+										// decompress the entire stream upfront, as reading small buffers from the deflate stream per scanline is slow
+										byte[] inflated;
+										int inflatedLength;
+										using (MemoryStream inflatedStream = new MemoryStream((ScanlineLength + 1) * Height))
 										{
-											Plugin.CurrentHost.ReportProblem(ProblemType.UnsupportedData, "Insufficient data decompressed from IDAT chunk in PNG file " + fileName);
-											return false;
+											deflate.CopyTo(inflatedStream);
+											inflatedLength = (int)inflatedStream.Length;
+											inflated = inflatedStream.GetBuffer();
 										}
+										byte[] scanline = new byte[ScanlineLength];
+										byte[] previousScanline = new byte[ScanlineLength];
+										int currentRowByte = 0;
+										for (int i = 0; i < Height; i++)
+										{
+											if (currentRowByte + 1 + ScanlineLength > inflatedLength)
+											{
+												Plugin.CurrentHost.ReportProblem(ProblemType.UnsupportedData, "Insufficient data decompressed from IDAT chunk in PNG file " + fileName);
+												return false;
+											}
+											ScanlineFilterAlgorithm scanlineFilterAlgorithm = (ScanlineFilterAlgorithm)inflated[currentRowByte++];
+											Buffer.BlockCopy(inflated, currentRowByte, scanline, 0, ScanlineLength);
+											currentRowByte += ScanlineLength;
 										
 										for (int x = 0; x < scanline.Length; x++)
 										{										
@@ -253,22 +285,22 @@ namespace Plugin.PNG
 													break;
 												case ScanlineFilterAlgorithm.Sub:
 													leftByte = x >= BytesPerPixel ? scanline[x - BytesPerPixel] : (byte)0;
-													scanline[x] = (byte)((scanline[x] + leftByte) % 256);
+													scanline[x] = (byte)((scanline[x] + leftByte) & 0xFF);
 													break;
 												case ScanlineFilterAlgorithm.Up:
 													upByte = previousScanline[x];
-													scanline[x] = (byte)((scanline[x] + upByte) % 256);
+													scanline[x] = (byte)((scanline[x] + upByte) & 0xFF);
 													break;
 												case ScanlineFilterAlgorithm.Average:
 													leftByte = x >= BytesPerPixel ? scanline[x - BytesPerPixel] : (byte)0;
 													upByte = previousScanline[x];
-													scanline[x] = (byte)((scanline[x] + ((leftByte + upByte) >> 1)) % 256);
+													scanline[x] = (byte)((scanline[x] + ((leftByte + upByte) >> 1)) & 0xFF);
 													break;
 												case ScanlineFilterAlgorithm.Paeth:
 													leftByte = x >= BytesPerPixel ? scanline[x - BytesPerPixel] : (byte)0;
 													upByte = previousScanline[x];
 													upLeftByte = x >= BytesPerPixel ? previousScanline[x - BytesPerPixel] : (byte)0;
-													scanline[x] = (byte)((scanline[x] + PaethPredictor(leftByte, upByte, upLeftByte)) % 256);
+													scanline[x] = (byte)((scanline[x] + PaethPredictor(leftByte, upByte, upLeftByte)) & 0xFF);
 													break;
 												default:
 													// decoder has messed up somewhere, so don't return junk data
@@ -278,7 +310,7 @@ namespace Plugin.PNG
 
                                         switch (ColorType)
                                         {
-                                            case ColorType.Palleted:
+                                            case ColorType.Paletted:
                                                 {
                                                     int pixelIndex = 0;
                                                     switch (BitDepth)
@@ -355,7 +387,8 @@ namespace Plugin.PNG
                                                                 pixelBuffer[pixelsOffset++] = colorPalette.Colors[fourthNibblet].G;
                                                                 pixelBuffer[pixelsOffset++] = colorPalette.Colors[fourthNibblet].B;
                                                                 pixelBuffer[pixelsOffset++] = colorPalette.Colors[fourthNibblet].A;
-                                                            }
+                                                                pixelIndex++;
+															}
                                                             break;
                                                         case 4:
                                                             for (int px = 0; px < scanline.Length; px++)
@@ -376,7 +409,8 @@ namespace Plugin.PNG
                                                                 pixelBuffer[pixelsOffset++] = colorPalette.Colors[rightNibble].G;
                                                                 pixelBuffer[pixelsOffset++] = colorPalette.Colors[rightNibble].B;
                                                                 pixelBuffer[pixelsOffset++] = colorPalette.Colors[rightNibble].A;
-                                                            }
+                                                                pixelIndex++;
+															}
                                                             break;
                                                         case 8:
                                                             for (int px = 0; px < scanline.Length; px++)
@@ -412,13 +446,26 @@ namespace Plugin.PNG
 												}
 												break;
                                             default:
-                                                // just copy raw data into the pixel buffer
-                                                Buffer.BlockCopy(scanline, 0, pixelBuffer, pixelsOffset, scanline.Length);
-                                                pixelsOffset += scanline.Length;
-                                                break;
+												if (BytesPerPixel == 8)
+												{
+													for (int px = 0; px < scanline.Length; px+= 2)
+													{
+														// HACK: This discards the upper byte
+														//		 Dynamic range may be lost, but otherwise we've got to play with endinan bitshifting and range checking, which is sloow....
+														pixelBuffer[pixelsOffset++] = scanline[px];
+													}
+												}
+												else
+												{
+													// just copy raw data into the pixel buffer
+													Buffer.BlockCopy(scanline, 0, pixelBuffer, pixelsOffset, scanline.Length);
+													pixelsOffset += scanline.Length;
+												}
+												break;
                                         }
 
                                         Buffer.BlockCopy(scanline, 0, previousScanline, 0, scanline.Length);
+										}
 									}
 									break;
 									case InterlaceMethod.Adam7:
@@ -463,16 +510,16 @@ namespace Plugin.PNG
 															break;
 														case ScanlineFilterAlgorithm.Sub:
 															leftByte = j >= BytesPerPixel ? data[rowStartByte + j - BytesPerPixel] : (byte)0;
-															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + leftByte) % 256);
+															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + leftByte) & 0xFF);
 															break;
 														case ScanlineFilterAlgorithm.Up:
 															upByte = currentScanline == 0 ? (byte)0 : data[previousRowStartByte + j];
-															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + upByte) % 256);
+															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + upByte) & 0xFF);
 															break;
 														case ScanlineFilterAlgorithm.Average:
 															leftByte = j >= BytesPerPixel ? data[rowStartByte + j - BytesPerPixel] : (byte)0;
 															upByte = currentScanline == 0 ? (byte)0 : data[previousRowStartByte + j];
-															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + ((leftByte + upByte) >> 1)) % 256);
+															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + ((leftByte + upByte) >> 1)) & 0xFF);
 															break;
 														case ScanlineFilterAlgorithm.Paeth:
 															// NOTE: For Paeth filtered Row0 in any given pass, the previous scanline must be all zeroes
@@ -480,7 +527,7 @@ namespace Plugin.PNG
 															leftByte = j - BytesPerPixel >= 0 ? data[rowStartByte + j - BytesPerPixel] : (byte)0;
 															upByte = currentScanline == 0 ? (byte)0 : data[previousRowStartByte + j];
 															upLeftByte = currentScanline == 0 ? (byte)0 : j >= BytesPerPixel ? data[previousRowStartByte + j - BytesPerPixel] : (byte)0;	
-															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + PaethPredictor(leftByte, upByte, upLeftByte)) % 256);
+															data[rowStartByte + j] = (byte)((data[rowStartByte + j] + PaethPredictor(leftByte, upByte, upLeftByte)) & 0xFF);
 															break;
 														default:
 															throw new Exception("Decoder error probably...");
@@ -493,7 +540,7 @@ namespace Plugin.PNG
 													Adam7.GetPixelIndexForScanlineInPass(currentPass, currentScanline, j, out pixelX, out pixelY);
                                                 switch (ColorType)
                                                 {
-                                                    case ColorType.Palleted:
+                                                    case ColorType.Paletted:
                                                         {
                                                             // we're always converting to 4bpp in the output, but need the native bpp to find our position in the array, so don't actually set it
                                                             int start = Width * 4 * pixelY + pixelX * 4;
@@ -560,8 +607,24 @@ namespace Plugin.PNG
 														break;
                                                     default:
                                                         {
-                                                            int start = Width * BytesPerPixel * pixelY + pixelX * BytesPerPixel;
-                                                            Buffer.BlockCopy(data, rowStartByte + j * BytesPerPixel, pixelBuffer, start, BytesPerPixel);
+                                                            if (BytesPerPixel == 8)
+                                                            {
+                                                                // 16-bit RGBA in an Adam7-interlaced image: keep each channel's
+                                                                // high byte (big-endian), as in the non-interlaced path.
+                                                                // Output is W*H*4, so a raw 8-byte copy overruns it and
+                                                                // fails the texture.
+                                                                int src = rowStartByte + j * 8;
+                                                                int start = (Width * pixelY + pixelX) * 4;
+                                                                pixelBuffer[start] = data[src];
+                                                                pixelBuffer[start + 1] = data[src + 2];
+                                                                pixelBuffer[start + 2] = data[src + 4];
+                                                                pixelBuffer[start + 3] = data[src + 6];
+                                                            }
+                                                            else
+                                                            {
+                                                                int start = Width * BytesPerPixel * pixelY + pixelX * BytesPerPixel;
+                                                                Buffer.BlockCopy(data, rowStartByte + j * BytesPerPixel, pixelBuffer, start, BytesPerPixel);
+                                                            }
                                                             currentByte += BytesPerPixel;
                                                             break;
                                                         }
@@ -578,7 +641,7 @@ namespace Plugin.PNG
 						}
 					}
 
-					if (ColorType == ColorType.Palleted || ColorType == ColorType.GrayscaleAlpha)
+					if (ColorType == ColorType.Paletted || ColorType == ColorType.GrayscaleAlpha || BytesPerPixel == 8)
 					{
 						// need the final bpp to reflect what we've converted the image to, not the bpp in the file used whilst loading
 						BytesPerPixel = 4;
@@ -592,7 +655,8 @@ namespace Plugin.PNG
 		/// <param name="a">The left byte</param>
 		/// <param name="b">The upper byte</param>
 		/// <param name="c">The upper left byte</param>
-		private int PaethPredictor(int a, int b, int c)
+		[MethodImpl(MethodImplOptions.AggressiveInlining)]
+		private static int PaethPredictor(int a, int b, int c)
 		{
 			int p = a + b - c;
 			int pa = Math.Abs(p - a);

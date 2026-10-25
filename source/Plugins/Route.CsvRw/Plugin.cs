@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using System.Threading;
 using OpenBveApi;
+using OpenBveApi.Colors;
 using OpenBveApi.FileSystem;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
@@ -18,8 +19,6 @@ namespace CsvRwRouteParser
 	    internal static HostInterface CurrentHost;
 
 	    internal static CurrentRoute CurrentRoute;
-
-	    internal static Random RandomNumberGenerator = new Random();
 
 	    internal static FileSystem FileSystem;
 
@@ -97,18 +96,18 @@ namespace CsvRwRouteParser
 
 	    /// <summary>Loads the specified route.</summary>
 	    /// <param name="path">The path to the file or folder that contains the route.</param>
-	    /// <param name="Encoding">The user-selected encoding (if appropriate)</param>
+	    /// <param name="textEncoding">The user-selected encoding (if appropriate)</param>
 	    /// <param name="trainPath">The path to the selected train</param>
 	    /// <param name="objectPath">The base object folder path</param>
 	    /// <param name="soundPath">The base sound folder path</param>
 	    /// <param name="PreviewOnly">Whether this is a preview</param>
 	    /// <param name="route">Receives the route.</param>
 	    /// <returns>Whether loading the sound was successful.</returns>
-	    public override bool LoadRoute(string path, Encoding Encoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly, ref object route)
+	    public override bool LoadRoute(string path, Encoding textEncoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly, ref object route)
 	    {
-		    if (Encoding == null)
+		    if (textEncoding == null)
 		    {
-				Encoding = Encoding.UTF8;
+				textEncoding = Encoding.UTF8;
 		    }
 			CurrentOptions.TrainDownloadLocation = string.Empty;
 			LastException = null;
@@ -118,15 +117,12 @@ namespace CsvRwRouteParser
 		    FileSystem.AppendToLogFile("Loading route file: " + path);
 		    FileSystem.AppendToLogFile("INFO: Route file hash " + Path.GetChecksum(path));
 		    CurrentRoute = (CurrentRoute)route;
-		    //First, check the format of the route file
-		    //RW routes were written for BVE1 / 2, and have a different command syntax
-		    bool isRw = path.ToLowerInvariant().EndsWith(".rw");
-		    FileSystem.AppendToLogFile("Route file format is: " + (isRw ? "RW" : "CSV"));
 		    try
 		    {
-				Parser parser = new Parser();
-				parser.ParseRoute(path, isRw, Encoding, trainPath, objectPath, soundPath, PreviewOnly, this);
+				Parser parser = new Parser(this);
+				parser.ParseRoute(path, textEncoding, trainPath, objectPath, soundPath, PreviewOnly);
 				IsLoading = false;
+				CurrentOptions.ClearColor = new Color24(170, 170, 170);
 			    return true;
 		    }
 		    catch(Exception ex)

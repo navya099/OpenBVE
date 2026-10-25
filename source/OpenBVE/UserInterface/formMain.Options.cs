@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Windows.Forms;
 using LibRender2.Overlays;
 using OpenBveApi.Graphics;
@@ -15,7 +15,7 @@ namespace OpenBve {
 
 		// language
 		private void comboboxLanguages_SelectedIndexChanged(object sender, EventArgs e) {
-			if (this.Tag != null) return;
+			if (Tag != null) return;
 			string flagFolder = Program.FileSystem.GetDataFolder("Flags");
 			if (Translations.SelectedLanguage(flagFolder, ref Interface.CurrentOptions.LanguageCode, comboboxLanguages, out string newImage))
 			{
@@ -37,11 +37,82 @@ namespace OpenBve {
 			Interface.CurrentOptions.TimeTableStyle = (TimeTableMode)comboBoxTimeTableDisplayMode.SelectedIndex;
 		}
 
+		private void UpdateFPSLimitEnabled()
+		{
+			bool vsyncEnabled = comboboxVSync.SelectedIndex == 1;
+			comboBoxFPSLimit.Enabled = !vsyncEnabled;
+			labelFPSLimit.ForeColor = vsyncEnabled ? System.Drawing.SystemColors.GrayText : System.Drawing.SystemColors.ControlText;
+		}
+
+		private void comboBoxVSync_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			UpdateFPSLimitEnabled();
+		}
+
 
 		private void updownTimeAccelerationFactor_ValueChanged(object sender, EventArgs e)
 		{
 			Interface.CurrentOptions.TimeAccelerationFactor = (int)updownTimeAccelerationFactor.Value;
 		}
+
+		private void comboboxShadowResolution_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			// Enable/disable sub-controls when shadows are turned off/on
+			bool shadowEnabled = comboboxShadowResolution.SelectedIndex != 0;
+			comboboxShadowDistance.Enabled = shadowEnabled;
+			comboboxShadowCascades.Enabled = shadowEnabled;
+			trackbarShadowStrength.Enabled = shadowEnabled;
+			labelShadowStrengthValue.Enabled = shadowEnabled;
+			updownShadowBias.Enabled = shadowEnabled;
+			updownShadowNormalBias.Enabled = shadowEnabled;
+			checkboxShadowFilterCascades.Enabled = shadowEnabled;
+			checkboxShadowSmooth.Enabled = shadowEnabled;
+			bool softnessEnabled = shadowEnabled && checkboxShadowSmooth.Checked;
+			labelShadowSoftness.Enabled = softnessEnabled;
+			comboboxShadowFilterRadius.Enabled = softnessEnabled;
+
+			if (!shadowEnabled)
+			{
+				// Visual hint: grey out the strength label
+				labelShadowStrengthValue.Text = @"—";
+			}
+			else
+			{
+				labelShadowStrengthValue.Text = trackbarShadowStrength.Value + @"%";
+			}
+		}
+
+		private void trackbarShadowStrength_Scroll(object sender, EventArgs e)
+		{
+			labelShadowStrengthValue.Text = trackbarShadowStrength.Value + @"%";
+		}
+
+		private void updownShadowBias_ValueChanged(object sender, EventArgs e)
+		{
+			Interface.CurrentOptions.ShadowBias = (double)updownShadowBias.Value;
+		}
+
+		private void updownShadowNormalBias_ValueChanged(object sender, EventArgs e)
+		{
+			Interface.CurrentOptions.ShadowNormalBias = (double)updownShadowNormalBias.Value;
+		}
+
+		private void comboboxShadowFilterRadius_SelectedIndexChanged(object sender, EventArgs e)
+		{
+			double[] presets = { 1.0, 1.5, 2.5 };
+			int idx = comboboxShadowFilterRadius.SelectedIndex;
+			if (idx >= 0 && idx < presets.Length) Interface.CurrentOptions.ShadowFilterRadius = presets[idx];
+		}
+
+		private void checkboxShadowSmooth_CheckedChanged(object sender, EventArgs e)
+		{
+			Interface.CurrentOptions.ShadowSmooth = checkboxShadowSmooth.Checked;
+			bool shadowEnabled = comboboxShadowResolution.SelectedIndex != 0;
+			bool softnessEnabled = shadowEnabled && checkboxShadowSmooth.Checked;
+			labelShadowSoftness.Enabled = softnessEnabled;
+			comboboxShadowFilterRadius.Enabled = softnessEnabled;
+		}
+
 		
 		// =======
 		// options
@@ -55,37 +126,36 @@ namespace OpenBve {
 		
 		
 		private void ListInputDevicePlugins() {
-			ListViewItem[] Items = new ListViewItem[InputDevicePlugin.AvailablePluginInfos.Count];
-			for (int i = 0; i < Items.Length; i++) {
-				InputDevicePlugin.PluginInfo Info = InputDevicePlugin.AvailablePluginInfos[i];
-				if (Array.Exists(Interface.CurrentOptions.EnableInputDevicePlugins, element => element.Equals(Info.FileName))) {
+			ListViewItem[] listItems = new ListViewItem[InputDevicePlugin.AvailablePluginInfos.Count];
+			for (int i = 0; i < listItems.Length; i++) {
+				if (Array.Exists(Interface.CurrentOptions.EnabledInputDevicePlugins, element => element.Equals(InputDevicePlugin.AvailablePluginInfos[i].FileName))) {
 					InputDevicePlugin.CallPluginLoad(i, Program.CurrentHost);
 				}
-				Items[i] = new ListViewItem(new[] { "", "", "", "", "" });
-				UpdateInputDeviceListViewItem(Items[i], i, false);
+				listItems[i] = new ListViewItem(new[] { "", "", "", "", "" });
+				UpdateInputDeviceListViewItem(listItems[i], i, false);
 			}
-			listviewInputDevice.Items.AddRange(Items);
-			listviewInputDevice.AutoResizeColumns(Items.Length != 0 ? ColumnHeaderAutoResizeStyle.ColumnContent : ColumnHeaderAutoResizeStyle.None);
+			listviewInputDevice.Items.AddRange(listItems);
+			listviewInputDevice.AutoResizeColumns(listItems.Length != 0 ? ColumnHeaderAutoResizeStyle.ColumnContent : ColumnHeaderAutoResizeStyle.None);
 		}
 
-		private void UpdateInputDeviceListViewItem(ListViewItem Item, int Index, bool ResizeColumns) {
-			Item.SubItems[0].Text = InputDevicePlugin.AvailablePluginInfos[Index].Name.Title;
-			switch (InputDevicePlugin.AvailablePluginInfos[Index].Status)
+		private void UpdateInputDeviceListViewItem(ListViewItem listItem, int pluginIndex, bool resizeColumns) {
+			listItem.SubItems[0].Text = InputDevicePlugin.AvailablePluginInfos[pluginIndex].Name.Title;
+			switch (InputDevicePlugin.AvailablePluginInfos[pluginIndex].Status)
 			{
 				case InputDevicePlugin.PluginInfo.PluginStatus.Failure:
-					Item.SubItems[1].Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","input_device_plugin_status_failure"});
+					listItem.SubItems[1].Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","input_device_plugin_status_failure"});
 					break;
 				case InputDevicePlugin.PluginInfo.PluginStatus.Disable:
-					Item.SubItems[1].Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","input_device_plugin_status_disable"});
+					listItem.SubItems[1].Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","input_device_plugin_status_disable"});
 					break;
 				case InputDevicePlugin.PluginInfo.PluginStatus.Enable:
-					Item.SubItems[1].Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","input_device_plugin_status_enable"});
+					listItem.SubItems[1].Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","input_device_plugin_status_enable"});
 					break;
 			}
-			Item.SubItems[2].Text = InputDevicePlugin.AvailablePluginInfos[Index].Version.Version;
-			Item.SubItems[3].Text = InputDevicePlugin.AvailablePluginInfos[Index].Provider.Copyright;
-			Item.SubItems[4].Text = InputDevicePlugin.AvailablePluginInfos[Index].FileName;
-			if (ResizeColumns) {
+			listItem.SubItems[2].Text = InputDevicePlugin.AvailablePluginInfos[pluginIndex].Version.Version;
+			listItem.SubItems[3].Text = InputDevicePlugin.AvailablePluginInfos[pluginIndex].Provider.Copyright;
+			listItem.SubItems[4].Text = InputDevicePlugin.AvailablePluginInfos[pluginIndex].FileName;
+			if (resizeColumns) {
 				listviewInputDevice.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
 			}
 		}
@@ -112,23 +182,21 @@ namespace OpenBve {
 		}
 
 		private void listviewInputDevice_SelectedIndexChanged(object sender, EventArgs e) {
+			Tag = new object();
 			if (listviewInputDevice.SelectedIndices.Count == 1) {
 				int index = listviewInputDevice.SelectedIndices[0];
-				this.Tag = new object();
 				UpdateInputDeviceComponent(InputDevicePlugin.AvailablePluginInfos[index].Status);
-				// finalize
-				this.Tag = null;
 			} else {
-				this.Tag = new object();
 				checkBoxInputDeviceEnable.Enabled = false;
 				checkBoxInputDeviceEnable.Checked = false;
 				buttonInputDeviceConfig.Enabled = false;
-				this.Tag = null;
 			}
+			// finalize
+			Tag = null;
 		}
 
 		private void checkBoxInputDeviceEnable_CheckedChanged(object sender, EventArgs e) {
-			if (this.Tag ==  null && listviewInputDevice.SelectedIndices.Count == 1) {
+			if (Tag == null && listviewInputDevice.SelectedIndices.Count == 1) {
 				int index = listviewInputDevice.SelectedIndices[0];
 				if (checkBoxInputDeviceEnable.Checked) {
 					InputDevicePlugin.CallPluginLoad(index, Program.CurrentHost);
@@ -157,7 +225,7 @@ namespace OpenBve {
 
 		private void comboboxCursor_SelectedIndexChanged(object sender, EventArgs e)
 		{
-			if (this.Tag != null) return;
+			if (Tag != null) return;
 			Cursors.SelectedCursor(comboboxCursor, pictureboxCursor);
 		}
 	}

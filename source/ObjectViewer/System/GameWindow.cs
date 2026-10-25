@@ -1,24 +1,43 @@
-﻿using System;
-using System.ComponentModel;
-using System.Threading;
+using LibRender2.Viewports;
 using ObjectViewer.Trains;
 using OpenBveApi;
+using OpenBveApi.Hosts;
+using OpenBveApi.Interface;
 using OpenTK;
 using OpenTK.Graphics;
+using System;
+using System.ComponentModel;
+using System.Threading;
 using Vector3 = OpenBveApi.Math.Vector3;
 
 namespace ObjectViewer
 {
-    class ObjectViewer : GameWindow
+    internal class ObjectViewer : GameWindow
     {
         //Deliberately specify the default constructor with various overrides
-        public ObjectViewer(int width, int height, GraphicsMode currentGraphicsMode, string openbve,
-            GameWindowFlags @default) : base(width, height, currentGraphicsMode, openbve, @default)
+        public ObjectViewer(int width, int height, GraphicsMode currentGraphicsMode, string windowTitle,
+            GameWindowFlags @default) : base(width, height, currentGraphicsMode, windowTitle, @default)
+        {
+            Init();
+        }
+
+        public ObjectViewer(int width, int height, GraphicsMode currentGraphicsMode, string windowTitle,
+            GameWindowFlags @default, GraphicsContextFlags flags) : base(width, height, currentGraphicsMode, windowTitle, @default, DisplayDevice.Default, 3, 3, flags)
+        {
+            if (IsApple64)
+            {
+	            Interface.CurrentOptions.ForceForwardsCompatibleContext = true;
+            }
+            Init();
+        }
+
+        private static bool IsApple64 => Program.CurrentHost.Platform == HostPlatform.AppleOSX && IntPtr.Size != 4;
+
+        private void Init()
         {
             try
             {
-                System.Drawing.Icon ico = new System.Drawing.Icon("data\\icon.ico");
-                this.Icon = ico;
+                Icon = new System.Drawing.Icon("data\\icon.ico");
             }
             catch
             {
@@ -26,9 +45,17 @@ namespace ObjectViewer
             }
         }
 
+        // OS-X needs an explicit GL3 forward-compatible context, otherwise it falls back to GL 2.1 and the 410 shaders fail
+        public static ObjectViewer Create(int width, int height, GraphicsMode mode, string title)
+        {
+            return IsApple64 || Interface.CurrentOptions.ForceForwardsCompatibleContext
+	            ? new ObjectViewer(width, height, mode, title, GameWindowFlags.Default, GraphicsContextFlags.ForwardCompatible)
+	            : new ObjectViewer(width, height, mode, title, GameWindowFlags.Default);
+        }
+
 		private double RenderRealTimeElapsed;
 		private double TotalTimeElapsedForInfo;
-
+        
         private static double RotateXSpeed = 0.0;
         private static double RotateYSpeed = 0.0;
         
@@ -49,9 +76,17 @@ namespace ObjectViewer
 				        Monitor.Pulse(currentJob);
 			        }
 		        }
-		        Program.Renderer.RenderThreadJobWaiting = false;
-	        }
-			double timeElapsed = RenderRealTimeElapsed;
+	        Program.Renderer.RenderThreadJobWaiting = false;
+        }
+		if (Program.IsLoading)
+		{
+			// Show the frozen frame + progress instead of the half-torn scene.
+			// (Render-thread jobs above are still pumped so worker GL requests complete.)
+			Program.DrawLoaderScreen();
+			RenderRealTimeElapsed = 0.0;
+			return;
+		}
+		double timeElapsed = RenderRealTimeElapsed;
 
 			// Use the OpenTK frame rate as this is much more accurate
 			// Also avoids running a calculation
@@ -70,32 +105,30 @@ namespace ObjectViewer
 				Program.TrainManager.Trains[0].UpdateObjects(timeElapsed, false);
 			}
 
-            bool updatelight = false;
             // rotate x
             if (Program.RotateX == 0)
             {
                 double d = (1.0 + Math.Abs(RotateXSpeed)) * timeElapsed;
-                if (RotateXSpeed >= -d & RotateXSpeed <= d)
+                if (RotateXSpeed >= -d && RotateXSpeed <= d)
                 {
                     RotateXSpeed = 0.0;
                 }
                 else
                 {
-                    RotateXSpeed -= (double)Math.Sign(RotateXSpeed) * d;
+                    RotateXSpeed -= Math.Sign(RotateXSpeed) * d;
                 }
             }
             else
             {
                 double d = (1.0 + 1.0 - 1.0 / (1.0 + RotateXSpeed * RotateXSpeed)) * timeElapsed;
-                double m = 1.0;
-                RotateXSpeed += (double)Program.RotateX * d;
-                if (RotateXSpeed < -m)
+                RotateXSpeed += Program.RotateX * d;
+                if (RotateXSpeed < -1.0)
                 {
-                    RotateXSpeed = -m;
+                    RotateXSpeed = -1.0;
                 }
-                else if (RotateXSpeed > m)
+                else if (RotateXSpeed > 1.0)
                 {
-                    RotateXSpeed = m;
+                    RotateXSpeed = 1.0;
                 }
             }
             if (RotateXSpeed != 0.0)
@@ -108,27 +141,26 @@ namespace ObjectViewer
             if (Program.RotateY == 0)
             {
                 double d = (1.0 + Math.Abs(RotateYSpeed)) * timeElapsed;
-                if (RotateYSpeed >= -d & RotateYSpeed <= d)
+                if (RotateYSpeed >= -d && RotateYSpeed <= d)
                 {
                     RotateYSpeed = 0.0;
                 }
                 else
                 {
-                    RotateYSpeed -= (double)Math.Sign(RotateYSpeed) * d;
+                    RotateYSpeed -= Math.Sign(RotateYSpeed) * d;
                 }
             }
             else
             {
                 double d = (1.0 + 1.0 - 1.0 / (1.0 + RotateYSpeed * RotateYSpeed)) * timeElapsed;
-                double m = 1.0;
-                RotateYSpeed += (double)Program.RotateY * d;
-                if (RotateYSpeed < -m)
+                RotateYSpeed += Program.RotateY * d;
+                if (RotateYSpeed < -1.0)
                 {
-                    RotateYSpeed = -m;
+                    RotateYSpeed = -1.0;
                 }
-                else if (RotateYSpeed > m)
+                else if (RotateYSpeed > 1.0)
                 {
-                    RotateYSpeed = m;
+                    RotateYSpeed = 1.0;
                 }
             }
             if (RotateYSpeed != 0.0)
@@ -140,27 +172,26 @@ namespace ObjectViewer
             if (Program.MoveX == 0)
             {
                 double d = (2.5 + Math.Abs(MoveXSpeed)) * timeElapsed;
-                if (MoveXSpeed >= -d & MoveXSpeed <= d)
+                if (MoveXSpeed >= -d && MoveXSpeed <= d)
                 {
                     MoveXSpeed = 0.0;
                 }
                 else
                 {
-                    MoveXSpeed -= (double)Math.Sign(MoveXSpeed) * d;
+                    MoveXSpeed -= Math.Sign(MoveXSpeed) * d;
                 }
             }
             else
             {
                 double d = (5.0 + 10.0 - 10.0 / (1.0 + MoveXSpeed * MoveXSpeed)) * timeElapsed;
-                double m = 25.0;
-                MoveXSpeed += (double)Program.MoveX * d;
-                if (MoveXSpeed < -m)
+                MoveXSpeed += Program.MoveX * d;
+                if (MoveXSpeed < -25.0)
                 {
-                    MoveXSpeed = -m;
+                    MoveXSpeed = -25.0;
                 }
-                else if (MoveXSpeed > m)
+                else if (MoveXSpeed > 25.0)
                 {
-                    MoveXSpeed = m;
+                    MoveXSpeed = 25.0;
                 }
             }
             if (MoveXSpeed != 0.0)
@@ -171,27 +202,26 @@ namespace ObjectViewer
             if (Program.MoveY == 0)
             {
                 double d = (2.5 + Math.Abs(MoveYSpeed)) * timeElapsed;
-                if (MoveYSpeed >= -d & MoveYSpeed <= d)
+                if (MoveYSpeed >= -d && MoveYSpeed <= d)
                 {
                     MoveYSpeed = 0.0;
                 }
                 else
                 {
-                    MoveYSpeed -= (double)Math.Sign(MoveYSpeed) * d;
+                    MoveYSpeed -= Math.Sign(MoveYSpeed) * d;
                 }
             }
             else
             {
                 double d = (5.0 + 10.0 - 10.0 / (1.0 + MoveYSpeed * MoveYSpeed)) * timeElapsed;
-                double m = 25.0;
-                MoveYSpeed += (double)Program.MoveY * d;
-                if (MoveYSpeed < -m)
+                MoveYSpeed += Program.MoveY * d;
+                if (MoveYSpeed < -25.0)
                 {
-                    MoveYSpeed = -m;
+                    MoveYSpeed = -25.0;
                 }
-                else if (MoveYSpeed > m)
+                else if (MoveYSpeed > 25.0)
                 {
-                    MoveYSpeed = m;
+                    MoveYSpeed = 25.0;
                 }
             }
             if (MoveYSpeed != 0.0)
@@ -202,38 +232,38 @@ namespace ObjectViewer
             if (Program.MoveZ == 0)
             {
                 double d = (2.5 + Math.Abs(MoveZSpeed)) * timeElapsed;
-                if (MoveZSpeed >= -d & MoveZSpeed <= d)
+                if (MoveZSpeed >= -d && MoveZSpeed <= d)
                 {
                     MoveZSpeed = 0.0;
                 }
                 else
                 {
-                    MoveZSpeed -= (double)Math.Sign(MoveZSpeed) * d;
+                    MoveZSpeed -= Math.Sign(MoveZSpeed) * d;
                 }
             }
             else
             {
                 double d = (5.0 + 10.0 - 10.0 / (1.0 + MoveZSpeed * MoveZSpeed)) * timeElapsed;
-                double m = 25.0;
-                MoveZSpeed += (double)Program.MoveZ * d;
-                if (MoveZSpeed < -m)
+                MoveZSpeed += Program.MoveZ * d;
+                if (MoveZSpeed < -25.0)
                 {
-                    MoveZSpeed = -m;
+                    MoveZSpeed = -25.0;
                 }
-                else if (MoveZSpeed > m)
+                else if (MoveZSpeed > 25.0)
                 {
-                    MoveZSpeed = m;
+                    MoveZSpeed = 25.0;
                 }
             }
             if (MoveZSpeed != 0.0)
             {
 	            Program.Renderer.Camera.AbsolutePosition += MoveZSpeed * timeElapsed * Program.Renderer.Camera.AbsoluteDirection;
             }
-            // lighting
-            if (Program.LightingRelative == -1)
+            bool updateLight = false;
+			// lighting
+			if (Program.LightingRelative == -1)
             {
-                Program.LightingRelative = (double)Program.LightingTarget;
-                updatelight = true;
+                Program.LightingRelative = Program.LightingTarget;
+                updateLight = true;
             }
             if (Program.LightingTarget == 0)
             {
@@ -241,7 +271,7 @@ namespace ObjectViewer
                 {
                     Program.LightingRelative -= 0.5 * timeElapsed;
                     if (Program.LightingRelative < 0.0) Program.LightingRelative = 0.0;
-                    updatelight = true;
+                    updateLight = true;
                 }
             }
             else
@@ -250,11 +280,11 @@ namespace ObjectViewer
                 {
                     Program.LightingRelative += 0.5 * timeElapsed;
                     if (Program.LightingRelative > 1.0) Program.LightingRelative = 1.0;
-                    updatelight = true;
+                    updateLight = true;
                 }
             }
             // continue
-            if (updatelight)
+            if (updateLight)
             {
 				Program.Renderer.Lighting.OptionAmbientColor.R = (byte)Math.Round(32.0 + 128.0 * Program.LightingRelative * (2.0 - Program.LightingRelative));
 				Program.Renderer.Lighting.OptionAmbientColor.G = (byte)Math.Round(32.0 + 128.0 * 0.5 * (Program.LightingRelative + Program.LightingRelative * (2.0 - Program.LightingRelative)));
@@ -286,13 +316,62 @@ namespace ObjectViewer
 
 			TotalTimeElapsedForInfo += RealTimeElapsed;
 			RenderRealTimeElapsed += RealTimeElapsed;
+
+			// Modeless options dialog pump (cross-platform realtime preview):
+			// the dialog only writes plain memory. WinForms messages need
+			// explicit pumping while the GameWindow loop owns the thread
+			// (Mono/X11 has a separate event queue, so a modeless form would
+			// otherwise freeze), and GPU shadow reallocs run here on the GL
+			// thread, never inside a WinForms dispatch.
+			if (Program.OptionsDialog != null && !Program.OptionsDialog.IsDisposed)
+			{
+				try
+				{
+					System.Windows.Forms.Application.DoEvents();
+				}
+				catch
+				{
+					// Best-effort; the dialog may be mid-close
+				}
+			}
+			if (Program.PendingOptionsCommit)
+			{
+				Program.PendingOptionsCommit = false;
+				Program.ApplyOptionsCommit();
+			}
+			else if (Program.ShadowSettingsDirty && !Program.IsLoading)
+			{
+				Program.ShadowSettingsDirty = false;
+				Program.Renderer.ReloadShadowSettings();
+			}
+
+            Program.CheckFileChanges(RealTimeElapsed);
+
+			if (Program.IsLoading)
+			{
+				// A reload requested mid-load is coalesced; the loader consumes PendingReload on completion.
+				if (Program.ReloadRequested)
+				{
+					Program.ReloadRequested = false;
+					Program.PendingReload = true;
+				}
+				Program.PumpLoader();
+				return;
+			}
+			if (Program.ReloadRequested)
+			{
+				Program.ReloadRequested = false;
+				Program.RefreshObjectsAsync();
+			}
 		}
 
         protected override void OnResize(EventArgs e)
         {
 	        Program.Renderer.Screen.Width = Width;
 	        Program.Renderer.Screen.Height = Height;
-            Program.Renderer.UpdateViewport();
+            Program.Renderer.UpdateViewport(ViewportChangeMode.NoChange);
+			Program.Renderer.Rectangle.Update();
+			Program.Renderer.OpenGlString.Update();
         }
 
         protected override void OnLoad(EventArgs e)
@@ -307,11 +386,11 @@ namespace ObjectViewer
 	        Program.Renderer.Camera.Reset(new Vector3(-5.0, 2.5, -25.0));
             Program.Renderer.Initialize();
             Program.Renderer.Lighting.Initialize();
-            Program.Renderer.UpdateViewport();
+            Program.Renderer.UpdateViewport(ViewportChangeMode.NoChange);
 			Program.Renderer.InitializeVisibility();
 			Program.Renderer.UpdateVisibility(true);
             ObjectManager.UpdateAnimatedWorldObjects(0.01, true);
-			Program.RefreshObjects();
+			Program.RefreshObjectsAsync();
 			if (Width == DisplayDevice.Default.Width && Height == DisplayDevice.Default.Height)
 			{
 				WindowState = WindowState.Maximized;
@@ -321,7 +400,12 @@ namespace ObjectViewer
         protected override void OnClosing(CancelEventArgs e)
         {
 	        Interface.CurrentOptions.Save(Path.CombineFile(Program.FileSystem.SettingsFolder, "1.5.0/options_ov.cfg"));
-			Program.Renderer.visibilityThread = false;
+			Program.Renderer.VisibilityThreadShouldRun = false;
+			Program.Renderer.DeInitialize();
+			if (Program.CurrentHost.MonoRuntime)
+			{
+				Environment.Exit(0);
+			}
         }
 
         protected override void OnUnload(EventArgs e)

@@ -1,4 +1,5 @@
-﻿namespace OpenBveApi.FunctionScripting
+﻿// ReSharper disable InconsistentNaming
+namespace OpenBveApi.FunctionScripting
 {
 	/// <summary>The available instructions for use in a function script</summary>
 	public enum Instructions {
@@ -10,37 +11,63 @@
 		MathExp, MathLog, MathSqrt, MathSin, MathCos, MathTan, MathArcTan, MathPi,
 		CompareEqual, CompareUnequal, CompareLess, CompareGreater, CompareLessEqual, CompareGreaterEqual, CompareConditional,
 		LogicalNot, LogicalAnd, LogicalOr, LogicalNand, LogicalNor, LogicalXor,
+		TotalStates,
 		/*
 		 * Functions after this point may not return the same result when itinerated twice
 		 */
 		SystemHalt,   SystemValue, SystemDelta,
 		StackCopy, StackSwap,
 		MathRandom, MathRandomInt,
-		TimeSecondsSinceMidnight, TimeHourDigit, TimeMinuteDigit, TimeSecondDigit, CameraDistance, CameraXDistance, CameraYDistance, CameraZDistance,CameraView,
+		TimeSecondsSinceMidnight, TimeHourDigit, TimeMinuteDigit, TimeSecondDigit, CameraDistance, CameraXDistance, CameraYDistance, CameraZDistance, CameraView, CameraCar,
 		TrainCars, TrainCarNumber, TrainDestination, PlayerTrain, TrainLength,
 		TrainSpeed, TrainSpeedometer, TrainAcceleration, TrainAccelerationMotor,
-		TrainSpeedOfCar, TrainSpeedometerOfCar, TrainAccelerationOfCar, TrainAccelerationMotorOfCar,
-		PlayerTrainDistance, TrainDistance, TrainDistanceToCar, PlayerTrackDistance, TrainTrackDistance, TrainTrackDistanceToCar, CurveRadius, CurveRadiusOfCar, FrontAxleCurveRadius, FrontAxleCurveRadiusOfCar, RearAxleCurveRadius, RearAxleCurveRadiusOfCar, CurveCant, CurveCantOfCar, Pitch, PitchOfCar, Odometer, OdometerOfCar, BrightnessOfCar,
-		Doors, DoorsIndex, FrontCoupler, FrontCouplerIndex, RearCoupler, RearCouplerIndex,
-		LeftDoors, LeftDoorsIndex, RightDoors, RightDoorsIndex,
-		LeftDoorsTarget, LeftDoorsTargetIndex, RightDoorsTarget, RightDoorsTargetIndex,
+		
+		PlayerTrainDistance, TrainDistance,PlayerTrackDistance, TrainTrackDistance, CurveRadius, FrontAxleCurveRadius, RearAxleCurveRadius, CurveCant, Pitch, Odometer,
+		Doors, DoorsIndex, FrontCoupler, RearCoupler, 
+		LeftDoors,  RightDoors,
+		LeftDoorsTarget,  RightDoorsTarget,
 		LeftDoorButton, RightDoorButton, PilotLamp, Headlights,
 		ReverserNotch, PowerNotch, PowerNotches, LocoBrakeNotch, LocoBrakeNotches, BrakeNotch, BrakeNotches, BrakeNotchLinear, BrakeNotchesLinear, EmergencyBrake, Klaxon, PrimaryKlaxon, SecondaryKlaxon, MusicKlaxon,
 		HasAirBrake, HoldBrake, HasHoldBrake, ConstSpeed, HasConstSpeed,
 		BrakeMainReservoir, BrakeEqualizingReservoir, BrakeBrakePipe, BrakeBrakeCylinder, BrakeStraightAirPipe,
-		BrakeMainReservoirOfCar, BrakeEqualizingReservoirOfCar, BrakeBrakePipeOfCar, BrakeBrakeCylinderOfCar, BrakeStraightAirPipeOfCar,
 		SafetyPluginAvailable, SafetyPluginState, PassAlarm, StationAdjustAlarm,
 		TimetableVisible, Panel2Timetable, DistanceNextStation, DistanceLastStation, StopsNextStation, DistanceStation, StopsStation, NextStation, NextStationStop, TerminalStation,
-		RouteLimit,
+		RouteLimit, SectionLimit,
 		SectionAspectNumber, CurrentObjectState,
 		RainDrop, SnowFlake, WiperPosition, WiperState,
-		WheelRadius, WheelRadiusOfCar,
-		WheelSlip, WheelSlipCar,
+		PantographState, 
+		WheelRadius, 
+		WheelSlip, 
 		Sanders, SandLevel, SandShots, DSD,
 		AmbientTemperature,
 		BillboardX, BillboardY,
-		EngineRunning, EngineRunningCar, EngineRPM, EngineRPMCar, FuelLevel, FuelLevelCar, Amps, AmpsCar
+		EngineRunning, EngineRPM, FuelLevel, FuelLevelCar, Amps, AmpsCar,
+		OverheadVolts,ThirdRailVolts,  FourthRailVolts, 
+		OverheadAC, ThirdRailAC, FourthRailAC,
+		OverheadHeight, ThirdRailHeight,  FourthRailHeight, 
+		OverheadAmps, ThirdRailAmps, FourthRailAmps, 
+
+		/// <summary>DUMMY</summary>
+		/// <remarks>Used when correcting index dependant functions</remarks>
+		CarIndexDependant = 1000,
+		TrainDistanceToCar, TrainTrackDistanceToCar, CurveRadiusOfCar, FrontAxleCurveRadiusOfCar, RearAxleCurveRadiusOfCar, CurveCantOfCar, PitchOfCar, OdometerOfCar, BrightnessOfCar,
+		FrontCouplerIndex, RearCouplerIndex,
+		TrackNumber, TrackNumberIndex,
+		TrainSpeedOfCar, TrainSpeedometerOfCar, TrainAccelerationOfCar, TrainAccelerationMotorOfCar, TrainMotorDeceleration, TrainMotorDecelerationOfCar, TrainCarMass, TrainCarMassIndex,
+		LeftDoorsIndex, RightDoorsIndex,
+		LeftDoorsTargetIndex, RightDoorsTargetIndex,
+		BrakeMainReservoirOfCar, BrakeEqualizingReservoirOfCar, BrakeBrakePipeOfCar, BrakeBrakeCylinderOfCar, BrakeStraightAirPipeOfCar,
+		PantographStateOfCar,
+		CylinderCocksStateOfCar, BlowersStateOfCar, TenderWaterOfCar, BoilerPressureOfCar,
+		WheelRadiusOfCar,
+		WheelSlipCar,
+		EngineRunningCar,
+		EngineRPMCar, EnginePowerCar,
+		OverheadVoltsTarget, ThirdRailVoltsTarget, FourthRailVoltsTarget,
+		OverheadHeightTarget, ThirdRailHeightTarget, FourthRailHeightTarget,
+		OverheadAmpsTarget, ThirdRailAmpsTarget, FourthRailAmpsTarget,
+
 #pragma warning restore CS1591
-			
-		}
+
+	}
 }

@@ -9,8 +9,7 @@ namespace OpenBveApi.Objects
 	/// <summary>The AnimatedObjectCollection is a simple container class containing one or more animated objects</summary>
 	public class AnimatedObjectCollection : UnifiedObject
 	{
-
-		private readonly HostInterface currentHost;
+		internal readonly HostInterface currentHost;
 
 		/// <summary>The objects that this collection contains</summary>
 		public AnimatedObject[] Objects;
@@ -26,8 +25,7 @@ namespace OpenBveApi.Objects
 
 		/// <inheritdoc/>
 		public override void CreateObject(Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation,
-			int SectionIndex, double StartingDistance, double EndingDistance,
-			double TrackPosition, double Brightness, bool DuplicateMaterials = false)
+			ObjectCreationParameters Parameters)
 		{
 			bool[] free = new bool[Objects.Length];
 			bool anyfree = false;
@@ -57,6 +55,7 @@ namespace OpenBveApi.Objects
 				}
 			}
 
+			double p = Parameters.AccurateObjectDisposalZOffset;
 			if (anyfree)
 			{
 				for (int i = 0; i < Objects.Length; i++)
@@ -69,13 +68,13 @@ namespace OpenBveApi.Objects
 							Matrix4D mat = Matrix4D.Identity;
 							mat *= Objects[i].States[0].Translation;
 							mat *= transformationMatrix;
-							double zOffset = Objects[i].States[0].Translation.ExtractTranslation().Z * -1.0; //To calculate the Z-offset within the object, we want the untransformed co-ordinates, not the world co-ordinates
-
-							currentHost.CreateStaticObject(Objects[i].States[0].Prototype, Position, LocalTransformation, mat, Matrix4D.CreateTranslation(Position.X, Position.Y, -Position.Z), zOffset, StartingDistance, EndingDistance, TrackPosition, Brightness);
+							Parameters.AccurateObjectDisposalZOffset = Objects[i].States[0].Translation.ExtractTranslation().Z * -1.0; //To calculate the Z-offset within the object, we want the untransformed co-ordinates, not the world co-ordinates
+							currentHost.CreateStaticObject(Objects[i].States[0].Prototype, Position, LocalTransformation, mat, Parameters);
 						}
 						else
 						{
-							Objects[i].CreateObject(Position, WorldTransformation, LocalTransformation, SectionIndex, TrackPosition, Brightness);
+							Parameters.AccurateObjectDisposalZOffset = p;
+							Objects[i].Clone().CreateObject(Position, WorldTransformation, LocalTransformation, Parameters.SectionIndex, Parameters.TrackPosition);
 						}
 					}
 				}
@@ -86,7 +85,7 @@ namespace OpenBveApi.Objects
 				{
 					if (Objects[i].States.Length != 0)
 					{
-						Objects[i].CreateObject(Position, WorldTransformation, LocalTransformation, SectionIndex, TrackPosition, Brightness);
+						Objects[i].Clone().CreateObject(Position, WorldTransformation, LocalTransformation, Parameters.SectionIndex, Parameters.TrackPosition);
 					}
 				}
 			}
@@ -106,8 +105,8 @@ namespace OpenBveApi.Objects
 				Vector3 v = Sounds[i].Position;
 				v.Rotate(LocalTransformation);
 				v.Rotate(WorldTransformation);
-				(Sounds[i] as WorldSound)?.CreateSound(Position + v, WorldTransformation, LocalTransformation, SectionIndex, TrackPosition);
-				(Sounds[i] as AnimatedWorldObjectStateSound)?.Create(Position + v, WorldTransformation, LocalTransformation, SectionIndex, TrackPosition, Brightness);
+				(Sounds[i] as WorldSound)?.CreateSound(Position + v, Parameters.SectionIndex, Parameters.TrackPosition);
+				(Sounds[i] as AnimatedWorldObjectStateSound)?.Create(Position + v, WorldTransformation, LocalTransformation, Parameters.SectionIndex, Parameters.TrackPosition);
 			}
 		}
 
@@ -185,13 +184,19 @@ namespace OpenBveApi.Objects
 		}
 
 		/// <inheritdoc/>
-		public override UnifiedObject TransformLeft(double NearDistance, double FarDistance)
+		public override UnifiedObject TransformLeft(double NearDistance, double FarDistance, bool FlipFaces = false)
 		{
 			throw new NotSupportedException();
 		}
 
 		/// <inheritdoc/>
-		public override UnifiedObject TransformRight(double NearDistance, double FarDistance)
+		public override UnifiedObject TransformRight(double NearDistance, double FarDistance, bool FlipFaces = false)
+		{
+			throw new NotSupportedException();
+		}
+
+		/// <inheritdoc/>
+		public override void ApplyTranslation(Vector3 translationVector, bool absoluteTranslation = false)
 		{
 			throw new NotSupportedException();
 		}

@@ -23,6 +23,7 @@
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Xml;
 using OpenBveApi.Math;
@@ -36,9 +37,14 @@ namespace Plugin
 	internal static class Ls3DGrpParser
 	{
 
+		/*
+		 * Each .l3dgrp file contains a list of GruppenObject
+		 *
+		 * A GruppenObject is a self-contained mesh, defined by a .l3dobj file.
+		 * Basic animation support is provided by the ShowOn and HideOn functions
+		 */
 		private class GruppenObject
 		{
-			//A gruppenobject holds a list of ls3dobjs, which appear to be roughly equivilant to meshbuilders
 			internal string Name;
 			internal Vector3 Position;
 			internal Vector3 Rotation;
@@ -132,11 +138,10 @@ namespace Plugin
 
 			string BaseDir = Path.GetDirectoryName(FileName);
 
-			GruppenObject[] CurrentObjects = new GruppenObject[0];
+			List<GruppenObject> CurrentObjects = new List<GruppenObject>();
 			//Check for null
 			if (currentXML.DocumentElement != null)
 			{
-				UnifiedObject[] obj = new UnifiedObject[0];
 				XmlNodeList DocumentNodes = currentXML.DocumentElement.SelectNodes("/GRUPPENOBJECT");
 				if (DocumentNodes != null)
 				{
@@ -180,8 +185,7 @@ namespace Plugin
 														}
 														break;
 													case "Rotation":
-														Vector3 r;
-														if (!Vector3.TryParse(attribute.Value, ';', out r))
+														if (!Vector3.TryParse(attribute.Value, ';', out Vector3 r))
 														{
 															Plugin.currentHost.AddMessage(MessageType.Warning, true, "Invalid rotation vector " + attribute.Value + " supplied in Ls3d object file.");
 														}
@@ -219,11 +223,7 @@ namespace Plugin
 														break;
 												}
 											}
-											if (Object.Name != null)
-											{
-												Array.Resize(ref CurrentObjects, CurrentObjects.Length + 1);
-												CurrentObjects[CurrentObjects.Length - 1] = Object;
-											}
+											CurrentObjects.Add(Object);
 										}
 									}
 								}
@@ -238,7 +238,7 @@ namespace Plugin
 					{
 						Mesh = new Mesh()
 					};
-					for (int i = 0; i < CurrentObjects.Length; i++)
+					for (int i = 0; i < CurrentObjects.Count; i++)
 					{
 						if (CurrentObjects[i] == null || string.IsNullOrEmpty(CurrentObjects[i].Name))
 						{
@@ -246,6 +246,7 @@ namespace Plugin
 						}
 						StaticObject Object = null;
 						AnimatedObjectCollection AnimatedObject = null;
+						bool autoRotate = false;
 						try {
 							if (CurrentObjects[i].Name.ToLowerInvariant().EndsWith(".l3dgrp"))
 							{
@@ -253,7 +254,20 @@ namespace Plugin
 							}
 							else if (CurrentObjects[i].Name.ToLowerInvariant().EndsWith(".l3dobj"))
 							{
-								Object = Ls3DObjectParser.ReadObject(CurrentObjects[i].Name, CurrentObjects[i].Rotation);
+								Object = Ls3DObjectParser.ReadObject(CurrentObjects[i].Name, CurrentObjects[i].Rotation, ref autoRotate);
+								// if object auto-rotates, we need to add it to it's own state
+								if (autoRotate)
+								{
+									Array.Resize(ref Result.Objects, Result.Objects.Length + 1);
+									AnimatedObject a = new AnimatedObject(Plugin.currentHost, FileName);
+									ObjectState aos = new ObjectState(Object);
+									a.States = new[] { aos };
+									Result.Objects[Result.Objects.Length - 1] = a;
+									Result.Objects[Result.Objects.Length - 1].RotateXFunction = new FunctionScript(Plugin.currentHost, "billboardx", false);
+									Result.Objects[Result.Objects.Length - 1].RotateXDirection = Vector3.Down;
+									Object = null;
+									AnimatedObject = null;
+								}
 							}
 							else
 							{
@@ -269,8 +283,6 @@ namespace Plugin
 							if (!string.IsNullOrEmpty(CurrentObjects[i].FunctionScript))
 							{
 								//If the function script is not empty, this is a new animated object bit
-								Array.Resize(ref obj, obj.Length + 1);
-								obj[obj.Length - 1] = Object;
 								int aL = Result.Objects.Length;
 								Array.Resize(ref Result.Objects, aL + 1);
 								AnimatedObject a = new AnimatedObject(Plugin.currentHost, FileName);
@@ -323,6 +335,8 @@ namespace Plugin
 						a.States = new [] { aos };
 						Result.Objects[Result.Objects.Length - 1] = a;
 					}
+
+					
 				}
 				return Result;
 			}

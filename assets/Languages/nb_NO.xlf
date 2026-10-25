@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2.xsd">
 	<file datatype="plaintext" original="en-US.xlf" source-language="en-US" target-language="nb-NO">
 		<body>
@@ -176,6 +176,9 @@
 					</trans-unit>
 				</group>
 				<group id="errors">
+					<trans-unit id="critical_loading">
+						<source>A critical error occured: \n\n [error] \n\n Please inspect the error log file for further information.</source>
+					</trans-unit>
 					<trans-unit id="critical_file">
 						<source>A critical error occured whilst parsing the [file] file</source>
 						<target>En kritisk feil oppstod ved lasting av filen [file]</target>
@@ -1351,6 +1354,12 @@
 						<source>Enabled</source>
 						<target>Påslått</target>
 					</trans-unit>
+					<trans-unit id="display_fpslimit">
+						<source>FPS Limit:</source>
+					</trans-unit>
+					<trans-unit id="display_fpslimit_unlimited">
+						<source>Unlimited</source>
+					</trans-unit>
 					<trans-unit id="display_window">
 						<source>Window mode</source>
 						<target>Vindusmodus</target>
@@ -1445,6 +1454,22 @@
 					</trans-unit>
 					<trans-unit id="quality_distance_viewingdistance_meters">
 						<source>m</source>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip">
+						<source>Near clip:</source>
+						<target>Near clip:</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_scenery">
+						<source>Near clip (scenery):</source>
+						<target>Near clip (scenery):</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_cab">
+						<source>Near clip (cab):</source>
+						<target>Near clip (cab):</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_base">
+						<source>Near clip (base):</source>
+						<target>Near clip (base):</target>
 					</trans-unit>
 					<trans-unit id="quality_distance_motionblur">
 						<source>Motion blur:</source>
@@ -1557,10 +1582,6 @@
 						<source>Load in advance</source>
 						<target>Last in råd</target>
 					</trans-unit>
-					<trans-unit id="advanced_is_use_new_renderer">
-						<source>Enable the new renderer</source>
-						<target>Slå på den nye rendereren</target>
-					</trans-unit>
 					<trans-unit id="advanced_timefactor">
 						<source>Accelerated Time Factor</source>
 						<target>Akselerert tidsfaktor</target>
@@ -1612,6 +1633,10 @@
 					<trans-unit id="package_other_directory">
 						<source>Other items installation directory:</source>
 						<target>Mappe for installasjon av andre ting:</target>
+					</trans-unit>
+					<trans-unit id="package_msts_directory">
+						<source>MSTS installation directory:</source>
+						<target>Mappe for installasjon MSTS:</target>
 					</trans-unit>
 					<trans-unit id="package_compression">
 						<source>Package compression format:</source>
@@ -2819,6 +2844,9 @@
 					<trans-unit id="blowers">
 						<source>Activates or deactivates the blowers</source>
 						<target>Aktiverer eller deaktiverer blåsere</target>
+					</trans-unit>
+					<trans-unit id="cylinder_cocks">
+						<source>Activates or deactivates the cylinder cocks</source>
 					</trans-unit>
 					<trans-unit id="engine_start">
 						<source>Starts the engine</source>
@@ -5788,3 +5816,4 @@
 		</body>
 	</file>
 </xliff>
+

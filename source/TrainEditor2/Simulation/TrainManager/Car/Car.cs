@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
 using OpenBveApi.Math;
 using SoundManager;
 using TrainEditor2.Models.Sounds;
 using TrainManager.Car;
 using TrainManager.Motor;
+using TrainManager.Power;
 using TrainManager.Trains;
 
 namespace TrainEditor2.Simulation.TrainManager
@@ -19,7 +19,8 @@ namespace TrainEditor2.Simulation.TrainManager
 			public Car() : base(null, 0)
 			{
 				Sounds = new CarSounds();
-				Specs.IsMotorCar = true;
+
+				TractionModel = new BVEMotorCar(this, new AccelerationCurve[] {});
 			}
 
 			public Car(TrainBase train, int index, double CoefficientOfFriction, double CoefficientOfRollingResistance, double AerodynamicDragCoefficient) : base(train, index, CoefficientOfFriction, CoefficientOfRollingResistance, AerodynamicDragCoefficient)
@@ -31,13 +32,7 @@ namespace TrainEditor2.Simulation.TrainManager
 			{
 				throw new NotSupportedException("Should not be called in TrainEditor2");
 			}
-
-			/// <summary>Initializes a train with the default (empty) set of car sounds</summary>
-			internal void InitializeCarSounds()
-			{
-				Flange.Sounds = new Dictionary<int, CarSound>();
-			}
-
+			
 			internal void ApplySounds()
 			{
 				//Default sound positions and radii
@@ -53,8 +48,8 @@ namespace TrainEditor2.Simulation.TrainManager
 				}
 				
 				// motor sound
-				Sounds.Motor.Position = center;
-				if (Sounds.Motor is BVEMotorSound motorSound)
+				TractionModel.MotorSounds.Position = center;
+				if (TractionModel.MotorSounds is BVEMotorSound motorSound)
 				{
 					for (int i = 0; i < motorSound.Tables.Length; i++)
 					{

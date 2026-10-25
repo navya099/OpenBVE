@@ -19,14 +19,6 @@ namespace OpenBve
 {
 	internal static partial class MainLoop
 	{
-		internal enum QuitMode
-		{
-			ContinueGame = 0,
-			QuitProgram = 1,
-			ExitToMenu = 2
-		}
-		// declarations
-		internal static bool LimitFramerate = false;
 		internal static QuitMode Quit = QuitMode.ContinueGame;
 		/// <summary>BlockKeyRepeat should be set to 'true' whilst processing a KeyUp or KeyDown event.</summary>
 		internal static bool BlockKeyRepeat;
@@ -103,7 +95,7 @@ namespace OpenBve
 				}
 			}
 
-			Program.FileSystem.AppendToLogFile(Interface.CurrentOptions.IsUseNewRenderer ? "Using openGL 3.0 (new) renderer" : "Using openGL 1.2 (old) renderer");
+			Program.FileSystem.AppendToLogFile("Using openGL 4 (new) renderer");
 			if (Interface.CurrentOptions.FullscreenMode)
 			{
 				Program.FileSystem.AppendToLogFile("Initialising full-screen game window of size " + Interface.CurrentOptions.FullscreenWidth + " x " + Interface.CurrentOptions.FullscreenHeight);
@@ -117,17 +109,6 @@ namespace OpenBve
 			Program.Renderer.GameWindow.Closing += OpenTKQuit;
 			Program.Renderer.GameWindow.Run();
 		}
-
-		// --------------------------------
-
-		// repeats
-
-
-		//		private static void ThreadProc()
-		//		{
-		//			RouteInformationForm = new formRouteInformation();
-		//			Application.Run(RouteInformationForm);
-		//		}
 
 		private static void OpenTKQuit(object sender, CancelEventArgs e)
 		{
@@ -177,7 +158,7 @@ namespace OpenBve
 						Game.Menu.ProcessMouseDown(e.X, e.Y);
 						break;
 					case InterfaceType.SwitchChangeMap:
-						Game.switchChangeDialog.ProcessMouseDown(e.X, e.Y);
+						Game.SwitchChangeDialog.ProcessMouseDown(e.X, e.Y);
 						break;
 				}
 			}
@@ -214,7 +195,7 @@ namespace OpenBve
 					Game.Menu.ProcessMouseMove(e.X, e.Y);
 					break;
 				case InterfaceType.SwitchChangeMap:
-					Game.switchChangeDialog.ProcessMouseMove(e.X, e.Y);
+					Game.SwitchChangeDialog.ProcessMouseMove(e.X, e.Y);
 					break;
 			}
 		}
@@ -387,78 +368,78 @@ namespace OpenBve
 						if (axisState.ToString(CultureInfo.InvariantCulture) != Interface.CurrentControls[i].LastState)
 						{
 							Interface.CurrentControls[i].LastState = axisState.ToString(CultureInfo.InvariantCulture);
-							if (Interface.CurrentControls[i].InheritedType == Translations.CommandType.AnalogHalf)
+							switch (Interface.CurrentControls[i].InheritedType)
 							{
-								if (Math.Sign(axisState) == Math.Sign(Interface.CurrentControls[i].Direction))
-								{
-									axisState = Math.Abs(axisState);
-									if (axisState < Interface.CurrentOptions.JoystickAxisThreshold)
+								case Translations.CommandType.AnalogHalf:
+									if (Math.Sign(axisState) == Math.Sign(Interface.CurrentControls[i].Direction))
+									{
+										axisState = Math.Abs(axisState);
+										if (axisState < Interface.CurrentOptions.JoystickAxisThreshold)
+										{
+											Interface.CurrentControls[i].AnalogState = 0.0;
+										}
+										else if (Interface.CurrentOptions.JoystickAxisThreshold != 1.0)
+										{
+											Interface.CurrentControls[i].AnalogState = (axisState - Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold);
+										}
+										else
+										{
+											Interface.CurrentControls[i].AnalogState = 1.0;
+										}
+									}
+									break;
+								case Translations.CommandType.AnalogFull:
+									axisState *= (float)Interface.CurrentControls[i].Direction;
+									if (axisState > -Interface.CurrentOptions.JoystickAxisThreshold & axisState < Interface.CurrentOptions.JoystickAxisThreshold)
 									{
 										Interface.CurrentControls[i].AnalogState = 0.0;
 									}
 									else if (Interface.CurrentOptions.JoystickAxisThreshold != 1.0)
 									{
-										Interface.CurrentControls[i].AnalogState = (axisState - Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold);
+										if (axisState < 0.0)
+										{
+											Interface.CurrentControls[i].AnalogState = (axisState + Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold);
+										}
+										else if (axisState > 0.0)
+										{
+											Interface.CurrentControls[i].AnalogState = (axisState - Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold);
+										}
+										else
+										{
+											Interface.CurrentControls[i].AnalogState = 0.0;
+										}
 									}
 									else
 									{
-										Interface.CurrentControls[i].AnalogState = 1.0;
+										Interface.CurrentControls[i].AnalogState = Math.Sign(axisState);
 									}
-								}
-							}
-							else if (Interface.CurrentControls[i].InheritedType == Translations.CommandType.AnalogFull)
-							{
-								axisState *= (float)Interface.CurrentControls[i].Direction;
-								if (axisState > -Interface.CurrentOptions.JoystickAxisThreshold & axisState < Interface.CurrentOptions.JoystickAxisThreshold)
-								{
-									Interface.CurrentControls[i].AnalogState = 0.0;
-								}
-								else if (Interface.CurrentOptions.JoystickAxisThreshold != 1.0)
-								{
-									if (axisState < 0.0)
+									break;
+								default:
+									if (Math.Sign(axisState) == Math.Sign(Interface.CurrentControls[i].Direction))
 									{
-										Interface.CurrentControls[i].AnalogState = (axisState + Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold);
+										axisState = Math.Abs(axisState);
+										if (axisState < Interface.CurrentOptions.JoystickAxisThreshold)
+										{
+											axisState = 0.0f;
+										}
+										else if (Interface.CurrentOptions.JoystickAxisThreshold != 1.0)
+										{
+											axisState = (float)((axisState - Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold));
+										}
+										else
+										{
+											axisState = 1.0f;
+										}
+										if (Interface.CurrentControls[i].DigitalState == DigitalControlState.Released | Interface.CurrentControls[i].DigitalState == DigitalControlState.ReleasedAcknowledged)
+										{
+											if (axisState > 0.67) Interface.CurrentControls[i].DigitalState = DigitalControlState.Pressed;
+										}
+										else
+										{
+											if (axisState < 0.33) Interface.CurrentControls[i].DigitalState = DigitalControlState.Released;
+										}
 									}
-									else if (axisState > 0.0)
-									{
-										Interface.CurrentControls[i].AnalogState = (axisState - Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold);
-									}
-									else
-									{
-										Interface.CurrentControls[i].AnalogState = 0.0;
-									}
-								}
-								else
-								{
-									Interface.CurrentControls[i].AnalogState = Math.Sign(axisState);
-								}
-							}
-							else
-							{
-								if (Math.Sign(axisState) == Math.Sign(Interface.CurrentControls[i].Direction))
-								{
-									axisState = Math.Abs(axisState);
-									if (axisState < Interface.CurrentOptions.JoystickAxisThreshold)
-									{
-										axisState = 0.0f;
-									}
-									else if (Interface.CurrentOptions.JoystickAxisThreshold != 1.0)
-									{
-										axisState = (float)((axisState - Interface.CurrentOptions.JoystickAxisThreshold) / (1.0 - Interface.CurrentOptions.JoystickAxisThreshold));
-									}
-									else
-									{
-										axisState = 1.0f;
-									}
-									if (Interface.CurrentControls[i].DigitalState == DigitalControlState.Released | Interface.CurrentControls[i].DigitalState == DigitalControlState.ReleasedAcknowledged)
-									{
-										if (axisState > 0.67) Interface.CurrentControls[i].DigitalState = DigitalControlState.Pressed;
-									}
-									else
-									{
-										if (axisState < 0.33) Interface.CurrentControls[i].DigitalState = DigitalControlState.Released;
-									}
-								}
+									break;
 							}
 						}
 						break;
@@ -533,6 +514,7 @@ namespace OpenBve
 					break;
 				case CameraViewMode.Exterior:
 					Program.Renderer.Camera.SavedExterior = Program.Renderer.Camera.Alignment;
+					Program.Renderer.Camera.SavedExterior.CameraCar = TrainManagerBase.PlayerTrain.CameraCar;
 					break;
 				case CameraViewMode.Track:
 				case CameraViewMode.FlyBy:
@@ -553,6 +535,7 @@ namespace OpenBve
 					break;
 				case CameraViewMode.Exterior:
 					Program.Renderer.Camera.Alignment = Program.Renderer.Camera.SavedExterior;
+					TrainManagerBase.PlayerTrain.CameraCar = Program.Renderer.Camera.SavedExterior.CameraCar;
 					break;
 				case CameraViewMode.Track:
 				case CameraViewMode.FlyBy:

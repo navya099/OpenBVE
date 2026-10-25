@@ -67,7 +67,7 @@ namespace OpenBve
 				return;
 			}
 			string Folder = textboxRouteFolder.Text;
-			while (!Directory.Exists(Folder) && System.IO.Path.IsPathRooted(Folder))
+			while (!Directory.Exists(Folder) && Path.IsPathRooted(Folder))
 			{
 				try
 				{
@@ -85,7 +85,7 @@ namespace OpenBve
 
 			if (currentRouteFolder != Folder)
 			{
-				populateRouteList(Folder, listviewRouteFiles, false);
+				PopulateRouteList(Folder, listviewRouteFiles, false);
 			}
 			currentRouteFolder = Folder;
 			try
@@ -100,7 +100,7 @@ namespace OpenBve
 						NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName, 
 						Filter = "*.*"
 					};
-					routeWatcher.Changed += onRouteFolderChanged;
+					routeWatcher.Changed += OnRouteFolderChanged;
 					routeWatcher.EnableRaisingEvents = true;
 				}
 			}
@@ -114,14 +114,14 @@ namespace OpenBve
 			}
 		}
 		
-		private void onRouteFolderChanged(object sender, EventArgs e)
+		private void OnRouteFolderChanged(object sender, EventArgs e)
 		{
 			//We need to invoke the control so we don't get a cross thread exception
-			if (this.InvokeRequired)
+			if (InvokeRequired)
 			{
-				this.BeginInvoke((MethodInvoker) delegate
+				BeginInvoke((MethodInvoker) delegate
 				{
-					onRouteFolderChanged(this, e);
+					OnRouteFolderChanged(this, e);
 				});
 				return;
 			}
@@ -136,7 +136,7 @@ namespace OpenBve
 					return;
 				}
 			}
-			populateRouteList(currentRouteFolder, listviewRouteFiles, false);
+			PopulateRouteList(currentRouteFolder, listviewRouteFiles, false);
 			populateRouteOnce = currentRouteFolder == System.IO.Path.GetTempPath();
 		}
 
@@ -144,7 +144,7 @@ namespace OpenBve
 		/// <param name="routeFolder">The folder containing route files</param>
 		/// <param name="listView">The list view to populate</param>
 		/// <param name="packages">Whether this is a packaged content folder</param>
-		private void populateRouteList(string routeFolder, ListView listView, bool packages)
+		private void PopulateRouteList(string routeFolder, ListView listView, bool packages)
 		{
 			try
 			{
@@ -404,7 +404,7 @@ namespace OpenBve
 					if (t.Length == 0 || Directory.Exists(t))
 					{
 						currentRoutePackageFolder = t;
-						populateRouteList(currentRoutePackageFolder, listViewRoutePackages, true);
+						PopulateRouteList(currentRoutePackageFolder, listViewRoutePackages, true);
 					}
 				}
 			}
@@ -445,7 +445,7 @@ namespace OpenBve
 		{
 			if (tabcontrolRouteSelection.SelectedIndex == 2)
 			{
-				populateRouteList(currentRoutePackageFolder, listViewRoutePackages, true);
+				PopulateRouteList(currentRoutePackageFolder, listViewRoutePackages, true);
 			}
 		}
 
@@ -453,7 +453,7 @@ namespace OpenBve
 		{
 			if (tabcontrolTrainSelection.SelectedIndex == 3)
 			{
-				populateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
+				PopulateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
 			}
 		}
 
@@ -589,7 +589,7 @@ namespace OpenBve
 				return;
 			}
 			string Folder = textboxTrainFolder.Text;
-			while (!Directory.Exists(Folder) && System.IO.Path.IsPathRooted(Folder) && Folder.Length > 2)
+			while (!Directory.Exists(Folder) && Path.IsPathRooted(Folder) && Folder.Length > 2)
 			{
 				try
 				{
@@ -605,12 +605,12 @@ namespace OpenBve
 			}
 			if (currentTrainFolder != Folder)
 			{
-				populateTrainList(Folder, listviewTrainFolders, false);
+				PopulateTrainList(Folder, listviewTrainFolders, false);
 			}
 			currentTrainFolder = Folder;
 			try
 			{
-				if (Program.CurrentHost.Platform != HostPlatform.AppleOSX && !String.IsNullOrEmpty(Folder) && Folder.Length > 2)
+				if (Program.CurrentHost.Platform != HostPlatform.AppleOSX && !string.IsNullOrEmpty(Folder) && Folder.Length > 2)
 				{
 					trainWatcher = new FileSystemWatcher
 					{
@@ -618,7 +618,7 @@ namespace OpenBve
 						NotifyFilter = NotifyFilters.LastWrite | NotifyFilters.FileName | NotifyFilters.DirectoryName, 
 						Filter = "*.*"
 					};
-					trainWatcher.Changed += onTrainFolderChanged;
+					trainWatcher.Changed += OnTrainFolderChanged;
 					trainWatcher.EnableRaisingEvents = true;
 				}
 			}
@@ -628,14 +628,14 @@ namespace OpenBve
 			}
 		}
 
-		private void onTrainFolderChanged(object sender, EventArgs e)
+		private void OnTrainFolderChanged(object sender, EventArgs e)
 		{
 			//We need to invoke the control so we don't get a cross thread exception
-			if (this.InvokeRequired)
+			if (InvokeRequired)
 			{
-				this.BeginInvoke((MethodInvoker) delegate
+				BeginInvoke((MethodInvoker) delegate
 				{
-					onTrainFolderChanged(this, e);
+					OnTrainFolderChanged(this, e);
 				});
 				return;
 			}
@@ -650,19 +650,24 @@ namespace OpenBve
 					return;
 				}
 			}
-			populateTrainList(currentTrainFolder, listviewTrainFolders, false);
+			PopulateTrainList(currentTrainFolder, listviewTrainFolders, false);
 			populateTrainOnce = currentTrainFolder == System.IO.Path.GetTempPath();
 		}
 
 		/// <summary>Populates the train display list from the selected folder</summary>
-		/// <param name="Folder">The folder containing train folders</param>
+		/// <param name="selectedFolder">The folder containing train folders</param>
 		/// <param name="listView">The list view to populate</param>
 		/// <param name="packages">Whether this is a packaged content folder</param>
-		private void populateTrainList(string Folder, ListView listView, bool packages)
+		private void PopulateTrainList(string selectedFolder, ListView listView, bool packages)
 		{
+			// error ignored in this case, background thread
+			if (Program.CurrentHost.Plugins == null && !Program.CurrentHost.LoadPlugins(Program.FileSystem, Interface.CurrentOptions, out _, Program.TrainManager, Program.Renderer))
+			{
+				throw new Exception("Unable to load the required plugins- Please reinstall OpenBVE");
+			}
 			try
 			{
-				if (Folder.Length == 0)
+				if (selectedFolder.Length == 0)
 				{
 					// drives
 					listView.Items.Clear();
@@ -683,15 +688,15 @@ namespace OpenBve
 						//Unable to get list of drives
 					}
 				}
-				else if (Directory.Exists(Folder))
+				else if (Directory.Exists(selectedFolder))
 				{
 					listView.Items.Clear();
-					if (!packages || Folder != Program.FileSystem.TrainInstallationDirectory)
+					if (!packages || selectedFolder != Program.FileSystem.TrainInstallationDirectory)
 					{
 						// parent
 						try
 						{
-							DirectoryInfo Info = Directory.GetParent(Folder);
+							DirectoryInfo Info = Directory.GetParent(selectedFolder);
 							if (Info != null)
 							{
 								ListViewItem Item = listView.Items.Add("..");
@@ -709,15 +714,17 @@ namespace OpenBve
 						}
 						catch
 						{
-							//Another permisions issue?
+							//Another permissions issue?
 						}
 					}
 					
 					// folders
 					try
 					{
-						string[] Folders = Directory.GetDirectories(Folder);
+						string[] Folders = Directory.GetDirectories(selectedFolder);
+						string[] Files = Directory.GetFiles(selectedFolder);
 						Array.Sort(Folders);
+						Array.Sort(Files);
 						for (int i = 0; i < Folders.Length; i++)
 						{
 							try
@@ -742,6 +749,26 @@ namespace OpenBve
 							catch
 							{
 								//Most likely permissions
+							}
+						}
+
+						for (int i = 0; i < Files.Length; i++)
+						{
+							for (int j = 0; j < Program.CurrentHost.Plugins.Length; j++)
+							{
+								string fileName = Path.GetFileName(Files[i]);
+								if (fileName[0] == '#' && fileName.EndsWith(".con", StringComparison.InvariantCultureIgnoreCase))
+								{
+									// MSTS / ORTS use a hash at the start of the filename to deliminate AI consists
+									// These generally have missing cabviews etc- Hide from visibility in the main menu
+									continue;
+								}
+								if (Program.CurrentHost.Plugins[j].Train != null && Program.CurrentHost.Plugins[j].Train.CanLoadTrain(Files[i]))
+								{
+									ListViewItem Item = listviewTrainFolders.Items.Add(System.IO.Path.GetFileName(Files[i]));
+									Item.ImageKey = @"msts";
+									Item.Tag = Files[i];
+								}
 							}
 						}
 					}
@@ -776,7 +803,13 @@ namespace OpenBve
 					return;
 				}
 				if (t != null) {
-					if (Directory.Exists(t)) {
+					if (t.EndsWith(".con", StringComparison.InvariantCultureIgnoreCase))
+					{
+						Result.TrainFolder = t;
+						ShowTrain(false);
+					}
+					else if (Directory.Exists(t)) 
+					{
 						try
 						{
 							string File = Path.CombineFile(t, "train.dat");
@@ -878,7 +911,7 @@ namespace OpenBve
 					{
 						//Pop up to parent directory
 						currentTrainPackageFolder = t;
-						populateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
+						PopulateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
 						return;
 					}
 					if (Directory.Exists(t))
@@ -900,7 +933,7 @@ namespace OpenBve
 							 * Or a plain folder
 							 */
 							currentTrainPackageFolder = t;
-							populateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
+							PopulateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
 							return;
 						}
 
@@ -911,7 +944,7 @@ namespace OpenBve
 								if (Program.CurrentHost.Plugins[i].Train != null && Program.CurrentHost.Plugins[i].Train.CanLoadTrain(dir))
 								{
 									currentTrainPackageFolder = t;
-									populateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
+									PopulateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
 									return;
 								}
 							}
@@ -921,7 +954,7 @@ namespace OpenBve
 						{
 							//If we're on less than the 3rd level subdir assume it may be a false positive
 							currentTrainPackageFolder = t;
-							populateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
+							PopulateTrainList(currentTrainPackageFolder, listViewTrainPackages, true);
 						}
 					}
 				}
@@ -1013,7 +1046,7 @@ namespace OpenBve
 		}
 
 		// train default
-		void CheckboxTrainDefaultCheckedChanged(object sender, EventArgs e) {
+		private void CheckboxTrainDefaultCheckedChanged(object sender, EventArgs e) {
 			if (checkboxTrainDefault.Checked) {
 				if (listviewTrainFolders.SelectedItems.Count == 1) {
 					listviewTrainFolders.SelectedItems[0].Selected = false;
@@ -1103,11 +1136,32 @@ namespace OpenBve
 		// =====
 
 		// start
-		private readonly object StartGame = new Object();
+		private readonly object StartGame = new object();
 
 		private void buttonStart_Click(object sender, EventArgs e) {
-			if (Result.RouteFile != null & Result.TrainFolder != null) {
-				if (File.Exists(Result.RouteFile) & Directory.Exists(Result.TrainFolder)) {
+			if (Result.RouteFile != null & Result.TrainFolder != null)
+			{
+				bool canLoadRoute = false, canLoadTrain = false;
+				for (int i = 0; i < Program.CurrentHost.Plugins.Length; i++)
+				{
+					if (canLoadRoute == false)
+					{
+						if (Program.CurrentHost.Plugins[i].Route != null && Program.CurrentHost.Plugins[i].Route.CanLoadRoute(Result.RouteFile))
+						{
+							canLoadRoute = true;
+						}
+					}
+					if (canLoadTrain == false)
+					{
+						if (Program.CurrentHost.Plugins[i].Train != null && Program.CurrentHost.Plugins[i].Train.CanLoadTrain(Result.TrainFolder))
+						{
+							canLoadTrain = true;
+						}
+					}
+				}
+
+				if (canLoadRoute && canLoadTrain)
+				{
 					Result.Start = true;
 					buttonClose_Click(StartGame, e);
 					//HACK: Call Application.DoEvents() to force the message pump to process all pending messages when the form closes
@@ -1215,7 +1269,7 @@ namespace OpenBve
 
 			// ReSharper disable once RedundantCast
 			object route = (object)Program.CurrentRoute; //must cast to allow us to use the ref keyword.
-			string railwayFolder = Loading.GetRailwayFolder(result.RouteFile);
+			string railwayFolder = Program.FileSystem.GetRailwayFolder(result.RouteFile, Application.StartupPath);
 			string objectFolder = Path.CombineDirectory(railwayFolder, "Object");
 			string soundFolder = Path.CombineDirectory(railwayFolder, "Sound");
 
@@ -1249,9 +1303,9 @@ namespace OpenBve
 
 					lock (BaseRenderer.GdiPlusLock)
 					{
-						pictureboxRouteMap.Image = Illustrations.CreateRouteMap(pictureboxRouteMap.Width, pictureboxRouteMap.Height, false, out _);
+						pictureboxRouteMap.Image = Illustrations.CreateRouteMap(pictureboxRouteMap.Width, pictureboxRouteMap.Height, false, out _, font: Program.Renderer.Fonts.NormalFont.Font);
 						pictureboxRouteGradient.Image = Illustrations.CreateRouteGradientProfile(pictureboxRouteGradient.Width,
-							pictureboxRouteGradient.Height, false);
+							pictureboxRouteGradient.Height, false, font: Program.Renderer.Fonts.NormalFont.Font);
 					}
 
 					// image
@@ -1292,9 +1346,9 @@ namespace OpenBve
 					}
 
 					// description
-					string Description = Program.CurrentRoute.Comment.ConvertNewlinesToCrLf();
-					textboxRouteDescription.Text = Description.Length != 0 ? Description : System.IO.Path.GetFileNameWithoutExtension(Result.RouteFile);
-					textboxRouteEncodingPreview.Text = Description.ConvertNewlinesToCrLf();
+					string routeDescription = Program.CurrentRoute.Comment.ConvertNewlinesToCrLf();
+					textboxRouteDescription.Text = routeDescription.Length != 0 ? routeDescription : System.IO.Path.GetFileNameWithoutExtension(Result.RouteFile);
+					textboxRouteEncodingPreview.Text = routeDescription.ConvertNewlinesToCrLf();
 					if (Interface.CurrentOptions.TrainName != null)
 					{
 						checkboxTrainDefault.Text = $@"{Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"start","train_usedefault"})} ({Interface.CurrentOptions.TrainName})";
@@ -1360,15 +1414,15 @@ namespace OpenBve
 
 
 		// show route
-		private void ShowRoute(bool UserSelectedEncoding)
+		private void ShowRoute(bool userSelectedEncoding)
 		{
-			this.Cursor = System.Windows.Forms.Cursors.WaitCursor;
+			Cursor = System.Windows.Forms.Cursors.WaitCursor;
 			TryLoadImage(pictureboxRouteImage, "loading.png");
 			groupboxRouteDetails.Visible = true;
 			textboxRouteDescription.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"start","route_processing"});
 
 			// determine encoding
-			if (!UserSelectedEncoding)
+			if (!userSelectedEncoding)
 			{
 				Result.RouteEncoding = TextEncoding.GetSystemEncodingFromFile(Result.RouteFile);
 				comboboxRouteEncoding.Tag = new object();
@@ -1415,7 +1469,7 @@ namespace OpenBve
 		}
 
 		// show train
-		private void ShowTrain(bool UserSelectedEncoding)
+		private void ShowTrain(bool userSelectedEncoding)
 		{
 			lock (previewLock)
 			{
@@ -1433,7 +1487,7 @@ namespace OpenBve
 					{
 						canLoad = true;
 						trainImage = Program.CurrentHost.Plugins[i].Train.GetImage(Result.TrainFolder);
-						if (!UserSelectedEncoding)
+						if (!userSelectedEncoding)
 						{
 							string descriptionFile = Path.CombineFile(Result.TrainFolder, "train.txt");
 							if (!File.Exists(descriptionFile))
@@ -1493,11 +1547,20 @@ namespace OpenBve
 					return;
 				}
 
+				
 				if (!string.IsNullOrEmpty(trainImage))
 				{
-					Image image = Image.FromFile(trainImage);
-					pictureboxTrainImage.Image = image;
-					pictureboxTrainImage.Enabled = true;
+					try
+					{
+						Image image = Image.FromFile(trainImage);
+						pictureboxTrainImage.Image = image;
+						pictureboxTrainImage.Enabled = true;
+					}
+					catch
+					{
+						TryLoadImage(pictureboxTrainImage, "train_unknown.png");
+						pictureboxTrainImage.Enabled = false;
+					}
 				}
 				else
 				{

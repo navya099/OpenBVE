@@ -347,7 +347,7 @@ namespace OpenBveApi.Input
         // Symbols
         /// <summary>The tilde key.</summary>
         Tilde,
-        /// <summary>The grave key (equivaent to Tilde).</summary>
+        /// <summary>The grave key (equivalent to Tilde).</summary>
         Grave = Tilde,
         /// <summary>The minus key.</summary>
         Minus,
@@ -381,5 +381,8 @@ namespace OpenBveApi.Input
         /// <summary>The Command key.</summary>
         /// <remarks>Valid on OS-X only</remarks>
         Command,
+        /// <summary>Disabled / unbound key</summary>
+        /// <remarks>Does nothing</remarks>
+        Disabled = int.MaxValue,
     }
 }

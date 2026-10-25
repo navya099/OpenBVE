@@ -43,7 +43,7 @@
 // their respective creators, which may impose additional requirements
 // on the use of their work. For any of these models, see
 // <model-name>.source.txt for more legal information. Contact us if you
-// are a copyright holder and believe that we credited you inproperly or
+// are a copyright holder and believe that we credited you improperly or
 // if you don't want your files to appear in the repository.
 //
 //
@@ -96,7 +96,7 @@ namespace AssimpNET.X
 	public class TexEntry
 	{
 		public string Name;
-		public bool IsNormalMap; // true if the texname was specified in a NormalmapFilename tag
+		public bool IsNormalMap; // true if the texname was specified in a NormalMapFilename tag
 
 		public TexEntry(string name, bool isNormalMap = false)
 		{
@@ -112,8 +112,8 @@ namespace AssimpNET.X
 		public readonly bool IsReference; // if true, mName holds a name by which the actual material can be found in the material list
 		public Color128 Diffuse;
 		public float SpecularExponent;
-		public Color128 Specular;
-		public Color128 Emissive;
+		public Color96 Specular;
+		public Color96 Emissive;
 		public List<TexEntry> Textures = new List<TexEntry>();
 
 		public uint SceneIndex; // the index under which it was stored in the scene's material list

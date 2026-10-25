@@ -1,4 +1,4 @@
-﻿using System.IO;
+using System.IO;
 using Formats.OpenBve;
 using OpenBveApi;
 using OpenBveApi.Interface;
@@ -12,7 +12,7 @@ namespace TrainEditor2.IO.Trains.ExtensionsCfg
 	{
 		internal static void Parse(string fileName, Train train)
 		{
-			ConfigFile<ExtensionCfgSection, ExtensionCfgKey> cfg = new ConfigFile<ExtensionCfgSection, ExtensionCfgKey>(File.ReadAllLines(fileName, TextEncoding.GetSystemEncodingFromFile(fileName)), Program.CurrentHost);
+			ConfigFile<ExtensionCfgSection, ExtensionCfgKey> cfg = new ConfigFile<ExtensionCfgSection, ExtensionCfgKey>(File.ReadAllLines(fileName, TextEncoding.GetSystemEncodingFromFile(fileName)), fileName, Program.CurrentHost);
 			string trainPath = Path.GetDirectoryName(fileName);
 			while (cfg.RemainingSubBlocks > 0)
 			{
@@ -59,7 +59,7 @@ namespace TrainEditor2.IO.Trains.ExtensionsCfg
 							train.Cars[block.Index].Object = objectPath;
 						}
 
-						if (block.GetValue(ExtensionCfgKey.Length, out double carLength) && carLength > 0)
+						if (block.GetValue(ExtensionCfgKey.Length, out double carLength, NumberRange.Positive))
 						{
 							train.Cars[block.Index].Length = carLength;
 						}

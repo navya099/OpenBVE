@@ -30,7 +30,7 @@ using OpenBveApi.Sounds;
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
 		/// <summary>Defines a dictionary of objects</summary>
 		internal class ObjectDictionary : Dictionary<string, UnifiedObject>
@@ -47,7 +47,7 @@ namespace Route.Bve5
 				if (ContainsKey(key))
 				{
 					base[key] = unifiedObject;
-					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "The structure " + key + " has been declared twice: The most recent declaration will be used.");
+					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: The structure " + key + " has been declared twice: The most recent declaration will be used.");
 				}
 				else
 				{
@@ -68,7 +68,7 @@ namespace Route.Bve5
 				if (ContainsKey(key))
 				{
 					base[key] = soundBuffer;
-					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "The sound " + key + " has been declared twice: The most recent declaration will be used.");
+					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: The sound " + key + " has been declared twice: The most recent declaration will be used.");
 				}
 				else
 				{

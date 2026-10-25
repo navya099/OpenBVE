@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -55,7 +56,7 @@ namespace OpenBveApi.Hosts {
 					return cachedPlatform;
 				}
 
-				if (System.IO.File.Exists(@"/System/Library/CoreServices/SystemVersion.plist"))
+				if (File.Exists(@"/System/Library/CoreServices/SystemVersion.plist"))
 				{
 					//Mono's platform detection doesn't reliably differentiate between OS-X and Unix
 					cachedPlatform = HostPlatform.AppleOSX;
@@ -73,6 +74,19 @@ namespace OpenBveApi.Hosts {
 						cachedPlatform = HostPlatform.FreeBSD;
 						break;
 					default:
+						if (File.Exists("/etc/debian_version"))
+						{
+							using (StreamReader sr = new StreamReader("/etc/debian_version"))
+							{
+								if (sr.ReadLine() == "forky/sid")
+								{
+									// the 'usual' fix for this bug is to set TERM to xterm, but Forky
+									// seems to need TERM set to linux
+									// may need to remove or invert this workaround if fixed upstream
+									Environment.SetEnvironmentVariable("TERM", "linux", EnvironmentVariableTarget.Process);
+								}
+							}
+						}
 						cachedPlatform = HostPlatform.GNULinux;
 						break;
 				}
@@ -125,9 +139,9 @@ namespace OpenBveApi.Hosts {
 			Application = host;
 			StaticObjectCache = new Dictionary<ValueTuple<string, bool, DateTime>, StaticObject>();
 			AnimatedObjectCollectionCache = new Dictionary<string, AnimatedObjectCollection>();
-			MissingFiles = new List<string>();
-			FailedObjects = new List<string>();
-			FailedTextures = new List<string>();
+			MissingFiles = new HashSet<string>();
+			FailedObjects = new HashSet<string>();
+			FailedTextures = new HashSet<string>();
 
 			if (Platform == HostPlatform.GNULinux)
             {
@@ -154,18 +168,21 @@ namespace OpenBveApi.Hosts {
 		/// <summary>Clears the error log</summary>
 		public void ClearErrors()
 		{
-			MissingFiles.Clear();
-			FailedObjects.Clear();
-			FailedTextures.Clear();
+			lock (cacheLock)
+			{
+				MissingFiles.Clear();
+				FailedObjects.Clear();
+				FailedTextures.Clear();
+			}
 
 		}
 
 		/// <summary>Contains a list of missing files encountered</summary>
-		public readonly List<string> MissingFiles;
+		public readonly HashSet<string> MissingFiles;
 		/// <summary>Contains a list of objects which failed to load</summary>
-		public readonly List<string> FailedObjects;
+		public readonly HashSet<string> FailedObjects;
 		/// <summary>Contains a list of textures which failed to load</summary>
-		public readonly List<string> FailedTextures;
+		public readonly HashSet<string> FailedTextures;
 
 		/// <summary>Queries the dimensions of a texture.</summary>
 		/// <param name="path">The path to the file or folder that contains the texture.</param>
@@ -282,7 +299,7 @@ namespace OpenBveApi.Hosts {
 		/// <returns>Whether the extension could be determined</returns>
 		public bool DetermineObjectExtension(ref string FilePath)
 		{
-			if (System.IO.File.Exists(FilePath) || System.IO.Path.HasExtension(FilePath))
+			if (System.IO.File.Exists(FilePath) || Path.HasExtension(FilePath))
 			{
 				return true;
 			}
@@ -294,7 +311,7 @@ namespace OpenBveApi.Hosts {
 
 			foreach (string extension in SupportedAnimatedObjectExtensions)
 			{
-				string testPath = Path.CombineFile(Path.GetDirectoryName(FilePath), $"{System.IO.Path.GetFileName(FilePath)}{extension}");
+				string testPath = Path.CombineFile(Path.GetDirectoryName(FilePath), $"{Path.GetFileName(FilePath)}{extension}");
 
 				if (System.IO.File.Exists(testPath))
 				{
@@ -313,7 +330,7 @@ namespace OpenBveApi.Hosts {
 		/// <returns>Whether the extension could be determined</returns>
 		public bool DetermineStaticObjectExtension(ref string FilePath)
 		{
-			if (System.IO.File.Exists(FilePath) || System.IO.Path.HasExtension(FilePath))
+			if (System.IO.File.Exists(FilePath) || Path.HasExtension(FilePath))
 			{
 				return true;
 			}
@@ -321,7 +338,7 @@ namespace OpenBveApi.Hosts {
 			// Search in the order of .x, .csv, .b3d, etc.
 			foreach (string extension in SupportedStaticObjectExtensions.OrderByDescending(x => Array.IndexOf(new[] { ".b3d", ".csv", ".x" }, x)))
 			{
-				string testPath = Path.CombineFile(Path.GetDirectoryName(FilePath), $"{System.IO.Path.GetFileName(FilePath)}{extension}");
+				string testPath = Path.CombineFile(Path.GetDirectoryName(FilePath), $"{Path.GetFileName(FilePath)}{extension}");
 
 				if (System.IO.File.Exists(testPath))
 				{
@@ -340,17 +357,26 @@ namespace OpenBveApi.Hosts {
 		/// <returns>Whether loading the object was successful</returns>
 		public virtual bool LoadObject(string Path, System.Text.Encoding Encoding, out UnifiedObject Object)
 		{
-			ValueTuple<string, bool, DateTime> key = ValueTuple.Create(Path, false, System.IO.File.GetLastWriteTime(Path));
+			ValueTuple<string, bool, DateTime> key = ValueTuple.Create(Path.ToLowerInvariant(), false, File.GetLastWriteTime(Path));
 
-			if (StaticObjectCache.TryGetValue(key, out var staticObject))
+			StaticObject protoStatic = null;
+			AnimatedObjectCollection protoAnimated = null;
+			string animatedKey = Path.ToLowerInvariant();
+			lock (cacheLock)
 			{
-				Object = staticObject.Clone();
+				if (!StaticObjectCache.TryGetValue(key, out protoStatic))
+				{
+					AnimatedObjectCollectionCache.TryGetValue(animatedKey, out protoAnimated);
+				}
+			}
+			if (protoStatic != null)
+			{
+				Object = protoStatic.Clone();
 				return true;
 			}
-
-			if (AnimatedObjectCollectionCache.TryGetValue(Path, out var animatedObject))
+			if (protoAnimated != null)
 			{
-				Object = animatedObject.Clone();
+				Object = protoAnimated.Clone();
 				return true;
 			}
 
@@ -368,16 +394,88 @@ namespace OpenBveApi.Hosts {
 		/// Selecting to preserve vertices may be useful if using the object as a deformable.</remarks>
 		public virtual bool LoadStaticObject(string Path, System.Text.Encoding Encoding, bool PreserveVertices, out StaticObject Object)
 		{
-			ValueTuple<string, bool, DateTime> key = ValueTuple.Create(Path, PreserveVertices, System.IO.File.GetLastWriteTime(Path));
+			ValueTuple<string, bool, DateTime> key = ValueTuple.Create(Path.ToLowerInvariant(), PreserveVertices, File.GetLastWriteTime(Path));
 
-			if (StaticObjectCache.TryGetValue(key, out var staticObject))
+			StaticObject proto = null;
+			lock (cacheLock)
 			{
-				Object = (StaticObject)staticObject.Clone();
+				StaticObjectCache.TryGetValue(key, out proto);
+			}
+			if (proto != null)
+			{
+				Object = (StaticObject)proto.Clone();
 				return true;
 			}
 
 			Object = null;
 			return false;
+		}
+
+		protected void StoreStaticObject(ValueTuple<string, bool, DateTime> key, StaticObject obj)
+		{
+			lock (cacheLock)
+			{
+				StaticObjectCache[key] = obj;
+			}
+		}
+
+		protected void StoreAnimatedObject(string lowerPath, AnimatedObjectCollection obj)
+		{
+			lock (cacheLock)
+			{
+				AnimatedObjectCollectionCache[lowerPath] = obj;
+			}
+		}
+
+		protected bool ReportFailure(HashSet<string> set, string path)
+		{
+			lock (cacheLock)
+			{
+				return set.Add(path);
+			}
+		}
+
+		protected bool ReportMissingFile(string path)
+		{
+			lock (cacheLock)
+			{
+				return MissingFiles.Add(path);
+			}
+		}
+
+		/// <summary>Clears all cached objects (route reload).</summary>
+		public void ClearObjectCaches()
+		{
+			lock (cacheLock)
+			{
+				AnimatedObjectCollectionCache.Clear();
+				StaticObjectCache.Clear();
+			}
+		}
+
+		/// <summary>Removes stale static-object entries whose source file changed or vanished.</summary>
+		public void PruneStaleStaticObjects()
+		{
+			lock (cacheLock)
+			{
+				List<ValueTuple<string, bool, DateTime>> keys = StaticObjectCache.Keys.ToList();
+				for (int i = 0; i < keys.Count; i++)
+				{
+					if (!System.IO.File.Exists(keys[i].Item1) || System.IO.File.GetLastWriteTime(keys[i].Item1) != keys[i].Item3)
+					{
+						StaticObjectCache.Remove(keys[i]);
+					}
+				}
+			}
+		}
+
+		/// <summary>Clears only the animated-object cache.</summary>
+		public void ClearAnimatedObjectCache()
+		{
+			lock (cacheLock)
+			{
+				AnimatedObjectCollectionCache.Clear();
+			}
 		}
 
 		/// <summary>Executes a function script in the host application</summary>
@@ -399,13 +497,9 @@ namespace OpenBveApi.Hosts {
 		/// <param name="Position">The world position</param>
 		/// <param name="WorldTransformation">The world transformation to apply (e.g. ground, rail)</param>
 		/// <param name="LocalTransformation">The local transformation to apply in order to rotate the model</param>
-		/// <param name="AccurateObjectDisposalZOffset">The offset for accurate Z-disposal</param>
-		/// <param name="StartingDistance">The absolute route based starting distance for the object</param>
-		/// <param name="EndingDistance">The absolute route based ending distance for the object</param>
-		/// <param name="TrackPosition">The absolute route based track position</param>
-		/// <param name="Brightness">The brightness value at this track position</param>
+		/// <param name="Parameters">The object creation parameters</param>
 		/// <returns>The index to the created object, or -1 if this call fails</returns>
-		public virtual int CreateStaticObject(StaticObject Prototype, Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation, double AccurateObjectDisposalZOffset, double StartingDistance, double EndingDistance, double TrackPosition, double Brightness)
+		public virtual int CreateStaticObject(StaticObject Prototype, Vector3 Position, ObjectCreationParameters Parameters, Transformation WorldTransformation, Transformation LocalTransformation = null)
 		{
 			return -1;
 		}
@@ -418,14 +512,9 @@ namespace OpenBveApi.Hosts {
 		///     <para>NOTE: Only used for object disposal calcs</para>
 		/// </param>
 		/// <param name="Rotate">The rotation matrix to apply</param>
-		/// <param name="Translate">The translation matrix to apply</param>
-		/// <param name="AccurateObjectDisposalZOffset">The offset for accurate Z-disposal</param>
-		/// <param name="StartingDistance">The absolute route based starting distance for the object</param>
-		/// <param name="EndingDistance">The absolute route based ending distance for the object</param>
-		/// <param name="TrackPosition">The absolute route based track position</param>
-		/// <param name="Brightness">The brightness value at this track position</param>
+		/// <param name="Parameters">The object creation parameters</param>
 		/// <returns>The index to the created object, or -1 if this call fails</returns>
-		public virtual int CreateStaticObject(StaticObject Prototype, Vector3 Position, Transformation LocalTransformation, Matrix4D Rotate, Matrix4D Translate, double AccurateObjectDisposalZOffset, double StartingDistance, double EndingDistance, double TrackPosition, double Brightness)
+		public virtual int CreateStaticObject(StaticObject Prototype, Vector3 Position, Transformation LocalTransformation, Matrix4D Rotate, ObjectCreationParameters Parameters)
 		{
 			return -1;
 		}
@@ -479,11 +568,11 @@ namespace OpenBveApi.Hosts {
 
 		///  <summary>Adds a message to the in-game display</summary>
 		/// <param name="Message">The text of the message</param>
-		///  <param name="MessageDependancy">The dependancy of the message</param>
+		///  <param name="MessageDependancy">The dependency of the message</param>
 		///  <param name="Mode">The required game mode for the message to display</param>
 		///  <param name="MessageColor">The color of the message font</param>
 		///  <param name="MessageTimeOut">The timeout of the message</param>
-		///  <param name="Key">The mesage key</param>
+		///  <param name="Key">The message key</param>
 		public virtual void AddMessage(string Message, object MessageDependancy, GameMode Mode, MessageColor MessageColor, double MessageTimeOut, string Key)
 		{
 
@@ -606,6 +695,7 @@ namespace OpenBveApi.Hosts {
 		/// Dictionary of StaticObject with Path and PreserveVertices as keys.
 		/// </summary>
 		public readonly Dictionary<ValueTuple<string, bool, DateTime>, StaticObject> StaticObjectCache;
+		private readonly object cacheLock = new object();
 
 		/// <summary>
 		/// Dictionary of AnimatedObjectCollection with Path as key.
@@ -675,10 +765,10 @@ namespace OpenBveApi.Hosts {
 			return null;
 		}
 
-		/// <summary>Gets the closest train to the specified track location</summary>
-		/// <param name="TrackPosition">The specified track position</param>
+		/// <summary>Gets the closest train to the world location</summary>
+		/// <param name="worldPosition">The specified track position</param>
 		/// <returns>The closest train, or null if no other trains</returns>
-		public virtual AbstractTrain ClosestTrain(double TrackPosition)
+		public virtual AbstractTrain ClosestTrain(Vector3 worldPosition)
 		{
 			// NOTE: This copy of the method is used by animated objects
 			return null;
@@ -687,7 +777,7 @@ namespace OpenBveApi.Hosts {
 		/// <summary>Adds a new train</summary>
 		/// <param name="ReferenceTrain">The reference train, or a null reference to add the train at the end of the queue</param>
 		/// <param name="NewTrain">The new train</param>
-		/// <param name="Preceedes">Whether this train preceeds or follows the reference train</param>
+		/// <param name="Preceedes">Whether this train precedes or follows the reference train</param>
 		public virtual void AddTrain(AbstractTrain ReferenceTrain, AbstractTrain NewTrain, bool Preceedes)
 		{
 
@@ -717,9 +807,27 @@ namespace OpenBveApi.Hosts {
 		/// <summary>Complete address of the named pipe endpoint.</summary>
 		public static Uri Win32PluginHostEndpointAddress => new Uri(pipeBaseAddress + '/' + pipeName);
 
+		/// <summary>Provides the shared random number generator</summary>
+		public Random Random = new Random();
+
+		/// <summary>Time spent parsing route data by the route plugin (ms)</summary>
+		public long PluginParseTime;
+
+		/// <summary>Time spent applying route data by the route plugin (ms)</summary>
+		public long PluginApplyTime;
+
+		/// <summary>Time spent parallel-loading route objects by the route plugin (ms)</summary>
+		public long PluginObjectLoadTime;
+
+		/// <summary>Number of texture decode requests handled by the host</summary>
+		public long TextureDecodeCalls;
+
+		/// <summary>Time spent in host texture decode requests, including plugin decoding and parameter application (ms)</summary>
+		public long TextureDecodeMs;
+
 		/// <summary>Contains the list of commonly used 'empty' files</summary>
 		/// <remarks>These generally aren't a valid object, and should be ignored for errors</remarks>
-		public static string[] NullFiles =
+		public static readonly HashSet<string> NullFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
 		{
 			"empty",
 			"null",
@@ -727,5 +835,16 @@ namespace OpenBveApi.Hosts {
 			"nullrail",
 			"null_rail"
 		};
+		private static readonly object NullFilesLock = new object();
+
+		/// <summary>Checks whether an extension-stripped file name refers to a commonly used 'empty' file.</summary>
+		/// <param name="fileKey">The file name without extension (e.g. from GetFileNameWithoutExtension).</param>
+		public static bool IsNullFile(string fileKey)
+		{
+			lock (NullFilesLock)
+			{
+				return NullFiles.Contains(fileKey);
+			}
+		}
 	}
 }

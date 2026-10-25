@@ -1,92 +1,16 @@
-﻿using System;
-using System.IO;
 using NAudio.Wave;
 using NLayer.NAudioSupport;
 using OpenBveApi;
 using OpenBveApi.Math;
 using OpenBveApi.Sounds;
+using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace Plugin
 {
 	public partial class Plugin
 	{
-
-		// --- structures and enumerations ---
-		private abstract class WaveFormatEx
-		{
-			internal readonly ushort wFormatTag;
-			internal ushort nChannels;
-			internal uint nSamplesPerSec;
-			internal uint nAvgBytesPerSec;
-			internal ushort nBlockAlign;
-			internal ushort wBitsPerSample;
-			internal ushort cbSize;
-
-			protected WaveFormatEx(ushort tag)
-			{
-				wFormatTag = tag;
-			}
-		}
-
-		private class WaveFormatPcm : WaveFormatEx
-		{
-			public WaveFormatPcm(ushort tag) : base(tag)
-			{
-			}
-		}
-
-		private class WaveFormatAdPcm : WaveFormatEx
-		{
-			internal struct BlockData
-			{
-				internal readonly byte[] bPredictor;
-				internal readonly short[] iDelta;
-				internal readonly short[] iSamp1;
-				internal readonly short[] iSamp2;
-				internal readonly Vector2[] CoefSet;
-
-				internal BlockData(int channels)
-				{
-					bPredictor = new byte[channels];
-					iDelta = new short[channels];
-					iSamp1 = new short[channels];
-					iSamp2 = new short[channels];
-					CoefSet = new Vector2[channels];
-				}
-			}
-
-			internal ushort nSamplesPerBlock;
-			internal ushort nNumCoef;
-			internal Vector2[] aCoeff;
-
-			internal static readonly short[] AdaptionTable =
-			{
-				230, 230, 230, 230, 307, 409, 512, 614,
-				768, 614, 512, 409, 307, 230, 230, 230
-			};
-
-			public WaveFormatAdPcm(ushort tag) : base(tag)
-			{
-			}
-		}
-
-		private class WaveFormatMp3 : WaveFormatEx
-		{
-			public WaveFormatMp3(ushort tag) : base(tag)
-			{
-			}
-		}
-
-		private class WaveFormatExtensible : WaveFormatEx
-		{
-			public WaveFormatExtensible(ushort tag) : base(tag)
-			{
-			}
-		}
-
-
-		// --- functions ---
-
 		/// <summary>Reads wave data from a WAVE file.</summary>
 		/// <param name="fileName">The file name of the WAVE file.</param>
 		/// <returns>The wave data.</returns>
@@ -94,49 +18,55 @@ namespace Plugin
 		{
 			using (FileStream stream = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read))
 			{
-				using (BinaryReader reader = new BinaryReader(stream))
-				{
-					Endianness endianness;
-					uint headerCkID = reader.ReadUInt32();
-
-					// "RIFF"
-					if (headerCkID == 0x46464952)
-					{
-						endianness = Endianness.Little;
-					}
-					// "RIFX"
-					else if (headerCkID == 0x58464952)
-					{
-						endianness = Endianness.Big;
-					}
-					else
-					{
-						// unsupported format
-						throw new InvalidDataException("Invalid header chunk ID");
-					}
-
-					uint headerCkSize = reader.ReadUInt32(endianness);
-
-					uint formType = reader.ReadUInt32(endianness);
-
-					// "WAVE"
-					if (formType == 0x45564157)
-					{
-						return WaveLoadFromStream(reader, endianness, headerCkSize + 8);
-					}
-
-					// unsupported format
-					throw new InvalidDataException("Unsupported format");
-				}
+				return LoadFromStream(stream);
 			}
 		}
 
-		/// <summary>Reads sound data from a MP3 stream.</summary>
-		/// <param name="stream">The stream of the MP3.</param>
-		/// <returns>The raw sound data.</returns>
+		private static Sound LoadFromStream(Stream stream)
+		{
+			using (BinaryReader reader = new BinaryReader(stream))
+			{
+				Endianness endianness;
+				uint headerCkID = reader.ReadUInt32();
+
+				// "RIFF"
+				if (headerCkID == 0x46464952)
+				{
+					endianness = Endianness.Little;
+				}
+				// "RIFX"
+				else if (headerCkID == 0x58464952)
+				{
+					endianness = Endianness.Big;
+				}
+				else
+				{
+					// unsupported format
+					throw new InvalidDataException("Invalid header chunk ID");
+				}
+
+				uint headerCkSize = reader.ReadUInt32(endianness);
+
+				uint formType = reader.ReadUInt32(endianness);
+
+				// "WAVE"
+				if (formType == 0x45564157)
+				{
+					return WaveLoadFromStream(reader, endianness, headerCkSize + 8);
+				}
+
+				// unsupported format
+				throw new InvalidDataException("Unsupported format");
+			}
+		}
+
+		/// <summary>Reads sound data from a MP3 stream, using NAudio</summary>
+		/// <param name="stream">The stream of the MP3</param>
+		/// <returns>The raw sound data</returns>
 		private static Sound Mp3LoadFromStream(Stream stream)
 		{
-			using (Mp3FileReader reader = new Mp3FileReader(stream, wf => new Mp3FrameDecompressor(wf)))
+			// Managed NLayer decoder, as above: the default reader needs Windows ACM (Msacm32.dll)
+			using (Mp3FileReaderBase reader = new Mp3FileReaderBase(stream, new Mp3FileReaderBase.FrameDecompressorBuilder(wf => new Mp3FrameDecompressor(wf))))
 			{
 				byte[] dataBytes = new byte[reader.Length];
 
@@ -170,6 +100,11 @@ namespace Plugin
 							sample = 1.0f;
 						}
 
+						if (float.IsNaN(sample))
+						{
+							sample = 0;
+						}
+
 						writer.Write((short)(sample * short.MaxValue));
 					}
 				}
@@ -190,258 +125,312 @@ namespace Plugin
 			}
 		}
 
+		/// <summary>Loads sound data from a stream using NAudio to resample it to something we can read</summary>
+		/// <param name="stream">The stream</param>
+		/// <returns>The sound</returns>
+		private static Sound NAudioLoadFromStream(Stream stream)
+		{
+			using (WaveStream wf = new WaveFileReader(stream))
+			{
+				using (WaveFormatConversionStream cf = (WaveFormatConversionStream)WaveFormatConversionStream.CreatePcmStream(wf))
+				{
+					using (MemoryStream ms = new MemoryStream())
+					{
+						WaveFileWriter.WriteWavFileToStream(ms, cf);
+						ms.Seek(0, SeekOrigin.Begin);
+						return LoadFromStream(ms);
+					}
+				}
+			}
+		}
+
 		private static Sound WaveLoadFromStream(BinaryReader reader, Endianness endianness, uint fileSize)
 		{
 			long stopPosition = Math.Min(fileSize, reader.BaseStream.Length);
 			WaveFormatEx format = null;
 			byte[] dataBytes = null;
+			CuePoint[] cuePoints = null;
+			List<Chunk> chunks = new List<Chunk>();
 
 			while (reader.BaseStream.Position + 8 <= stopPosition)
 			{
-				uint ckID = reader.ReadUInt32(endianness);
+				ChunkID ckID = (ChunkID)reader.ReadUInt32(endianness);
 				uint ckSize = reader.ReadUInt32(endianness);
+				long ckStart = reader.BaseStream.Position;
 
 				// "fmt "
-				if (ckID == 0x20746D66)
+				switch (ckID)
 				{
-					if (ckSize < 16)
-					{
-						throw new InvalidDataException("Unsupported fmt chunk size");
-					}
-
-					ushort wFormatTag = reader.ReadUInt16(endianness);
-
-					switch (wFormatTag)
-					{
-						case 0x0001:
-						case 0x0003:
-							format = new WaveFormatPcm(wFormatTag);
-							break;
-						case 0x0002:
-							format = new WaveFormatAdPcm(wFormatTag);
-							break;
-						case 0x0050:
-						case 0x0055:
-							format = new WaveFormatMp3(wFormatTag);
-							break;
-						case 0xFFFE:
-							format = new WaveFormatExtensible(wFormatTag);
-							break;
-						default:
-							// unsupported format
-							throw new InvalidDataException("Unsupported wFormatTag");
-					}
-
-					format.nChannels = reader.ReadUInt16(endianness);
-					format.nSamplesPerSec = reader.ReadUInt32(endianness);
-					format.nAvgBytesPerSec = reader.ReadUInt32(endianness);
-					format.nBlockAlign = reader.ReadUInt16(endianness);
-					format.wBitsPerSample = reader.ReadUInt16(endianness);
-
-					if (!(format is WaveFormatAdPcm))
-					{
-						if (ckSize > 16)
+					case ChunkID.FMT:
+						if (ckSize < 16)
 						{
-							format.cbSize = reader.ReadUInt16(endianness);
-
-							// This is a countermeasure to the cbSize is not correct file.
-							reader.BaseStream.Position += Math.Min(format.cbSize, ckSize - 18);
+							throw new InvalidDataException("Unsupported fmt chunk size");
 						}
 
-						if (format is WaveFormatPcm)
+						ushort wFormatTag = reader.ReadUInt16(endianness);
+
+						switch (wFormatTag)
 						{
-							if (format.wBitsPerSample < 1)
+							case 0x0001:
+							case 0x0003:
+								format = new WaveFormatPcm(wFormatTag);
+								break;
+							case 0x0002:
+								format = new WaveFormatAdPcm(wFormatTag);
+								break;
+							case 0x0011:
+							case 0x0031:
+								// 0x0011 - Intel DVI ADPCM
+								// 0x0031 - GSM610
+								reader.BaseStream.Seek(0, 0);
+								return NAudioLoadFromStream(reader.BaseStream);
+							case 0x0050:
+							case 0x0055:
+								format = new WaveFormatMp3(wFormatTag);
+								break;
+							case 0xFFFE:
+								format = new WaveFormatExtensible(wFormatTag);
+								break;
+							default:
+								// unsupported format
+								throw new InvalidDataException("Unsupported wFormatTag");
+						}
+
+						format.Channels = reader.ReadUInt16(endianness);
+						format.SamplesPerSec = reader.ReadUInt32(endianness);
+						format.AvgBytesPerSec = reader.ReadUInt32(endianness);
+						format.BlockAlign = reader.ReadUInt16(endianness);
+						format.BitsPerSample = reader.ReadUInt16(endianness);
+
+						if (!(format is WaveFormatAdPcm))
+						{
+							if (ckSize > 16)
+							{
+								format.cbSize = reader.ReadUInt16(endianness);
+
+								// This is a countermeasure to the cbSize is not correct file.
+								reader.BaseStream.Position += Math.Min(format.cbSize, ckSize - 18);
+							}
+
+							if (format is WaveFormatPcm)
+							{
+								if (format.BitsPerSample < 1)
+								{
+									throw new InvalidDataException("Unsupported wBitsPerSample");
+								}
+
+								if (format.BlockAlign != format.Channels * format.BitsPerSample / 8)
+								{
+									throw new InvalidDataException("Unexpected wBlockAlign");
+								}
+
+								if (format.AvgBytesPerSec != format.Channels * format.SamplesPerSec * format.BitsPerSample / 8)
+								{
+									throw new InvalidDataException("Unexpected nAvgBytesPerSec");
+								}
+							}
+						}
+						else
+						{
+							WaveFormatAdPcm adPcmFormat = (WaveFormatAdPcm)format;
+
+							if (ckSize <= 16)
+							{
+								throw new InvalidDataException("Unsupported fmt chunk size");
+							}
+
+							adPcmFormat.cbSize = reader.ReadUInt16(endianness);
+							long readerPrevPos = reader.BaseStream.Position;
+
+							if (adPcmFormat.cbSize < 32)
+							{
+								throw new InvalidDataException("Unsupported fmt chunk size");
+							}
+
+							adPcmFormat.nSamplesPerBlock = reader.ReadUInt16(endianness);
+							adPcmFormat.nNumCoef = reader.ReadUInt16(endianness);
+							adPcmFormat.aCoeff = new Vector2[adPcmFormat.nNumCoef];
+
+							for (int i = 0; i < adPcmFormat.nNumCoef; i++)
+							{
+								adPcmFormat.aCoeff[i].X = reader.ReadInt16(endianness);
+								adPcmFormat.aCoeff[i].Y = reader.ReadInt16(endianness);
+							}
+
+							reader.BaseStream.Position += adPcmFormat.cbSize - (reader.BaseStream.Position - readerPrevPos);
+
+							if (adPcmFormat.BitsPerSample != 4)
 							{
 								throw new InvalidDataException("Unsupported wBitsPerSample");
 							}
 
-							if (format.nBlockAlign != format.nChannels * format.wBitsPerSample / 8)
+							if (adPcmFormat.nSamplesPerBlock != (adPcmFormat.BlockAlign - 7 * adPcmFormat.Channels) * 8 / (adPcmFormat.BitsPerSample * adPcmFormat.Channels) + 2)
 							{
-								throw new InvalidDataException("Unexpected wBlockAlign");
-							}
-
-							if (format.nAvgBytesPerSec != format.nChannels * format.nSamplesPerSec * format.wBitsPerSample / 8)
-							{
-								throw new InvalidDataException("Unexpected nAvgBytesPerSec");
+								throw new InvalidDataException("Unexpected nSamplesPerBlock");
 							}
 						}
-					}
-					else
-					{
-						WaveFormatAdPcm adPcmFormat = (WaveFormatAdPcm)format;
-
-						if (ckSize <= 16)
-						{
-							throw new InvalidDataException("Unsupported fmt chunk size");
-						}
-
-						adPcmFormat.cbSize = reader.ReadUInt16(endianness);
-						long readerPrevPos = reader.BaseStream.Position;
-
-						if (adPcmFormat.cbSize < 32)
-						{
-							throw new InvalidDataException("Unsupported fmt chunk size");
-						}
-
-						adPcmFormat.nSamplesPerBlock = reader.ReadUInt16(endianness);
-						adPcmFormat.nNumCoef = reader.ReadUInt16(endianness);
-						adPcmFormat.aCoeff = new Vector2[adPcmFormat.nNumCoef];
-
-						for (int i = 0; i < adPcmFormat.nNumCoef; i++)
-						{
-							adPcmFormat.aCoeff[i].X = reader.ReadInt16(endianness);
-							adPcmFormat.aCoeff[i].Y = reader.ReadInt16(endianness);
-						}
-
-						reader.BaseStream.Position += adPcmFormat.cbSize - (reader.BaseStream.Position - readerPrevPos);
-
-						if (adPcmFormat.wBitsPerSample != 4)
-						{
-							throw new InvalidDataException("Unsupported wBitsPerSample");
-						}
-
-						if (adPcmFormat.nSamplesPerBlock != (adPcmFormat.nBlockAlign - 7 * adPcmFormat.nChannels) * 8 / (adPcmFormat.wBitsPerSample * adPcmFormat.nChannels) + 2)
-						{
-							throw new InvalidDataException("Unexpected nSamplesPerBlock");
-						}
-					}
-				}
-				// "data"
-				else if (ckID == 0x61746164)
-				{
-					if (format == null)
-					{
-						// invalid
-						throw new InvalidDataException("No fmt chunk before the data chunk");
-					}
-
-					if (!(format is WaveFormatAdPcm))
-					{
-						dataBytes = reader.ReadBytes((int)ckSize);
 						break;
-					}
-
-					{
-						WaveFormatAdPcm adPcmFormat = (WaveFormatAdPcm)format;
-						uint blocks = ckSize / adPcmFormat.nBlockAlign;
-						dataBytes = new byte[adPcmFormat.nChannels * 2 * blocks * adPcmFormat.nSamplesPerBlock];
-
-						using (MemoryStream stream = new MemoryStream(dataBytes))
-						using (BinaryWriter writer = new BinaryWriter(stream))
+					// "data"
+					case ChunkID.DATA:
+						if (format == null)
 						{
-							for (int i = 0; i < blocks; i++)
+							// invalid
+							throw new InvalidDataException("No fmt chunk before the data chunk");
+						}
+
+						if (!(format is WaveFormatAdPcm))
+						{
+							dataBytes = reader.ReadBytes((int)ckSize);
+						}
+						else
+						{
+							WaveFormatAdPcm adPcmFormat = (WaveFormatAdPcm)format;
+							uint blocks = ckSize / adPcmFormat.BlockAlign;
+							dataBytes = new byte[adPcmFormat.Channels * 2 * blocks * adPcmFormat.nSamplesPerBlock];
+
+							using (MemoryStream stream = new MemoryStream(dataBytes))
+							using (BinaryWriter writer = new BinaryWriter(stream))
 							{
-								WaveFormatAdPcm.BlockData blockData = new WaveFormatAdPcm.BlockData(adPcmFormat.nChannels);
-								long readerPrevPos = reader.BaseStream.Position;
-
-								// get first data from this block header
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
+								for (int i = 0; i < blocks; i++)
 								{
-									blockData.bPredictor[j] = reader.ReadByte();
-								}
+									WaveFormatAdPcm.BlockData blockData = new WaveFormatAdPcm.BlockData(adPcmFormat.Channels);
+									long readerPrevPos = reader.BaseStream.Position;
 
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
-								{
-									blockData.iDelta[j] = reader.ReadInt16(endianness);
-								}
-
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
-								{
-									blockData.iSamp1[j] = reader.ReadInt16(endianness);
-								}
-
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
-								{
-									blockData.iSamp2[j] = reader.ReadInt16(endianness);
-								}
-
-								// set first coefficients
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
-								{
-									if (blockData.bPredictor[j] >= adPcmFormat.nNumCoef)
+									// get first data from this block header
+									for (int j = 0; j < adPcmFormat.Channels; j++)
 									{
-										throw new InvalidDataException("Invalid bPredictor");
+										blockData.bPredictor[j] = reader.ReadByte();
 									}
 
-									blockData.CoefSet[j] = adPcmFormat.aCoeff[blockData.bPredictor[j]];
-								}
-
-								// the first two samples are already decoded
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
-								{
-									writer.Write(blockData.iSamp2[j]);
-								}
-
-								for (int j = 0; j < adPcmFormat.nChannels; j++)
-								{
-									writer.Write(blockData.iSamp1[j]);
-								}
-
-								byte nibbleByte = 0;
-								bool nibbleFirst = true;
-
-								for (int j = 0; j < adPcmFormat.nSamplesPerBlock - 2; j++)
-								{
-									for (int k = 0; k < adPcmFormat.nChannels; k++)
+									for (int j = 0; j < adPcmFormat.Channels; j++)
 									{
-										int lPredSamp = (int)(blockData.iSamp1[k] * blockData.CoefSet[k].X + blockData.iSamp2[k] * blockData.CoefSet[k].Y) / 256;
-										int iErrorDeltaUnsigned;
-
-										if (nibbleFirst)
-										{
-											nibbleByte = reader.ReadByte();
-											nibbleFirst = false;
-											iErrorDeltaUnsigned = nibbleByte >> 4;
-										}
-										else
-										{
-											nibbleFirst = true;
-											iErrorDeltaUnsigned = nibbleByte & 15;
-										}
-
-										int iErrorDeltaSigned = iErrorDeltaUnsigned >= 8 ? iErrorDeltaUnsigned - 16 : iErrorDeltaUnsigned;
-										int lNewSampInt = lPredSamp + blockData.iDelta[k] * iErrorDeltaSigned;
-										short lNewSamp;
-
-										if (lNewSampInt > short.MaxValue)
-										{
-											lNewSamp = short.MaxValue;
-										}
-										else if (lNewSampInt < short.MinValue)
-										{
-											lNewSamp = short.MinValue;
-										}
-										else
-										{
-											lNewSamp = (short)lNewSampInt;
-										}
-
-										writer.Write(lNewSamp);
-
-										blockData.iDelta[k] = (short)(blockData.iDelta[k] * WaveFormatAdPcm.AdaptionTable[iErrorDeltaUnsigned] / 256);
-
-										if (blockData.iDelta[k] < 16)
-										{
-											blockData.iDelta[k] = 16;
-										}
-
-										blockData.iSamp2[k] = blockData.iSamp1[k];
-										blockData.iSamp1[k] = lNewSamp;
+										blockData.iDelta[j] = reader.ReadInt16(endianness);
 									}
-								}
 
-								reader.BaseStream.Position += adPcmFormat.nBlockAlign - (reader.BaseStream.Position - readerPrevPos);
+									for (int j = 0; j < adPcmFormat.Channels; j++)
+									{
+										blockData.iSamp1[j] = reader.ReadInt16(endianness);
+									}
+
+									for (int j = 0; j < adPcmFormat.Channels; j++)
+									{
+										blockData.iSamp2[j] = reader.ReadInt16(endianness);
+									}
+
+									// set first coefficients
+									for (int j = 0; j < adPcmFormat.Channels; j++)
+									{
+										if (blockData.bPredictor[j] >= adPcmFormat.nNumCoef)
+										{
+											throw new InvalidDataException("Invalid bPredictor");
+										}
+
+										blockData.CoefSet[j] = adPcmFormat.aCoeff[blockData.bPredictor[j]];
+									}
+
+									// the first two samples are already decoded
+									for (int j = 0; j < adPcmFormat.Channels; j++)
+									{
+										writer.Write(blockData.iSamp2[j]);
+									}
+
+									for (int j = 0; j < adPcmFormat.Channels; j++)
+									{
+										writer.Write(blockData.iSamp1[j]);
+									}
+
+									byte nibbleByte = 0;
+									bool nibbleFirst = true;
+
+									for (int j = 0; j < adPcmFormat.nSamplesPerBlock - 2; j++)
+									{
+										for (int k = 0; k < adPcmFormat.Channels; k++)
+										{
+											int lPredSamp = (int)(blockData.iSamp1[k] * blockData.CoefSet[k].X + blockData.iSamp2[k] * blockData.CoefSet[k].Y) / 256;
+											int iErrorDeltaUnsigned;
+
+											if (nibbleFirst)
+											{
+												nibbleByte = reader.ReadByte();
+												nibbleFirst = false;
+												iErrorDeltaUnsigned = nibbleByte >> 4;
+											}
+											else
+											{
+												nibbleFirst = true;
+												iErrorDeltaUnsigned = nibbleByte & 15;
+											}
+
+											int iErrorDeltaSigned = iErrorDeltaUnsigned >= 8 ? iErrorDeltaUnsigned - 16 : iErrorDeltaUnsigned;
+											int lNewSampInt = lPredSamp + blockData.iDelta[k] * iErrorDeltaSigned;
+											short lNewSamp;
+
+											if (lNewSampInt > short.MaxValue)
+											{
+												lNewSamp = short.MaxValue;
+											}
+											else if (lNewSampInt < short.MinValue)
+											{
+												lNewSamp = short.MinValue;
+											}
+											else
+											{
+												lNewSamp = (short)lNewSampInt;
+											}
+
+											writer.Write(lNewSamp);
+
+											blockData.iDelta[k] = (short)(blockData.iDelta[k] * WaveFormatAdPcm.AdaptionTable[iErrorDeltaUnsigned] / 256);
+
+											if (blockData.iDelta[k] < 16)
+											{
+												blockData.iDelta[k] = 16;
+											}
+
+											blockData.iSamp2[k] = blockData.iSamp1[k];
+											blockData.iSamp1[k] = lNewSamp;
+										}
+									}
+
+									reader.BaseStream.Position += adPcmFormat.BlockAlign - (reader.BaseStream.Position - readerPrevPos);
+								}
 							}
 						}
 
+						if (format is WaveFormatMp3)
+						{
+							using (MemoryStream dataStream = new MemoryStream(dataBytes))
+							{
+								return Mp3LoadFromStream(dataStream);
+							}
+						}
+
+						chunks.Add(new DataChunk(dataBytes, format));
 						break;
-					}
+					case ChunkID.CUE:
+						uint numCuePoints = reader.ReadUInt32(endianness);
+						cuePoints = new CuePoint[numCuePoints];
+						for (int i = 0; i < numCuePoints; i++)
+						{
+							cuePoints[i].ID = reader.ReadUInt32(endianness);
+							cuePoints[i].Position = reader.ReadUInt32(endianness);
+							cuePoints[i].ChunkID = (ChunkID)reader.ReadUInt32(endianness);
+							cuePoints[i].ChunkStart = reader.ReadUInt32(endianness);
+							cuePoints[i].BlockStart = reader.ReadUInt32(endianness);
+							cuePoints[i].SampleStart = reader.ReadUInt32(endianness);
+						}
+						break;
+					case ChunkID.SLNT:
+						chunks.Add(new SilentChunk(reader.ReadUInt32(endianness), format));
+						break;
+					default:
+						// unsupported and not interesting chunks
+						reader.BaseStream.Position += ckSize;
+						break;
 				}
-				// unsupported chunk
-				else
-				{
-					reader.BaseStream.Position += ckSize;
-				}
+
+				// ensure we're actually at the end of the chunk
+				reader.BaseStream.Seek(ckStart + ckSize, SeekOrigin.Begin);
 
 				// pad byte
 				if ((ckSize & 1) == 1)
@@ -451,142 +440,42 @@ namespace Plugin
 			}
 
 			// finalize
-			if (dataBytes == null)
+			if (chunks.Count == 0)
 			{
-				throw new InvalidDataException("No data chunk before the end of the file");
+				throw new InvalidDataException("File contains no DATA or SLNT chunks.");
 			}
 
-			if (format is WaveFormatMp3)
+			byte[][] buffers = new byte[format.Channels][];
+			int startPosition = 0;
+
+			int bytesPerSample = -1;
+
+			for (int i = 0; i < chunks.Count; i++)
 			{
-				using (MemoryStream dataStream = new MemoryStream(dataBytes))
+				if (bytesPerSample == -1)
 				{
-					return Mp3LoadFromStream(dataStream);
+					bytesPerSample = chunks[i].BytesPerSample;
 				}
-			}
-
-			int bytesPerSample;
-
-			if (!(format is WaveFormatAdPcm))
-			{
-				bytesPerSample = format.wBitsPerSample / 8;
-			}
-			else
-			{
-				bytesPerSample = 2;
-			}
-
-			// The size of the data chunk may not be correct, so we use sampleCount as the standard thereafter.
-			int sampleCount = dataBytes.Length / (format.nChannels * bytesPerSample);
-
-			byte[][] buffers = new byte[format.nChannels][];
-
-			for (int i = 0; i < format.nChannels; i++)
-			{
-				buffers[i] = new byte[sampleCount * bytesPerSample];
-			}
-
-			for (int i = 0; i < sampleCount; i++)
-			{
-				for (int j = 0; j < format.nChannels; j++)
+				else if (bytesPerSample != chunks[i].BytesPerSample)
 				{
-					for (int k = 0; k < bytesPerSample; k++)
-					{
-						buffers[j][i * bytesPerSample + k] = dataBytes[i * bytesPerSample * format.nChannels + bytesPerSample * j + k];
-					}
+					throw new InvalidDataException("All chunks must have the same number of bytes per sample.");
 				}
-			}
-
-			return ChangeBitDepth(format.wFormatTag, (int)format.nSamplesPerSec, bytesPerSample, sampleCount, buffers);
-		}
-
-		private static Sound ChangeBitDepth(ushort formatTag, int samplesPerSec, int bytesPerSample, int sampleCount, byte[][] buffers)
-		{
-			byte[][] newBuffers = new byte[buffers.Length][];
-
-			for (int i = 0; i < buffers.Length; i++)
-			{
-				newBuffers[i] = new byte[sampleCount * sizeof(short)];
-			}
-
-			switch (formatTag)
-			{
-				case 0x0001:
-				case 0xFFFE:
-					switch (bytesPerSample)
+				for (int j = 0; j < buffers.Length; j++)
+				{
+					if (buffers[j] == null)
 					{
-						case 3:
-							for (int i = 0; i < buffers.Length; i++)
-							{
-								using (var stream = new MemoryStream(newBuffers[i]))
-								using (var writer = new BinaryWriter(stream))
-								{
-									for (int j = 0; j < buffers[i].Length; j += 3)
-									{
-										byte[] tmp = new byte[4];
-										Array.Copy(buffers[i], j, tmp, 0, 3);
-										tmp[3] = (byte)(tmp[2] > 0x7F ? 0xff : 0x00);
-										float sample = BitConverter.ToInt32(tmp, 0) / 8388608.0f;
-										writer.Write((short)(sample * short.MaxValue));
-									}
-								}
-							}
-
-							bytesPerSample = sizeof(short);
-							break;
-						case 4:
-							for (int i = 0; i < buffers.Length; i++)
-							{
-								using (var stream = new MemoryStream(newBuffers[i]))
-								using (var writer = new BinaryWriter(stream))
-								{
-									for (int j = 0; j < buffers[i].Length; j += 4)
-									{
-										float sample = BitConverter.ToInt32(buffers[i], j) / 2147483648.0f;
-										writer.Write((short)(sample * short.MaxValue));
-									}
-								}
-							}
-
-							bytesPerSample = sizeof(short);
-							break;
-						default:
-							newBuffers = buffers;
-							break;
+						buffers[j] = new byte[chunks[i].Buffers[j].Length];
 					}
-					break;
-				case 0x0003:
-					for (int i = 0; i < buffers.Length; i++)
+					else
 					{
-						using (var stream = new MemoryStream(newBuffers[i]))
-						using (var writer = new BinaryWriter(stream))
-						{
-							for (int j = 0; j < buffers[i].Length; j += 4)
-							{
-								float sample = BitConverter.ToSingle(buffers[i], j);
-
-								if (sample < -1.0f)
-								{
-									sample = -1.0f;
-								}
-
-								if (sample > 1.0f)
-								{
-									sample = 1.0f;
-								}
-
-								writer.Write((short)(sample * short.MaxValue));
-							}
-						}
+						Array.Resize(ref buffers[j], buffers[j].Length + chunks[i].Buffers[j].Length);
 					}
-
-					bytesPerSample = sizeof(short);
-					break;
-				default:
-					newBuffers = buffers;
-					break;
+					Array.Copy(chunks[i].Buffers[j], 0, buffers[j], startPosition, chunks[i].Buffers[j].Length);
+				}
+				startPosition += buffers[0].Length;
 			}
 
-			return new Sound(samplesPerSec, bytesPerSample * 8, newBuffers);
+			return new Sound((int)format.SamplesPerSec, bytesPerSample * 8, buffers);
 		}
 	}
 }

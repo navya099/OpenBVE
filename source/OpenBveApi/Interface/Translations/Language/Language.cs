@@ -45,8 +45,10 @@ namespace OpenBveApi.Interface
 		internal string Flag;
 		/// <summary>The list of contributors</summary>
 		internal string Contributors;
+		/*
 		/// <summary>The time this language file was last updated</summary>
 		internal DateTime LastUpdated;
+		*/
 		/// <summary>The translation groups contained within the language</summary>
 		internal Dictionary<string, TranslationGroup> TranslationGroups = new Dictionary<string, TranslationGroup>();
 		/// <summary>The quick references</summary>
@@ -88,7 +90,7 @@ namespace OpenBveApi.Interface
 								// possibly ought to redesign things slightly- need to lookup the correct way to do this for XLF
 								// properties which are language specific as I suspect this is not the intended way to do this.....
 								//
-								// To try and maintain full compatability with anything manually edited, use the target in preference to the source
+								// To try and maintain full compatibility with anything manually edited, use the target in preference to the source
 								switch((string)strings[j].Attribute("id"))
 								{
 									case "name":
@@ -237,10 +239,11 @@ namespace OpenBveApi.Interface
 					{
 						return candidateString;
 					}
-					else if(string.IsNullOrEmpty(interfaceString))
+
+					if(string.IsNullOrEmpty(interfaceString))
 					{
 						// requested string does not exist in the target language at all, but does untranslated in a fallback
-						interfaceString = candidateString;
+						return candidateString;
 					}
 				}
 			}

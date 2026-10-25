@@ -1,4 +1,4 @@
-﻿using LibRender2;
+using LibRender2;
 using OpenBveApi;
 using OpenBveApi.FileSystem;
 using OpenBveApi.Hosts;
@@ -15,7 +15,7 @@ namespace TrainEditor2.Graphics
 			GL.Disable(EnableCap.CullFace);
 		}
 
-		public NewRenderer(HostInterface CurrentHost, BaseOptions CurrentOptions, FileSystem FileSystem) : base(CurrentHost, CurrentOptions, FileSystem)
+		public NewRenderer(HostInterface currentHost, BaseOptions CurrentOptions, FileSystem fileSystem) : base(currentHost, CurrentOptions, fileSystem)
 		{
 		}
 	}

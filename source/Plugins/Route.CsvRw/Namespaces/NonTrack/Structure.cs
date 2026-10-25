@@ -1,6 +1,7 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Text;
+using System.Xml;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
 using OpenBveApi.Objects;
@@ -44,11 +45,7 @@ namespace CsvRwRouteParser
 							{
 								if (!PreviewOnly)
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.RailObjects.Add(commandIndices[0], obj, "RailStructure");
-									}
+									QueuePending(StructureTarget.RailObjects, commandIndices[0], 0, f, false, false, "RailStructure");
 								}
 								else
 								{
@@ -83,15 +80,11 @@ namespace CsvRwRouteParser
 								string f = Path.CombineFile(ObjectPath, Arguments[0]);
 								if (!File.Exists(f))
 								{
-									Plugin.CurrentHost.AddMessage(MessageType.Error, true, "FileName " + f + " not found in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
+									Plugin.CurrentHost.AddMessage(MessageType.Error, true, "FileName " + Arguments[0] + " not found in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.Beacon.Add(commandIndices[0], obj, "BeaconStructure");
-									}
+									QueuePending(StructureTarget.Beacon, commandIndices[0], 0, f, false, false, "BeaconStructure");
 								}
 							}
 						}
@@ -135,9 +128,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									bool overwriteDefault = commandIndices[1] >= 0 && commandIndices[1] >= 3;
-									Data.Structure.Poles[commandIndices[0]].Add(commandIndices[1], obj, overwriteDefault);
+									QueuePending(StructureTarget.Pole, commandIndices[0], commandIndices[1], f, false, false, "PoleStructure");
 								}
 							}
 						}
@@ -171,11 +162,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.Ground.Add(commandIndices[0], obj, "GroundStructure");
-									}
+									QueuePending(StructureTarget.Ground, commandIndices[0], 0, f, false, false, "GroundStructure");
 								}
 							}
 						}
@@ -209,11 +196,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.WallL.Add(commandIndices[0], obj, "Left WallStructure");
-									}
+									QueuePending(StructureTarget.WallL, commandIndices[0], 0, f, false, false, "Left WallStructure");
 								}
 							}
 						}
@@ -247,11 +230,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.WallR.Add(commandIndices[0], obj, "Right WallStructure");
-									}
+									QueuePending(StructureTarget.WallR, commandIndices[0], 0, f, false, false, "Right WallStructure");
 								}
 							}
 						}
@@ -285,11 +264,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.DikeL.Add(commandIndices[0], obj, "Left DikeStructure");
-									}
+									QueuePending(StructureTarget.DikeL, commandIndices[0], 0, f, false, false, "Left DikeStructure");
 								}
 							}
 						}
@@ -323,11 +298,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.DikeR.Add(commandIndices[0], obj, "Right DikeStructure");
-									}
+									QueuePending(StructureTarget.DikeR, commandIndices[0], 0, f, false, false, "Right DikeStructure");
 								}
 							}
 						}
@@ -361,11 +332,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.FormL.Add(commandIndices[0], obj, "Left FormStructure");
-									}
+									QueuePending(StructureTarget.FormL, commandIndices[0], 0, f, false, false, "Left FormStructure");
 								}
 							}
 						}
@@ -399,11 +366,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.FormR.Add(commandIndices[0], obj, "Right FormStructure");
-									}
+									QueuePending(StructureTarget.FormR, commandIndices[0], 0, f, false, false, "Right FormStructure");
 								}
 							}
 						}
@@ -437,11 +400,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadStaticObject(f, Encoding, false, out StaticObject obj);
-									if (obj != null)
-									{
-										Data.Structure.FormCL.Add(commandIndices[0], obj, "Left FormCStructure");
-									}
+									QueuePending(StructureTarget.FormCL, commandIndices[0], 0, f, true, false, "Left FormCStructure");
 								}
 							}
 						}
@@ -475,11 +434,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadStaticObject(f, Encoding, false, out StaticObject obj);
-									if (obj != null)
-									{
-										Data.Structure.FormCR.Add(commandIndices[0], obj, "Right FormCStructure");
-									}
+									QueuePending(StructureTarget.FormCR, commandIndices[0], 0, f, true, false, "Right FormCStructure");
 								}
 							}
 						}
@@ -492,7 +447,7 @@ namespace CsvRwRouteParser
 				 * Mackoy's documentation states the following:
 				 * RoofIdxStType: Roof structure index (0: None)
 				 *
-				 * Unfortunately inconsistant with null objects for rails
+				 * Unfortunately inconsistent with null objects for rails
 				 */
 				case StructureCommand.RoofL:
 				{
@@ -516,7 +471,7 @@ namespace CsvRwRouteParser
 							{
 								if (commandIndices[0] == 0)
 								{
-									if (!IsRW)
+									if (Data.FileFormat != RoutefileFormat.RW)
 									{
 										Plugin.CurrentHost.AddMessage(MessageType.Error, false, "RoofStructureIndex was omitted or is 0 in " + Command + " argument at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 									}
@@ -537,11 +492,7 @@ namespace CsvRwRouteParser
 									}
 									else
 									{
-										Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-										if (obj != null)
-										{
-											Data.Structure.RoofL.Add(commandIndices[0], obj, "Left RoofStructure");
-										}
+										QueuePending(StructureTarget.RoofL, commandIndices[0], 0, f, false, false, "Left RoofStructure");
 									}
 								}
 							}
@@ -571,7 +522,7 @@ namespace CsvRwRouteParser
 							{
 								if (commandIndices[0] == 0)
 								{
-									if (!IsRW)
+									if (Data.FileFormat != RoutefileFormat.RW)
 									{
 										Plugin.CurrentHost.AddMessage(MessageType.Error, false, "RoofStructureIndex was omitted or is 0 in " + Command + " argument at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 									}
@@ -592,11 +543,7 @@ namespace CsvRwRouteParser
 									}
 									else
 									{
-										Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-										if (obj != null)
-										{
-											Data.Structure.RoofR.Add(commandIndices[0], obj, "Right RoofStructure");
-										}
+										QueuePending(StructureTarget.RoofR, commandIndices[0], 0, f, false, false, "Right RoofStructure");
 									}
 								}
 							}
@@ -626,7 +573,7 @@ namespace CsvRwRouteParser
 							{
 								if (commandIndices[0] == 0)
 								{
-									if (!IsRW)
+									if (Data.FileFormat != RoutefileFormat.RW)
 									{
 										Plugin.CurrentHost.AddMessage(MessageType.Error, false, "RoofStructureIndex was omitted or is 0 in " + Command + " argument at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 									}
@@ -647,11 +594,7 @@ namespace CsvRwRouteParser
 									}
 									else
 									{
-										Plugin.CurrentHost.LoadStaticObject(f, Encoding, false, out StaticObject obj);
-										if (obj != null)
-										{
-											Data.Structure.RoofCL.Add(commandIndices[0], obj, "Left RoofCStructure");
-										}
+											QueuePending(StructureTarget.RoofCL, commandIndices[0], 0, f, true, false, "Left RoofCStructure");
 									}
 								}
 							}
@@ -681,7 +624,7 @@ namespace CsvRwRouteParser
 							{
 								if (commandIndices[0] == 0)
 								{
-									if (!IsRW)
+									if (Data.FileFormat != RoutefileFormat.RW)
 									{
 										Plugin.CurrentHost.AddMessage(MessageType.Error, false, "RoofStructureIndex was omitted or is 0 in " + Command + " argument at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 									}
@@ -702,11 +645,7 @@ namespace CsvRwRouteParser
 									}
 									else
 									{
-										Plugin.CurrentHost.LoadStaticObject(f, Encoding, false, out StaticObject obj);
-										if (obj != null)
-										{
-											Data.Structure.RoofCR.Add(commandIndices[0], obj, "Right RoofCStructure");
-										}
+											QueuePending(StructureTarget.RoofCR, commandIndices[0], 0, f, true, false, "Right RoofCStructure");
 									}
 								}
 							}
@@ -741,11 +680,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadStaticObject(f, Encoding, true, out StaticObject obj);
-									if (obj != null)
-									{
-										Data.Structure.CrackL.Add(commandIndices[0], obj, "Left CrackStructure");
-									}
+									QueuePending(StructureTarget.CrackL, commandIndices[0], 0, f, true, true, "Left CrackStructure");
 								}
 							}
 						}
@@ -779,11 +714,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadStaticObject(f, Encoding, true, out StaticObject obj);
-									if (obj != null)
-									{
-										Data.Structure.CrackR.Add(commandIndices[0], obj, "Right CrackStructure");
-									}
+									QueuePending(StructureTarget.CrackR, commandIndices[0], 0, f, true, true, "Right CrackStructure");
 								}
 							}
 						}
@@ -795,8 +726,7 @@ namespace CsvRwRouteParser
 				{
 					if (Command == StructureCommand.Object)
 					{
-						IsHmmsim = true;
-						Plugin.CurrentOptions.ObjectDisposalMode = ObjectDisposalMode.Accurate;
+						Data.SetHmmsimProperties();
 					}
 					if (commandIndices[0] < 0)
 					{
@@ -824,11 +754,7 @@ namespace CsvRwRouteParser
 							{
 								if (!PreviewOnly)
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.FreeObjects.Add(commandIndices[0], obj, "FreeObject");
-									}
+									QueuePending(StructureTarget.FreeObjects, commandIndices[0], 0, f, false, false, "FreeObject");
 								}
 								else
 								{
@@ -899,16 +825,24 @@ namespace CsvRwRouteParser
 											BackgroundHandle h = DynamicBackgroundParser.ReadBackgroundXML(f);
 											Data.Backgrounds[commandIndices[0]] = h;
 										}
-										catch
+										catch(Exception ex)
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, true, f + " is not a valid background XML in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
+											if (ex is XmlException)
+											{
+												Plugin.CurrentHost.AddMessage(MessageType.Error, true, f + " contains malformed XML in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
+											}
+											else
+											{
+												Plugin.CurrentHost.AddMessage(MessageType.Error, true, f + " is not a valid background XML in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
+											}
+													
 										}
 									}
 									else
 									{
 										if (Data.Backgrounds[commandIndices[0]] is StaticBackground b)
 										{
-											Plugin.CurrentHost.RegisterTexture(f, new TextureParameters(null, null), out b.Texture);
+											Plugin.CurrentHost.RegisterTexture(f, TextureParameters.NoChange, out b.Texture);
 										}
 									}
 								}
@@ -1023,11 +957,7 @@ namespace CsvRwRouteParser
 								}
 								else
 								{
-									Plugin.CurrentHost.LoadObject(f, Encoding, out UnifiedObject obj);
-									if (obj != null)
-									{
-										Data.Structure.WeatherObjects.Add(commandIndices[0], obj, "RainStructure");
-									}
+									QueuePending(StructureTarget.WeatherObjects, commandIndices[0], 0, f, false, false, "RainStructure");
 								}
 							}
 						}

@@ -18,7 +18,7 @@ namespace TrainManager.Trains
 				return;
 			}
 
-			if (TrainManagerBase.RandomNumberGenerator.Next(0, 100) <= stopRequest.Probability)
+			if (TrainManagerBase.currentHost.Random.Next(0, 100) <= stopRequest.Probability)
 			{
 				//We have hit our probability roll
 				if (TrainManagerBase.CurrentRoute.Stations[stopRequest.StationIndex].StopMode == StationStopMode.AllRequestStop || (IsPlayerTrain && TrainManagerBase.CurrentRoute.Stations[stopRequest.StationIndex].StopMode == StationStopMode.PlayerRequestStop))
@@ -41,7 +41,7 @@ namespace TrainManager.Trains
 					//If message is not empty, add it
 					if (!string.IsNullOrEmpty(stopRequest.PassMessage) && IsPlayerTrain)
 					{
-						TrainManagerBase.currentHost.AddMessage(stopRequest.PassMessage, MessageDependency.None, GameMode.Normal, MessageColor.White, TrainManagerBase.CurrentRoute.SecondsSinceMidnight + 10.0, null);
+						TrainManagerBase.currentHost.AddMessage(stopRequest.PassMessage, MessageDependency.None, GameMode.Normal, MessageColor.White, 10.0, null);
 					}
 
 					return;
@@ -52,7 +52,7 @@ namespace TrainManager.Trains
 				//If message is not empty, add it
 				if (!string.IsNullOrEmpty(stopRequest.StopMessage) && IsPlayerTrain)
 				{
-					TrainManagerBase.currentHost.AddMessage(stopRequest.StopMessage, MessageDependency.None, GameMode.Normal, MessageColor.White, TrainManagerBase.CurrentRoute.SecondsSinceMidnight + 10.0, null);
+					TrainManagerBase.currentHost.AddMessage(stopRequest.StopMessage, MessageDependency.None, GameMode.Normal, MessageColor.White, 10.0, null);
 				}
 			}
 			else
@@ -66,7 +66,7 @@ namespace TrainManager.Trains
 				//If message is not empty, add it
 				if (!string.IsNullOrEmpty(stopRequest.PassMessage) && IsPlayerTrain)
 				{
-					TrainManagerBase.currentHost.AddMessage(stopRequest.PassMessage, MessageDependency.None, GameMode.Normal, MessageColor.White, TrainManagerBase.CurrentRoute.SecondsSinceMidnight + 10.0, null);
+					TrainManagerBase.currentHost.AddMessage(stopRequest.PassMessage, MessageDependency.None, GameMode.Normal, MessageColor.White, 10.0, null);
 				}
 			}
 		}

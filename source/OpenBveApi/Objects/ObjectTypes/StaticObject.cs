@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using OpenBveApi.Colors;
 using OpenBveApi.Hosts;
 using OpenBveApi.Math;
@@ -12,8 +11,9 @@ namespace OpenBveApi.Objects
 	/// <inheritdoc />
 	public class StaticObject : UnifiedObject
 	{
+		private const double ReferencePlaneTolerance = 0.1;
 		/// <summary>Whether the object is optimized</summary>
-		private bool IsOptimized;
+		private bool isOptimized;
 		/// <summary>The mesh of the object</summary>
 		public Mesh Mesh;
 		/// <summary>The starting track position, for static objects only.</summary>
@@ -30,141 +30,205 @@ namespace OpenBveApi.Objects
 		private readonly HostInterface currentHost;
 
 		/// <summary>Creates a new empty object</summary>
-		public StaticObject(HostInterface Host)
+		public StaticObject(HostInterface host)
 		{
-			currentHost = Host;
+			currentHost = host;
 			Mesh = new Mesh();
 		}
 
 		/// <summary>Creates a clone of this object.</summary>
-		/// <param name="DaytimeTexture">The replacement daytime texture</param>
-		/// <param name="NighttimeTexture">The replacement nighttime texture</param>
+		/// <param name="daytimeTexture">The replacement daytime texture</param>
+		/// <param name="nighttimeTexture">The replacement nighttime texture</param>
 		/// <returns></returns>
-		public StaticObject Clone(Textures.Texture DaytimeTexture, Textures.Texture NighttimeTexture) //Prefix is required or else MCS barfs
+		public StaticObject Clone(Textures.Texture daytimeTexture, Textures.Texture nighttimeTexture) //Prefix is required or else MCS barfs
 		{
-			StaticObject Result = new StaticObject(currentHost)
+			StaticObject cloneResult = new StaticObject(currentHost)
 			{
 				StartingTrackDistance = StartingTrackDistance,
 				EndingTrackDistance = EndingTrackDistance,
 				Dynamic = Dynamic,
 				Mesh = {Vertices = new VertexTemplate[Mesh.Vertices.Length]},
-				IsOptimized = IsOptimized
+				isOptimized = isOptimized
 			};
 			// vertices
 			for (int j = 0; j < Mesh.Vertices.Length; j++)
 			{
-				if (Mesh.Vertices[j] is ColoredVertex cv)
-				{
-					Result.Mesh.Vertices[j] = new ColoredVertex(cv);
-				}
-				else
-				{
-					Result.Mesh.Vertices[j] = new Vertex((Vertex) Mesh.Vertices[j]);
-				}
+				cloneResult.Mesh.Vertices[j] = Mesh.Vertices[j].Clone();
 			}
 
 			// faces
-			Result.Mesh.Faces = new MeshFace[Mesh.Faces.Length];
+			cloneResult.Mesh.Faces = new MeshFace[Mesh.Faces.Length];
 			for (int j = 0; j < Mesh.Faces.Length; j++)
 			{
-				Result.Mesh.Faces[j].Flags = Mesh.Faces[j].Flags;
-				Result.Mesh.Faces[j].Material = Mesh.Faces[j].Material;
-				Result.Mesh.Faces[j].Vertices = new MeshFaceVertex[Mesh.Faces[j].Vertices.Length];
+				cloneResult.Mesh.Faces[j].Flags = Mesh.Faces[j].Flags;
+				cloneResult.Mesh.Faces[j].Material = Mesh.Faces[j].Material;
+				cloneResult.Mesh.Faces[j].Vertices = new MeshFaceVertex[Mesh.Faces[j].Vertices.Length];
 				for (int k = 0; k < Mesh.Faces[j].Vertices.Length; k++)
 				{
-					Result.Mesh.Faces[j].Vertices[k] = Mesh.Faces[j].Vertices[k];
+					cloneResult.Mesh.Faces[j].Vertices[k] = Mesh.Faces[j].Vertices[k];
 				}
 			}
 
 			// materials
-			Result.Mesh.Materials = new MeshMaterial[Mesh.Materials.Length];
+			cloneResult.Mesh.Materials = new MeshMaterial[Mesh.Materials.Length];
 			for (int j = 0; j < Mesh.Materials.Length; j++)
 			{
-				Result.Mesh.Materials[j] = Mesh.Materials[j];
-				Result.Mesh.Materials[j].DaytimeTexture = DaytimeTexture ?? Mesh.Materials[j].DaytimeTexture;
-				Result.Mesh.Materials[j].NighttimeTexture = NighttimeTexture ?? Mesh.Materials[j].NighttimeTexture;
+				cloneResult.Mesh.Materials[j] = Mesh.Materials[j];
+				cloneResult.Mesh.Materials[j].DaytimeTexture = daytimeTexture ?? Mesh.Materials[j].DaytimeTexture;
+				cloneResult.Mesh.Materials[j].NighttimeTexture = nighttimeTexture ?? Mesh.Materials[j].NighttimeTexture;
 			}
 
-			return Result;
+			return cloneResult;
 		}
 
 		/// <summary>Creates a clone of this object.</summary>
 		public override UnifiedObject Clone()
 		{
-			StaticObject Result = new StaticObject(currentHost)
+			StaticObject cloneResult = new StaticObject(currentHost)
 			{
 				StartingTrackDistance = StartingTrackDistance,
 				EndingTrackDistance = EndingTrackDistance,
 				Dynamic = Dynamic,
 				Mesh = {Vertices = new VertexTemplate[Mesh.Vertices.Length]},
-				IsOptimized = IsOptimized
+				isOptimized = isOptimized
 			};
 			// vertices
 			for (int j = 0; j < Mesh.Vertices.Length; j++)
 			{
-				if (Mesh.Vertices[j] is ColoredVertex cv)
-				{
-					Result.Mesh.Vertices[j] = new ColoredVertex(cv);
-				}
-				else if (Mesh.Vertices[j] is LightMappedVertex lv)
-				{
-					Result.Mesh.Vertices[j] = new LightMappedVertex(lv);
-				}
-				else if (Mesh.Vertices[j] is AnimatedVertex av)
-				{
-					Result.Mesh.Vertices[j] = new AnimatedVertex(av);
-				}
-				else
-				{
-					Result.Mesh.Vertices[j] = new Vertex((Vertex) Mesh.Vertices[j]);
-				}
+				cloneResult.Mesh.Vertices[j] = Mesh.Vertices[j].Clone();
 			}
 
 			// faces
-			Result.Mesh.Faces = new MeshFace[Mesh.Faces.Length];
+			cloneResult.Mesh.Faces = new MeshFace[Mesh.Faces.Length];
 			for (int j = 0; j < Mesh.Faces.Length; j++)
 			{
-				Result.Mesh.Faces[j].Flags = Mesh.Faces[j].Flags;
-				Result.Mesh.Faces[j].Material = Mesh.Faces[j].Material;
-				Result.Mesh.Faces[j].Vertices = new MeshFaceVertex[Mesh.Faces[j].Vertices.Length];
+				cloneResult.Mesh.Faces[j].Flags = Mesh.Faces[j].Flags;
+				cloneResult.Mesh.Faces[j].Material = Mesh.Faces[j].Material;
+				cloneResult.Mesh.Faces[j].Vertices = new MeshFaceVertex[Mesh.Faces[j].Vertices.Length];
 				for (int k = 0; k < Mesh.Faces[j].Vertices.Length; k++)
 				{
-					Result.Mesh.Faces[j].Vertices[k] = Mesh.Faces[j].Vertices[k];
+					cloneResult.Mesh.Faces[j].Vertices[k] = Mesh.Faces[j].Vertices[k];
 				}
 			}
 
 			// materials
-			Result.Mesh.Materials = new MeshMaterial[Mesh.Materials.Length];
+			cloneResult.Mesh.Materials = new MeshMaterial[Mesh.Materials.Length];
 			for (int j = 0; j < Mesh.Materials.Length; j++)
 			{
-				Result.Mesh.Materials[j] = Mesh.Materials[j];
+				cloneResult.Mesh.Materials[j] = Mesh.Materials[j];
 			}
 
-			return Result;
+			return cloneResult;
 		}
 
 		/// <summary>Creates a mirrored clone of this object</summary>
 		public override UnifiedObject Mirror()
 		{
-			StaticObject Result = (StaticObject)this.Clone();
-			for (int i = 0; i < Result.Mesh.Vertices.Length; i++)
+			StaticObject mirrorResult = (StaticObject)Clone();
+			for (int i = 0; i < mirrorResult.Mesh.Vertices.Length; i++)
 			{
-				Result.Mesh.Vertices[i].Coordinates.X = -Result.Mesh.Vertices[i].Coordinates.X;
+				mirrorResult.Mesh.Vertices[i].Coordinates.X = -mirrorResult.Mesh.Vertices[i].Coordinates.X;
 			}
-			for (int i = 0; i < Result.Mesh.Faces.Length; i++)
+			for (int i = 0; i < mirrorResult.Mesh.Faces.Length; i++)
 			{
-				for (int k = 0; k < Result.Mesh.Faces[i].Vertices.Length; k++)
+				for (int k = 0; k < mirrorResult.Mesh.Faces[i].Vertices.Length; k++)
 				{
-					Result.Mesh.Faces[i].Vertices[k].Normal.X = -Result.Mesh.Faces[i].Vertices[k].Normal.X;
+					mirrorResult.Mesh.Faces[i].Vertices[k].Normal.X = -mirrorResult.Mesh.Faces[i].Vertices[k].Normal.X;
 				}
-				Result.Mesh.Faces[i].Flip();
+				mirrorResult.Mesh.Faces[i].Flip();
 			}
-			Result.IsOptimized = IsOptimized;
-			return Result;
+			mirrorResult.isOptimized = isOptimized;
+			return mirrorResult;
+		}
+
+		private bool TryGetReferenceCorners(out int bottomLeft, out int bottomRight, out int topRight, out int topLeft)
+		{
+			if (TryGetReferenceCorners(4, out bottomLeft, out bottomRight, out topRight, out topLeft))
+			{
+				return true;
+			}
+
+			return TryGetReferenceCorners(Mesh.Vertices.Length, out bottomLeft, out bottomRight, out topRight, out topLeft);
+		}
+
+		private bool TryGetReferenceCorners(int vertexCount, out int bottomLeft, out int bottomRight, out int topRight, out int topLeft)
+		{
+			// Beveled meshes may place the two sides of an end by a few centimetres
+			// along Z.  Treat nearby vertices as one plane so the selected width
+			// cannot collapse and stretch a vertex to infinity.
+			bottomLeft = -1;
+			bottomRight = -1;
+			topRight = -1;
+			topLeft = -1;
+			double minZ = double.MaxValue;
+			double maxZ = double.MinValue;
+			for (int i = 0; i < vertexCount; i++)
+			{
+				double z = Mesh.Vertices[i].Coordinates.Z;
+				minZ = System.Math.Min(minZ, z);
+				maxZ = System.Math.Max(maxZ, z);
+			}
+
+			if (maxZ - minZ <= 2.0 * ReferencePlaneTolerance)
+			{
+				return false;
+			}
+
+			for (int i = 0; i < vertexCount; i++)
+			{
+				Vector3 c = Mesh.Vertices[i].Coordinates;
+				if (c.Z >= maxZ - ReferencePlaneTolerance)
+				{
+					if (bottomLeft < 0 || c.X < Mesh.Vertices[bottomLeft].Coordinates.X)
+					{
+						bottomLeft = i;
+					}
+					if (bottomRight < 0 || c.X > Mesh.Vertices[bottomRight].Coordinates.X)
+					{
+						bottomRight = i;
+					}
+				}
+				if (c.Z <= minZ + ReferencePlaneTolerance)
+				{
+					if (topLeft < 0 || c.X < Mesh.Vertices[topLeft].Coordinates.X)
+					{
+						topLeft = i;
+					}
+					if (topRight < 0 || c.X > Mesh.Vertices[topRight].Coordinates.X)
+					{
+						topRight = i;
+					}
+				}
+			}
+
+			if (bottomLeft < 0 || bottomRight < 0 || topRight < 0 || topLeft < 0 ||
+			    bottomLeft == bottomRight || topRight == topLeft)
+			{
+				return false;
+			}
+
+			double topWidth = Mesh.Vertices[topRight].Coordinates.X - Mesh.Vertices[topLeft].Coordinates.X;
+			double bottomWidth = Mesh.Vertices[bottomRight].Coordinates.X - Mesh.Vertices[bottomLeft].Coordinates.X;
+			return System.Math.Abs(topWidth) > 0.001 && System.Math.Abs(bottomWidth) > 0.001;
+		}
+
+		/// <summary>Gets the longitudinal span of the object's coherent deformation reference</summary>
+		/// <param name="span">The length of the deformation reference in metres</param>
+		/// <returns>Whether a valid deformation reference was found</returns>
+		public bool TryGetDeformationSpan(out double span)
+		{
+			if (!TryGetReferenceCorners(out int bottomLeft, out int _, out int _, out int topLeft))
+			{
+				span = 0.0;
+				return false;
+			}
+
+			span = System.Math.Abs(Mesh.Vertices[bottomLeft].Coordinates.Z - Mesh.Vertices[topLeft].Coordinates.Z);
+			return span > 0.001;
 		}
 
 		/// <inheritdoc/>
-		public override UnifiedObject Transform(double NearDistance, double FarDistance)
+		public override UnifiedObject Transform(double nearDistance, double farDistance)
 		{
 			/* ** ORIGINAL ALGORITHM**
 			 *
@@ -191,169 +255,172 @@ namespace OpenBveApi.Objects
 			 * If our vertex windings do not conform, it's also broken.
 			 *
 			 */
-			StaticObject Result = (StaticObject)this.Clone();
-			int n = 0;
-			double x2 = 0.0, x3 = 0.0, x6 = 0.0, x7 = 0.0;
-			for (int i = 0; i < Result.Mesh.Vertices.Length; i++)
-			{
-				if (n == 2)
-				{
-					x2 = Result.Mesh.Vertices[i].Coordinates.X;
-				}
-				else if (n == 3)
-				{
-					x3 = Result.Mesh.Vertices[i].Coordinates.X;
-				}
-				else if (n == 6)
-				{
-					x6 = Result.Mesh.Vertices[i].Coordinates.X;
-				}
-				else if (n == 7)
-				{
-					x7 = Result.Mesh.Vertices[i].Coordinates.X;
-				}
-				n++;
-				if (n == 8)
-				{
-					break;
-				}
-			}
-			if (n >= 4)
-			{
-				int m = 0;
-				for (int i = 0; i < Result.Mesh.Vertices.Length; i++)
-				{
-					if (m == 0)
-					{
-						Result.Mesh.Vertices[i].Coordinates.X = NearDistance - x3;
-					}
-					else if (m == 1)
-					{
-						Result.Mesh.Vertices[i].Coordinates.X = FarDistance - x2;
-						if (n < 8)
-						{
-							break;
-						}
-					}
-					else if (m == 4)
-					{
-						Result.Mesh.Vertices[i].Coordinates.X = NearDistance - x7;
-					}
-					else if (m == 5)
-					{
-						Result.Mesh.Vertices[i].Coordinates.X = FarDistance - x6;
-						break;
-					}
-					m++;
-					if (m == 8)
-					{
-						break;
-					}
-				}
-			}
-			return Result;
-		}
-
-		/// <inheritdoc/>
-		public override UnifiedObject TransformLeft(double NearDistance, double FarDistance)
-		{
 			/*
-			 * **NEW ALGORITHM**
-			 *
-			 * This works *better* than the original algorithm, but is still not happy with objects
-			 * not conforming to 4-vertex faces.
-			 *
-			 * To be improved.....
+			 * BUGFIX: The original algorithm only transformed the first 4 or 8 vertices in the mesh, leaving
+			 * all subsequent vertices at their original coordinates. This distorted or hid objects with larger
+			 * vertex counts (such as the .x platform and roof center objects 'FormCL/CR' and 'RoofCL/CR').
+			 * We now delegate to TransformLeft or TransformRight based on whether the secondary rail is on the
+			 * left (nearDistance < 0.0) or right side of the primary rail.
 			 */
-
-			bool vertical = true;
-			double zPos = Mesh.Vertices[0].Coordinates.Z;
-			double minX = double.MaxValue, maxX = double.MinValue;
-			for (int i = 0; i < Mesh.Vertices.Length; i++)
+			if (nearDistance < 0.0)
 			{
-				minX = System.Math.Min(Mesh.Vertices[i].Coordinates.X, minX);
-				maxX = System.Math.Min(Mesh.Vertices[i].Coordinates.X, maxX);
-				if (System.Math.Abs(Mesh.Vertices[i].Coordinates.Z - zPos) > 0.1)
-				{
-					vertical = false;
-				}
+				return TransformRight(nearDistance, farDistance);
 			}
-
-			StaticObject Result = (StaticObject)this.Clone();
-
-			if (vertical || System.Math.Abs(NearDistance - FarDistance) > 0.1)
+			else
 			{
-				// If vertical, or both distances are within 0.1m use scale instead (this works for all object types)
-				double width = maxX - minX;
-				Result.ApplyScale(width / (NearDistance + width), 1,1);
-				return Result;
+				return TransformLeft(nearDistance, farDistance);
 			}
-
-
-			for (int i = 0; i < Mesh.Vertices.Length; i += 4)
-			{
-				List<VertexTemplate> tempList = Mesh.Vertices.Skip(i).Take(4).ToList();
-				// find vertices to base transform on
-				int bottomLeft = tempList.IndexOf(tempList.OrderByDescending(c => c.Coordinates.Z).ThenBy(c => c.Coordinates.X).First());
-				int bottomRight = tempList.IndexOf(tempList.OrderByDescending(c => c.Coordinates.Z).ThenByDescending(c => c.Coordinates.X).First());
-				int topRight = tempList.IndexOf(tempList.OrderBy(c => c.Coordinates.Z).ThenByDescending(c => c.Coordinates.X).First());
-				int topLeft = tempList.IndexOf(tempList.OrderBy(c => c.Coordinates.Z).ThenBy(c => c.Coordinates.X).First());
-
-				// for a left-handed transform, we need to transform the right-side coords
-				Result.Mesh.Vertices[i + bottomRight].Coordinates.X = FarDistance - Result.Mesh.Vertices[i + bottomLeft].Coordinates.X;
-				Result.Mesh.Vertices[i + topRight].Coordinates.X = NearDistance - Result.Mesh.Vertices[i + topLeft].Coordinates.X;
-			}
-
-			return Result;
 		}
 
 		/// <inheritdoc/>
-		public override UnifiedObject TransformRight(double NearDistance, double FarDistance)
+		public override UnifiedObject TransformLeft(double nearDistance, double farDistance, bool FlipFaces = false)
 		{
-			bool vertical = true;
-			double zPos = Mesh.Vertices[0].Coordinates.Z;
-			double minX = double.MaxValue, maxX = double.MinValue;
+			// If we have less than 4 vertices, we cannot perform the interpolation based on the standard reference quad
+			if (Mesh.Vertices.Length < 4)
+			{
+				return (StaticObject)Clone();
+			}
+			// Find the reference vertices from the complete mesh.  The first face of
+			// many platform and roof meshes is a vertical face (and therefore has
+			// no X/Z extent), so restricting this search to the first four vertices
+			// makes those objects fall back to an untransformed clone.
+			// bottomLeft: highest Z, lowest X (Z Descending, X Ascending)
+			// bottomRight: highest Z, highest X (Z Descending, X Descending)
+			// topRight: lowest Z, highest X (Z Ascending, X Descending)
+			// topLeft: lowest Z, lowest X (Z Ascending, X Ascending)
+			if (!TryGetReferenceCorners(out int bottomLeftIdx, out int bottomRightIdx, out int topRightIdx, out int topLeftIdx))
+			{
+				return (StaticObject)Clone();
+			}
+
+			if (bottomLeftIdx == bottomRightIdx || bottomLeftIdx == topRightIdx || bottomLeftIdx == topLeftIdx ||
+			    bottomRightIdx == topRightIdx || bottomRightIdx == topLeftIdx || topRightIdx == topLeftIdx)
+			{
+				return (StaticObject)Clone();
+			}
+
+			StaticObject transformResult = (StaticObject)Clone();
+			// Extract Z range of the first face's side vertices to map along the block length (usually 25m)
+			// Vertex 3 is face at Z = 0, Vertex 2 is face at Z = blockLength
+			double zMin = Mesh.Vertices[topLeftIdx].Coordinates.Z;
+			double zMax = Mesh.Vertices[bottomLeftIdx].Coordinates.Z;
+			double zRange = zMax - zMin;
+
+			double xLeft0 = Mesh.Vertices[topLeftIdx].Coordinates.X;
+			double xLeft1 = Mesh.Vertices[bottomLeftIdx].Coordinates.X;
+			double xRight0 = Mesh.Vertices[topRightIdx].Coordinates.X;
+			double xRight1 = Mesh.Vertices[bottomRightIdx].Coordinates.X;
+
 			for (int i = 0; i < Mesh.Vertices.Length; i++)
 			{
-				minX = System.Math.Min(Mesh.Vertices[i].Coordinates.X, minX);
-				maxX = System.Math.Min(Mesh.Vertices[i].Coordinates.X, maxX);
-				if (System.Math.Abs(Mesh.Vertices[i].Coordinates.Z - zPos) > 0.1)
+				double z = Mesh.Vertices[i].Coordinates.Z;
+				// Compute interpolation factor 't' along the Z length of the object
+				double t = zRange > 0.001 ? (z - zMin) / zRange : 0.0;
+				t = System.Math.Max(0.0, System.Math.Min(1.0, t));
+				// Interpolate reference coordinates at this vertex's Z position
+				double faceX = xLeft0 + t * (xLeft1 - xLeft0);
+				double originalBackX = xRight0 + t * (xRight1 - xRight0);
+				// The target back position is nearDistance (adjusted for the face offset xLeft0) at Z = 0,
+				// and farDistance (adjusted for the face offset xLeft1) at Z = blockLength
+				double backX = (nearDistance - xLeft0) + t * ((farDistance - xLeft1) - (nearDistance - xLeft0));
+				// Map the vertex's X coordinate from [faceX, originalBackX] to [faceX, backX]
+				double x = Mesh.Vertices[i].Coordinates.X;
+				double range = originalBackX - faceX;
+				if (System.Math.Abs(range) > 0.001)
 				{
-					vertical = false;
+					transformResult.Mesh.Vertices[i].Coordinates.X = faceX + ((x - faceX) / range) * (backX - faceX);
 				}
 			}
 
-			StaticObject Result = (StaticObject)this.Clone();
-
-			if (vertical || System.Math.Abs(NearDistance - FarDistance) > 0.1)
+			// if RHS vertex is less than zero, object must be to the L of the rail
+			if (FlipFaces && xRight0 < 0)
 			{
-				double width = maxX - minX;
-				Result.ApplyScale(width / (NearDistance + width), 1, 1);
-				return Result;
+				for (int i = 0; i < transformResult.Mesh.Faces.Length; i++)
+				{
+					Array.Reverse(transformResult.Mesh.Faces[i].Vertices, 0, transformResult.Mesh.Faces[i].Vertices.Length);
+				}
+			}
+			
+			return transformResult;
+		}
+
+		/// <inheritdoc/>
+		public override UnifiedObject TransformRight(double nearDistance, double farDistance, bool FlipFaces = false)
+		{
+			// If we have less than 4 vertices, we cannot perform the interpolation based on the standard reference quad
+			if (Mesh.Vertices.Length < 4)
+			{
+				return (StaticObject)Clone();
+			}
+			// Find the reference vertices from the complete mesh.  The first face of
+			// many platform and roof meshes is a vertical face (and therefore has
+			// no X/Z extent), so restricting this search to the first four vertices
+			// makes those objects fall back to an untransformed clone.
+			// bottomLeft: highest Z, lowest X (Z Descending, X Ascending)
+			// bottomRight: highest Z, highest X (Z Descending, X Descending)
+			// topRight: lowest Z, highest X (Z Ascending, X Descending)
+			// topLeft: lowest Z, lowest X (Z Ascending, X Ascending)
+			if (!TryGetReferenceCorners(out int bottomLeftIdx, out int bottomRightIdx, out int topRightIdx, out int topLeftIdx))
+			{
+				return (StaticObject)Clone();
 			}
 
-			for (int i = 0; i < Mesh.Vertices.Length; i += 4)
+			if (bottomLeftIdx == bottomRightIdx || bottomLeftIdx == topRightIdx || bottomLeftIdx == topLeftIdx ||
+			    bottomRightIdx == topRightIdx || bottomRightIdx == topLeftIdx || topRightIdx == topLeftIdx)
 			{
-				List<VertexTemplate> tempList = Mesh.Vertices.Skip(i).Take(4).ToList();
-				// find vertices to base transform on
-				int bottomLeft = tempList.IndexOf(tempList.OrderByDescending(c => c.Coordinates.Z).ThenBy(c => c.Coordinates.X).First());
-				int bottomRight = tempList.IndexOf(tempList.OrderByDescending(c => c.Coordinates.Z).ThenByDescending(c => c.Coordinates.X).First());
-				int topRight = tempList.IndexOf(tempList.OrderBy(c => c.Coordinates.Z).ThenByDescending(c => c.Coordinates.X).First());
-				int topLeft = tempList.IndexOf(tempList.OrderBy(c => c.Coordinates.Z).ThenBy(c => c.Coordinates.X).First());
-
-				// for a right-handed transform, we need to transform the left-side coords
-				Result.Mesh.Vertices[i + bottomLeft].Coordinates.X = FarDistance - Result.Mesh.Vertices[i + bottomRight].Coordinates.X;
-				Result.Mesh.Vertices[i + topLeft].Coordinates.X = NearDistance - Result.Mesh.Vertices[i + topRight].Coordinates.X;
+				return (StaticObject)Clone();
 			}
 
-			return Result;
+			StaticObject transformResult = (StaticObject)Clone();
+			// Extract Z range of the first face's side vertices to map along the block length (usually 25m)
+			// Vertex 3 is face at Z = 0, Vertex 2 is face at Z = blockLength
+			double zMin = Mesh.Vertices[topRightIdx].Coordinates.Z;
+			double zMax = Mesh.Vertices[bottomRightIdx].Coordinates.Z;
+			double zRange = zMax - zMin;
+
+			double xLeft0 = Mesh.Vertices[topLeftIdx].Coordinates.X;
+			double xLeft1 = Mesh.Vertices[bottomLeftIdx].Coordinates.X;
+			double xRight0 = Mesh.Vertices[topRightIdx].Coordinates.X;
+			double xRight1 = Mesh.Vertices[bottomRightIdx].Coordinates.X;
+
+			for (int i = 0; i < Mesh.Vertices.Length; i++)
+			{
+				double z = Mesh.Vertices[i].Coordinates.Z;
+				// Compute interpolation factor 't' along the Z length of the object
+				double t = zRange > 0.001 ? (z - zMin) / zRange : 0.0;
+				t = System.Math.Max(0.0, System.Math.Min(1.0, t));
+				// Interpolate reference coordinates at this vertex's Z position
+				double faceX = xRight0 + t * (xRight1 - xRight0);
+				double originalBackX = xLeft0 + t * (xLeft1 - xLeft0);
+				// The target back position is nearDistance (adjusted for the face offset xRight0) at Z = 0,
+				// and farDistance (adjusted for the face offset xRight1) at Z = blockLength
+				double backX = (nearDistance - xRight0) + t * ((farDistance - xRight1) - (nearDistance - xRight0));
+				// Map the vertex's X coordinate from [faceX, originalBackX] to [faceX, backX]
+				double x = Mesh.Vertices[i].Coordinates.X;
+				double range = originalBackX - faceX;
+				if (System.Math.Abs(range) > 0.001)
+				{
+					transformResult.Mesh.Vertices[i].Coordinates.X = faceX + ((x - faceX) / range) * (backX - faceX);
+				}
+			}
+
+			// if LHS vertex is greater than zero, object must be to the R of the rail
+			if (FlipFaces && xLeft0 > 0)
+			{
+				for (int i = 0; i < transformResult.Mesh.Faces.Length; i++)
+				{
+					Array.Reverse(transformResult.Mesh.Faces[i].Vertices, 0, transformResult.Mesh.Faces[i].Vertices.Length);
+				}
+			}
+			return transformResult;
 		}
 
 		/// <summary>Joins two static objects</summary>
-		/// <param name="Add">The static object to join</param>
-		public void JoinObjects(StaticObject Add)
+		/// <param name="additionalObject">The static object to join</param>
+		/// <param name="animationMatrices">The animation matrices for the object</param>
+		public void JoinObjects(StaticObject additionalObject, Matrix4D[] animationMatrices = null)
 		{
-			if (Add == null)
+			if (additionalObject == null)
 			{
 				return;
 			}
@@ -361,12 +428,12 @@ namespace OpenBveApi.Objects
 			int mf = Mesh.Faces.Length;
 			int mm = Mesh.Materials.Length;
 			int mv = Mesh.Vertices.Length;
-			Array.Resize(ref Mesh.Faces, mf + Add.Mesh.Faces.Length);
-			Array.Resize(ref Mesh.Materials, mm + Add.Mesh.Materials.Length);
-			Array.Resize(ref Mesh.Vertices, mv + Add.Mesh.Vertices.Length);
-			for (int i = 0; i < Add.Mesh.Faces.Length; i++)
+			Array.Resize(ref Mesh.Faces, mf + additionalObject.Mesh.Faces.Length);
+			Array.Resize(ref Mesh.Materials, mm + additionalObject.Mesh.Materials.Length);
+			Array.Resize(ref Mesh.Vertices, mv + additionalObject.Mesh.Vertices.Length);
+			for (int i = 0; i < additionalObject.Mesh.Faces.Length; i++)
 			{
-				Mesh.Faces[mf + i] = Add.Mesh.Faces[i];
+				Mesh.Faces[mf + i] = additionalObject.Mesh.Faces[i];
 				for (int j = 0; j < Mesh.Faces[mf + i].Vertices.Length; j++)
 				{
 					Mesh.Faces[mf + i].Vertices[j].Index += mv;
@@ -375,32 +442,40 @@ namespace OpenBveApi.Objects
 				Mesh.Faces[mf + i].Material += (ushort) mm;
 			}
 
-			for (int i = 0; i < Add.Mesh.Materials.Length; i++)
+			for (int i = 0; i < additionalObject.Mesh.Materials.Length; i++)
 			{
-				Mesh.Materials[mm + i] = Add.Mesh.Materials[i];
+				Mesh.Materials[mm + i] = additionalObject.Mesh.Materials[i];
 			}
 
-			for (int i = 0; i < Add.Mesh.Vertices.Length; i++)
+			for (int i = 0; i < additionalObject.Mesh.Vertices.Length; i++)
 			{
-				if (Add.Mesh.Vertices[i] is ColoredVertex)
+				if (additionalObject.Mesh.Vertices[i] is AnimatedVertex av)
 				{
-					Mesh.Vertices[mv + i] = new ColoredVertex((ColoredVertex) Add.Mesh.Vertices[i]);
+					Vector3 transformedCoordinates = new Vector3(av.Coordinates);
+					for (int j = 0; j < av.MatrixChain.Length; j++)
+					{
+						if (animationMatrices != null && av.MatrixChain[j] >= 0 && av.MatrixChain[j] < 255)
+						{
+							transformedCoordinates.Transform(animationMatrices[av.MatrixChain[j]], false); // use the static matrix, not the animated one
+						}
+					}
+					Mesh.Vertices[mv + i] = new Vertex(transformedCoordinates, av.TextureCoordinates);
 				}
 				else
 				{
-					Mesh.Vertices[mv + i] = new Vertex((Vertex) Add.Mesh.Vertices[i]);
+					Mesh.Vertices[mv + i] = additionalObject.Mesh.Vertices[i].Clone();
 				}
 
 			}
 		}
 
-		/// <summary>Applys scale</summary>
+		/// <summary>Applies scale</summary>
 		public void ApplyScale(Vector3 scale)
 		{
 			ApplyScale(scale.X, scale.Y, scale.Z);
 		}
 
-		/// <summary>Applys scale</summary>
+		/// <summary>Applies scale</summary>
 		public void ApplyScale(double x, double y, double z)
 		{
 			float rx = (float) (1.0 / x);
@@ -444,14 +519,14 @@ namespace OpenBveApi.Objects
 			}
 		}
 
-		/// <summary>Applys rotation</summary>
-		/// <param name="Rotation">The rotation vector</param>
-		/// <param name="Angle">The angle to rotate in degrees</param>
-		public void ApplyRotation(Vector3 Rotation, double Angle)
+		/// <summary>Applies rotation</summary>
+		/// <param name="rotationVector">The rotation vector</param>
+		/// <param name="angle">The angle to rotate in degrees</param>
+		public void ApplyRotation(Vector3 rotationVector, double angle)
 		{
 			for (int j = 0; j < Mesh.Vertices.Length; j++)
 			{
-				Mesh.Vertices[j].Coordinates.Rotate(Rotation, Angle);
+				Mesh.Vertices[j].Coordinates.Rotate(rotationVector, angle);
 
 			}
 
@@ -459,26 +534,24 @@ namespace OpenBveApi.Objects
 			{
 				for (int k = 0; k < Mesh.Faces[j].Vertices.Length; k++)
 				{
-					Mesh.Faces[j].Vertices[k].Normal.Rotate(Rotation, Angle);
+					Mesh.Faces[j].Vertices[k].Normal.Rotate(rotationVector, angle);
 				}
 			}
 		}
 		
-		/// <summary>Applys translation</summary>
-		public void ApplyTranslation(double x, double y, double z)
+		/// <summary>Applies translation</summary>
+		public override void ApplyTranslation(Vector3 translationVector, bool absoluteTranslation = false)
 		{
 			for (int i = 0; i < Mesh.Vertices.Length; i++)
 			{
-				Mesh.Vertices[i].Coordinates.X += x;
-				Mesh.Vertices[i].Coordinates.Y += y;
-				Mesh.Vertices[i].Coordinates.Z += z;
+				Mesh.Vertices[i].Coordinates += translationVector;
 			}
 		}
 
 		/// <summary>Applies mirroring</summary>
-		/// <param name="vX">Whether to mirror verticies in the X-axis</param>
-		/// <param name="vY">Whether to mirror verticies in the Y-axis</param>
-		/// <param name="vZ">Whether to mirror verticies in the Z-axis</param>
+		/// <param name="vX">Whether to mirror vertices in the X-axis</param>
+		/// <param name="vY">Whether to mirror vertices in the Y-axis</param>
+		/// <param name="vZ">Whether to mirror vertices in the Z-axis</param>
 		/// <param name="nX">Whether to mirror normals in the X-axis</param>
 		/// <param name="nY">Whether to mirror normals in the Y-axis</param>
 		/// <param name="nZ">Whether to mirror normals in the Z-axis</param>
@@ -548,7 +621,7 @@ namespace OpenBveApi.Objects
 			}
 		}
 
-		/// <summary>Applys a color to all materials in the mesh</summary>
+		/// <summary>Applies a color to all materials in the mesh</summary>
 		/// <param name="newColor">The color</param>
 		/// <param name="emissive">Whether this is an emissive color</param>
 		public void ApplyColor(Color32 newColor, bool emissive)
@@ -557,7 +630,7 @@ namespace OpenBveApi.Objects
 			{
 				if (emissive)
 				{
-					Mesh.Materials[i].EmissiveColor = (Color24) newColor;
+					Mesh.Materials[i].EmissiveColor = newColor;
 					Mesh.Materials[i].Flags |= MaterialFlags.Emissive;
 				}
 				else
@@ -568,16 +641,16 @@ namespace OpenBveApi.Objects
 		}
 
 		/// <summary>Performs shear mapping for all vertices within the StaticObject</summary>
-		/// <param name="Direction">A vector describing the direction of the plane to be sheared</param>
-		/// <param name="Shear">A vector describing the shear direction</param>
-		/// <param name="Ratio">The amount of shear to apply.</param>
+		/// <param name="shearDirection">A vector describing the direction of the plane to be sheared</param>
+		/// <param name="shear">A vector describing the shear direction</param>
+		/// <param name="ratio">The amount of shear to apply.</param>
 		/// <remarks>If Ratio is 0, no transformation is performed. If Direction and Shear are perpendicular, a Ratio of 1 corresponds to a slope of 45 degrees</remarks>
-		public void ApplyShear(Vector3 Direction, Vector3 Shear, double Ratio)
+		public void ApplyShear(Vector3 shearDirection, Vector3 shear, double ratio)
 		{
 			for (int j = 0; j < Mesh.Vertices.Length; j++)
 			{
-				double n = Ratio * (Direction.X * Mesh.Vertices[j].Coordinates.X + Direction.Y * Mesh.Vertices[j].Coordinates.Y + Direction.Z * Mesh.Vertices[j].Coordinates.Z);
-				Mesh.Vertices[j].Coordinates += Shear * n;
+				double n = ratio * (shearDirection.X * Mesh.Vertices[j].Coordinates.X + shearDirection.Y * Mesh.Vertices[j].Coordinates.Y + shearDirection.Z * Mesh.Vertices[j].Coordinates.Z);
+				Mesh.Vertices[j].Coordinates += shear * n;
 			}
 
 			for (int j = 0; j < Mesh.Faces.Length; j++)
@@ -586,8 +659,8 @@ namespace OpenBveApi.Objects
 				{
 					if (Mesh.Faces[j].Vertices[k].Normal.X != 0.0f | Mesh.Faces[j].Vertices[k].Normal.Y != 0.0f | Mesh.Faces[j].Vertices[k].Normal.Z != 0.0f)
 					{
-						double n = Ratio * (Shear.X * Mesh.Faces[j].Vertices[k].Normal.X + Shear.Y * Mesh.Faces[j].Vertices[k].Normal.Y + Shear.Z * Mesh.Faces[j].Vertices[k].Normal.Z);
-						Mesh.Faces[j].Vertices[k].Normal -= Direction * n;
+						double n = ratio * (shear.X * Mesh.Faces[j].Vertices[k].Normal.X + shear.Y * Mesh.Faces[j].Vertices[k].Normal.Y + shear.Z * Mesh.Faces[j].Vertices[k].Normal.Z);
+						Mesh.Faces[j].Vertices[k].Normal -= shearDirection * n;
 						Mesh.Faces[j].Vertices[k].Normal.Normalize();
 					}
 				}
@@ -595,43 +668,38 @@ namespace OpenBveApi.Objects
 		}
 
 		/// <summary>Callback function to create the object within the world</summary>
-		public override void CreateObject(Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation,
-			int SectionIndex, double StartingDistance, double EndingDistance,
-			double TrackPosition, double Brightness, bool DuplicateMaterials = false)
+		public override void CreateObject(Vector3 position, Transformation worldTransformation, Transformation localTransformation,
+			ObjectCreationParameters Parameters)
 		{
-			currentHost.CreateStaticObject(this, Position, WorldTransformation, LocalTransformation, 0.0, StartingDistance, EndingDistance, TrackPosition, Brightness);
+			currentHost.CreateStaticObject(this, position, Parameters, worldTransformation, localTransformation);
 		}
 
 		/// <inheritdoc />
-		public override void OptimizeObject(bool PreserveVerticies, int Threshold, bool VertexCulling)
+		public override void OptimizeObject(bool preserveVerticies, int faceThreshold, bool vertexCulling)
 		{
-			if (IsOptimized)
+			if (isOptimized)
 			{
 				return;
 			}
-			IsOptimized = true;
-			int v = Mesh.Vertices.Length;
+			isOptimized = true;
 			int m = Mesh.Materials.Length;
 			int f = Mesh.Faces.Length;
 			
-			if (m >= f / 500 && f >= Threshold && f < 20000 && currentHost.Platform != HostPlatform.AppleOSX)
+			if (currentHost.Platform != HostPlatform.AppleOSX)
 			{
 				/*
-				 * HACK:
 				 * A forwards compatible GL3 context (required on OS-X) only supports tris
-				 * No access to the renderer type here, so let's cheat and assume that OS-X
-				 * requires an optimized object (therefore decomposed into tris) in all circumstances
-				 *
-				 * Also *always* optimise objects with more than 20k faces (some .X as otherwise this kills the renderer)
-				 * Further, always try to squash where there are more than 500 times faces than materials (Some X trees killing the renderer)
+				 * and thus an optimized object (decomposed into tris) in all circumstances.
+				 * Apply the same optimization in viewers and in the game; the previous
+				 * viewer-only early return prevented the selected optimization mode from
+				 * being applied to large .x meshes.
 				 */
-				return;
 			}
 
-			if (v > 10000)
+			if (Mesh.Vertices.Length > 10000)
 			{
 				// Don't attempt to de-duplicate where over 10k vertices
-				PreserveVerticies = true;
+				preserveVerticies = true;
 			}
 
 			// eliminate invalid faces and reduce incomplete faces
@@ -765,130 +833,81 @@ namespace OpenBveApi.Objects
 				}
 			}
 
-			/* TODO:
-			 * Use a hash based technique
-			 */
-			// Cull vertices based on hidden option.
-			// This is disabled by default because it adds a lot of time to the loading process.
-			if (!PreserveVerticies && VertexCulling)
+			// Cull identical and unreferenced vertices based on the hidden vertexCulling option.
+			// Replaced old very slow OrderedDictionary implementation with generic Dictionary.
+			if (!preserveVerticies && vertexCulling)
 			{
-				// eliminate unused vertices
-				for (int i = 0; i < v; i++)
+				Dictionary<VertexTemplate, int> uniqueVertices = new Dictionary<VertexTemplate, int>();
+				VertexTemplate[] newVertices = new VertexTemplate[Mesh.Vertices.Length];
+				int count = 0;
+
+				// Iterate through all referenced vertices in the faces.
+				// This automatically ignores and culls unreferenced 'garbage' vertices in the original Mesh.Vertices array.
+				for (int i = 0; i < Mesh.Faces.Length; i++)
 				{
-					bool keep = false;
-					for (int j = 0; j < f; j++)
+					for (int j = 0; j < Mesh.Faces[i].Vertices.Length; j++)
 					{
-						for (int k = 0; k < Mesh.Faces[j].Vertices.Length; k++)
+						int oldIndex = Mesh.Faces[i].Vertices[j];
+						VertexTemplate vertex = Mesh.Vertices[oldIndex];
+
+						// If the exact same vertex structure hasn't been cached yet, cache it and add it to our new array.
+						if (!uniqueVertices.TryGetValue(vertex, out int newIndex))
 						{
-							if (Mesh.Faces[j].Vertices[k].Index == i)
-							{
-								keep = true;
-								break;
-							}
+							newIndex = count;
+							uniqueVertices.Add(vertex, newIndex);
+							newVertices[count] = vertex;
+							count++;
 						}
 
-						if (keep)
-						{
-							break;
-						}
-					}
-
-					if (!keep)
-					{
-						for (int j = 0; j < f; j++)
-						{
-							for (int k = 0; k < Mesh.Faces[j].Vertices.Length; k++)
-							{
-								if (Mesh.Faces[j].Vertices[k].Index > i)
-								{
-									Mesh.Faces[j].Vertices[k].Index--;
-								}
-							}
-						}
-
-						for (int j = i; j < v - 1; j++)
-						{
-							Mesh.Vertices[j] = Mesh.Vertices[j + 1];
-						}
-
-						v--;
-						i--;
+						// Update the face to point to the new, deduplicated vertex index.
+						Mesh.Faces[i].Vertices[j].Index = newIndex;
 					}
 				}
 
-				// eliminate duplicate vertices
-				for (int i = 0; i < v - 1; i++)
-				{
-					for (int j = i + 1; j < v; j++)
-					{
-						if (Mesh.Vertices[i] == Mesh.Vertices[j])
-						{
-							for (int k = 0; k < f; k++)
-							{
-								for (int h = 0; h < Mesh.Faces[k].Vertices.Length; h++)
-								{
-									if (Mesh.Faces[k].Vertices[h].Index == j)
-									{
-										Mesh.Faces[k].Vertices[h].Index = i;
-									}
-									else if (Mesh.Faces[k].Vertices[h].Index > j)
-									{
-										Mesh.Faces[k].Vertices[h].Index--;
-									}
-								}
-							}
-
-							for (int k = j; k < v - 1; k++)
-							{
-								Mesh.Vertices[k] = Mesh.Vertices[k + 1];
-							}
-
-							v--;
-							j--;
-						}
-					}
-				}
+				// Copy the unique vertices back into the mesh
+				Mesh.Vertices = new VertexTemplate[count];
+				Array.Copy(newVertices, 0, Mesh.Vertices, 0, count);
 			}
 
 			// structure optimization
-			// Trangularize all polygons and quads into triangles
+			// Triangularize all polygons and quads into triangles
 			for (int i = 0; i < f; ++i)
 			{
 				FaceFlags type = Mesh.Faces[i].Flags & FaceFlags.FaceTypeMask;
 				// Only transform quads and polygons
 				if (type == FaceFlags.Quads || type == FaceFlags.Polygon)
 				{
-					int staring_vertex_count = Mesh.Faces[i].Vertices.Length;
+					int startingVertexCount = Mesh.Faces[i].Vertices.Length;
 
-					// One triange for the first three points, then one for each vertex
+					// One triangle for the first three points, then one for each vertex
 					// Wind order is maintained.
 					// Ex: 0, 1, 2; 0, 2, 3; 0, 3, 4; 0, 4, 5; 
-					int tri_count = (staring_vertex_count - 2);
-					int vertex_count = tri_count * 3;
+					int triCount = (startingVertexCount - 2);
+					int vertexCount = triCount * 3;
 
 					// Copy old array for use as we work
-					MeshFaceVertex[] original_poly = (MeshFaceVertex[]) Mesh.Faces[i].Vertices.Clone();
+					MeshFaceVertex[] originalPoly = (MeshFaceVertex[]) Mesh.Faces[i].Vertices.Clone();
 
 					// Resize new array
-					Array.Resize(ref Mesh.Faces[i].Vertices, vertex_count);
+					Array.Resize(ref Mesh.Faces[i].Vertices, vertexCount);
 
 					// Reference to output vertices
-					MeshFaceVertex[] out_verts = Mesh.Faces[i].Vertices;
+					MeshFaceVertex[] outVerts = Mesh.Faces[i].Vertices;
 
 					// Triangularize
-					for (int tri_index = 0, vert_index = 0, old_vert = 2; tri_index < tri_count; ++tri_index, ++old_vert)
+					for (int triIndex = 0, vertIndex = 0, oldVert = 2; triIndex < triCount; ++triIndex, ++oldVert)
 					{
 						// First vertex is always the 0th
-						out_verts[vert_index] = original_poly[0];
-						vert_index += 1;
+						outVerts[vertIndex] = originalPoly[0];
+						vertIndex += 1;
 
 						// Second vertex is one behind the current working vertex
-						out_verts[vert_index] = original_poly[old_vert - 1];
-						vert_index += 1;
+						outVerts[vertIndex] = originalPoly[oldVert - 1];
+						vertIndex += 1;
 
 						// Third vertex is current working vertex
-						out_verts[vert_index] = original_poly[old_vert];
-						vert_index += 1;
+						outVerts[vertIndex] = originalPoly[oldVert];
+						vertIndex += 1;
 					}
 
 					// Mark as triangle
@@ -897,28 +916,28 @@ namespace OpenBveApi.Objects
 				}
 			}
 
-			// decomposit TRIANGLES and QUADS
+			// decomposite TRIANGLES and QUADS
 			for (int i = 0; i < f; i++)
 			{
 				FaceFlags type = Mesh.Faces[i].Flags & FaceFlags.FaceTypeMask;
-				int face_count = 0;
-				FaceFlags face_bit = 0;
+				int faceCount = 0;
+				FaceFlags faceBit = 0;
 				if (type == FaceFlags.Triangles)
 				{
-					face_count = 3;
-					face_bit = FaceFlags.Triangles;
+					faceCount = 3;
+					faceBit = FaceFlags.Triangles;
 				}
 				else if (type == FaceFlags.Quads)
 				{
-					face_count = 4;
-					face_bit = FaceFlags.Triangles;
+					faceCount = 4;
+					faceBit = FaceFlags.Triangles;
 				}
 
-				if (face_count == 3 || face_count == 4)
+				if (faceCount == 3 || faceCount == 4)
 				{
-					if (Mesh.Faces[i].Vertices.Length > face_count)
+					if (Mesh.Faces[i].Vertices.Length > faceCount)
 					{
-						int n = (Mesh.Faces[i].Vertices.Length - face_count) / face_count;
+						int n = (Mesh.Faces[i].Vertices.Length - faceCount) / faceCount;
 						while (f + n > Mesh.Faces.Length)
 						{
 							Array.Resize(ref Mesh.Faces, Mesh.Faces.Length << 1);
@@ -926,19 +945,19 @@ namespace OpenBveApi.Objects
 
 						for (int j = 0; j < n; j++)
 						{
-							Mesh.Faces[f + j].Vertices = new MeshFaceVertex[face_count];
-							for (int k = 0; k < face_count; k++)
+							Mesh.Faces[f + j].Vertices = new MeshFaceVertex[faceCount];
+							for (int k = 0; k < faceCount; k++)
 							{
-								Mesh.Faces[f + j].Vertices[k] = Mesh.Faces[i].Vertices[face_count + face_count * j + k];
+								Mesh.Faces[f + j].Vertices[k] = Mesh.Faces[i].Vertices[faceCount + faceCount * j + k];
 							}
 
 							Mesh.Faces[f + j].Material = Mesh.Faces[i].Material;
 							Mesh.Faces[f + j].Flags = Mesh.Faces[i].Flags;
 							Mesh.Faces[i].Flags &= ~FaceFlags.FaceTypeMask;
-							Mesh.Faces[i].Flags |= face_bit;
+							Mesh.Faces[i].Flags |= faceBit;
 						}
 
-						Array.Resize(ref Mesh.Faces[i].Vertices, face_count);
+						Array.Resize(ref Mesh.Faces[i].Vertices, faceCount);
 						f += n;
 					}
 				}
@@ -946,10 +965,10 @@ namespace OpenBveApi.Objects
 
 			// Squish faces that have the same material.
 			{
-				bool[] can_merge = new bool[f];
+				bool[] canMerge = new bool[f];
 				for (int i = 0; i < f - 1; ++i)
 				{
-					int merge_vertices = 0;
+					int mergeVertices = 0;
 
 					// Type of current face
 					FaceFlags type = Mesh.Faces[i].Flags & FaceFlags.FaceTypeMask;
@@ -967,31 +986,31 @@ namespace OpenBveApi.Objects
 						                 (face == face2) &&
 						                 (Mesh.Faces[i].Material == Mesh.Faces[j].Material);
 
-						can_merge[j] = mergeable;
-						merge_vertices += mergeable ? Mesh.Faces[j].Vertices.Length : 0;
+						canMerge[j] = mergeable;
+						mergeVertices += mergeable ? Mesh.Faces[j].Vertices.Length : 0;
 					}
 
-					if (merge_vertices == 0)
+					if (mergeVertices == 0)
 					{
 						continue;
 					}
 
 					// Current end of array index
-					int last_vertex_it = Mesh.Faces[i].Vertices.Length;
+					int lastVertexIt = Mesh.Faces[i].Vertices.Length;
 
 					// Resize current face's vertices to have enough room
-					Array.Resize(ref Mesh.Faces[i].Vertices, last_vertex_it + merge_vertices);
+					Array.Resize(ref Mesh.Faces[i].Vertices, lastVertexIt + mergeVertices);
 
 					// Merge faces
 					for (int j = i + 1; j < f; ++j)
 					{
-						if (can_merge[j])
+						if (canMerge[j])
 						{
 							// Copy vertices
-							Mesh.Faces[j].Vertices.CopyTo(Mesh.Faces[i].Vertices, last_vertex_it);
+							Mesh.Faces[j].Vertices.CopyTo(Mesh.Faces[i].Vertices, lastVertexIt);
 
 							// Adjust index
-							last_vertex_it += Mesh.Faces[j].Vertices.Length;
+							lastVertexIt += Mesh.Faces[j].Vertices.Length;
 						}
 					}
 
@@ -999,7 +1018,7 @@ namespace OpenBveApi.Objects
 					int jump = 0;
 					for (int j = i + 1; j < f; ++j)
 					{
-						if (can_merge[j])
+						if (canMerge[j])
 						{
 							jump += 1;
 						}
@@ -1014,10 +1033,6 @@ namespace OpenBveApi.Objects
 				}
 			}
 			// finalize arrays
-			if (v != Mesh.Vertices.Length)
-			{
-				Array.Resize(ref Mesh.Vertices, v);
-			}
 
 			if (m != Mesh.Materials.Length)
 			{

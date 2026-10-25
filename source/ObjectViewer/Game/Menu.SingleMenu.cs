@@ -1,9 +1,10 @@
-﻿using LibRender2.Menu;
+using LibRender2.Menu;
 using OpenBveApi.Graphics;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
 using OpenBveApi.Textures;
 using System;
+using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using Path = OpenBveApi.Path;
 
@@ -14,9 +15,10 @@ namespace ObjectViewer
 		/// <summary>Provides implementation for a single menu of the menu stack.</summary>
 		/// <remarks>The class is private to Menu, but all its fields are public to allow 'quick-and-dirty'
 		/// access from Menu itself.</remarks>
-		private class SingleMenu : MenuBase
+		private sealed class SingleMenu : MenuBase
 		{
-			public SingleMenu(AbstractMenu menu, MenuType menuType, int data = 0, double MaxWidth = 0) : base(menuType)
+			[SuppressMessage("ReSharper", "CoVariantArrayConversion")]
+			public SingleMenu(AbstractMenu menu, MenuType menuType, int data = 0, double maxWidth = 0) : base(menuType)
 			{
 				//Vector2 size;
 				Align = TextAlignment.TopMiddle;
@@ -62,6 +64,8 @@ namespace ObjectViewer
 								try
 								{
 									potentialFiles = Directory.GetFiles(SearchDirectory);
+									// n.b. sort order of returned files is not guaranteed, so case invariant sort
+									Array.Sort(potentialFiles,(x, y) => string.Compare(x, y, StringComparison.InvariantCultureIgnoreCase));
 									directoryList = Directory.GetDirectories(SearchDirectory);
 								}
 								catch
@@ -77,6 +81,8 @@ namespace ObjectViewer
 								try
 								{
 									potentialFiles = Directory.GetFiles(SearchDirectory);
+									// n.b. sort order of returned files is not guaranteed, so case invariant sort
+									Array.Sort(potentialFiles, (x, y) => string.Compare(x, y, StringComparison.InvariantCultureIgnoreCase));
 									directoryList = Directory.GetDirectories(SearchDirectory);
 								}
 								catch
@@ -99,11 +105,11 @@ namespace ObjectViewer
 							Items[totalEntries] = new MenuCommand(menu, directoryInfo.Name, MenuTag.Directory, 0);
 							if (drives)
 							{
-								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_disk.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_disk.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 							}
 							else
 							{
-								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_folder.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_folder.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 							}
 
 							totalEntries++;
@@ -123,17 +129,17 @@ namespace ObjectViewer
 								case ".b3d":
 								case ".animated":
 									Items[totalEntries] = new MenuCommand(menu, fileName, MenuTag.ObjectFile, 0);
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_object.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_object.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 									totalEntries++;
 									break;
 								case ".obj":
 									Items[totalEntries] = new MenuCommand(menu, fileName, MenuTag.ObjectFile, 0);
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_wavefront.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_wavefront.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 									totalEntries++;
 									break;
 								case ".x":
 									Items[totalEntries] = new MenuCommand(menu, fileName, MenuTag.ObjectFile, 0);
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_xobject.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_xobject.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 									totalEntries++;
 									break;
 							}
@@ -142,7 +148,7 @@ namespace ObjectViewer
 						Align = TextAlignment.TopLeft;
 						break;
 					case MenuType.Options:
-						Items = new MenuEntry[8];
+						Items = new MenuEntry[9];
 						Items[0] = new MenuCaption(menu, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "panel", "options" }));
 						Items[1] = new MenuOption(menu, OptionType.ScreenResolution, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "resolution" }), Program.Renderer.Screen.AvailableResolutions.ToArray());
 						Items[2] = new MenuOption(menu, OptionType.FullScreen, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "display_mode_fullscreen" }), new[] { "true", "false" });
@@ -158,26 +164,29 @@ namespace ObjectViewer
 						Items[4] = new MenuOption(menu, OptionType.AnisotropicLevel, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "quality_interpolation_anisotropic_level" }), new[] { "0", "2", "4", "8", "16" });
 						Items[5] = new MenuOption(menu, OptionType.AntialiasingLevel, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "quality_interpolation_antialiasing_level" }), new[] { "0", "2", "4", "8", "16" });
 						Items[6] = new MenuOption(menu, OptionType.ViewingDistance, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "quality_distance_viewingdistance" }), new[] { "400", "600", "800", "1000", "1500", "2000" });
-						Items[7] = new MenuCommand(menu, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "menu", "back" }), MenuTag.MenuBack, 0);
+						Items[7] = new MenuOption(menu, OptionType.AutoReloadObjects, "Automatically Reload Objects", new[] { "true", "false"});
+						Items[8] = new MenuCommand(menu, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "menu", "back" }), MenuTag.MenuBack, 0);
+						
 						Align = TextAlignment.TopLeft;
 						break;
 					case MenuType.ErrorList:
-						Items = new MenuEntry[Interface.LogMessages.Count + 2];
-						Items[0] = Interface.LogMessages.Count == 0 ? new MenuCaption(menu, "No current errors / warnings.") : new MenuCaption(menu, Interface.LogMessages.Count + " total errors / warnings.");
+						var errorSnapshot = Interface.GetLogSnapshot();
+						Items = new MenuEntry[errorSnapshot.Count + 2];
+						Items[0] = errorSnapshot.Count == 0 ? new MenuCaption(menu, "No current errors / warnings.") : new MenuCaption(menu, errorSnapshot.Count + " total errors / warnings.");
 
-						for (int j = 0; j < Interface.LogMessages.Count; j++)
+						for (int j = 0; j < errorSnapshot.Count; j++)
 						{
-							Items[j + 1] = new MenuErrorDisplay(menu, Interface.LogMessages[j].Text);
-							switch (Interface.LogMessages[j].Type)
+							Items[j + 1] = new MenuErrorDisplay(menu, errorSnapshot[j].Text);
+							switch (errorSnapshot[j].Type)
 							{
 								case MessageType.Information:
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_information.png"), new TextureParameters(null, null), out Items[j + 1].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_information.png"), TextureParameters.NoChange, out Items[j + 1].Icon);
 									break;
 								case MessageType.Warning:
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_warning.png"), new TextureParameters(null, null), out Items[j + 1].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_warning.png"), TextureParameters.NoChange, out Items[j + 1].Icon);
 									break;
 								case MessageType.Error:
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_error.png"), new TextureParameters(null, null), out Items[j + 1].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_error.png"), TextureParameters.NoChange, out Items[j + 1].Icon);
 									break;
 							}
 						}
@@ -186,8 +195,8 @@ namespace ObjectViewer
 						break;
 				}
 
-				ComputeExtent(menuType, Game.Menu.MenuFont, MaxWidth);
-				Height = Items.Length * Game.Menu.lineHeight;
+				ComputeExtent(menuType, Game.Menu.MenuFont, maxWidth, Game.Menu.LineHeight);
+				Height = Items.Length * Game.Menu.LineHeight;
 				TopItem = 0;
 
 			}

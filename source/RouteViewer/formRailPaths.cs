@@ -7,7 +7,7 @@ namespace RouteViewer
 {
 	public partial class formRailPaths : Form
 	{
-		private readonly int keyColumn = 5;
+		private const int keyColumn = 5;
 
 		public formRailPaths()
 		{
@@ -35,8 +35,8 @@ namespace RouteViewer
 			// setting the back color doesn't take when adding new rows, so do it afterwards
 			for (int i = 0; i < Program.CurrentRoute.Tracks.Count; i++)
 			{
-				int key = Program.CurrentRoute.Tracks.ElementAt(i).Key;
-				RailPath path = Program.Renderer.trackColors[key];
+				int trackKey = Program.CurrentRoute.Tracks.ElementAt(i).Key;
+				RailPath path = Program.Renderer.trackColors[trackKey];
 				// Drawn path color
 				dataGridViewPaths.Rows[i].Cells[2].Style.BackColor = path.Color;
 				dataGridViewPaths.Rows[i].Cells[2].Style.SelectionBackColor = path.Color;
@@ -61,7 +61,7 @@ namespace RouteViewer
 				}
 			}
 			Program.pathForm = null;
-			this.Close();
+			Close();
 		}
 
 		private void dataGridViewPaths_CurrentCellDirtyStateChanged(object sender, EventArgs e)

@@ -113,10 +113,10 @@ namespace OpenBve
 				return;
 			}
 
-			List<Package> Dependancies = Database.checkDependsReccomends(currentPackage.Dependancies.ToList());
+			List<Package> Dependancies = Database.CheckDependsReccomends(currentPackage.Dependancies.ToList());
 			if (Dependancies != null)
 			{
-				//We are missing a dependancy
+				//We are missing a dependency
 
 				labelDependancyErrorHeader.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"packages","install_dependancies_unmet_header"});
 				labelMissingDependanciesText1.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"packages","install_dependancies_unmet"});
@@ -125,10 +125,10 @@ namespace OpenBve
 				panelDependancyError.Show();
 				return;
 			}
-			List<Package> Reccomendations = Database.checkDependsReccomends(currentPackage.Reccomendations.ToList());
+			List<Package> Reccomendations = Database.CheckDependsReccomends(currentPackage.Reccomendations.ToList());
 			if (Reccomendations != null)
 			{
-				//We are missing a reccomendation
+				//We are missing a recommendation
 
 				labelDependancyErrorHeader.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"packages","install_reccomends_unmet_header"});
 				labelMissingDependanciesText1.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"packages","install_reccomends_unmet"});
@@ -381,9 +381,9 @@ namespace OpenBve
 		private void OnWorkerProgressChanged(object sender, ProgressReport e)
 		{
 			//We need to invoke the control so we don't get a cross thread exception
-			if (this.InvokeRequired)
+			if (InvokeRequired)
 			{
-				this.BeginInvoke((MethodInvoker) delegate
+				BeginInvoke((MethodInvoker) delegate
 				{
 					OnWorkerProgressChanged(sender, e);
 				});
@@ -398,9 +398,9 @@ namespace OpenBve
 		private void OnWorkerReportsProblem(object sender, ProblemReport e)
 		{
 			//We need to invoke the control so we don't get a cross thread exception
-			if (this.InvokeRequired)
+			if (InvokeRequired)
 			{
-				this.BeginInvoke((MethodInvoker) delegate
+				BeginInvoke((MethodInvoker) delegate
 				{
 					OnWorkerReportsProblem(sender, e);
 				});
@@ -442,23 +442,23 @@ namespace OpenBve
 		/// <summary>This method should be called to populate a datagrid view with a list of packages</summary>
 		/// <param name="packageList">The list of packages</param>
 		/// <param name="dataGrid">The datagrid view to populate</param>
-		/// <param name="simpleList">Whether this is a simple list or a dependancy list</param>
-		/// <param name="isDependancy">Whether this is a package needed by another or not</param>
+		/// <param name="simpleList">Whether this is a simple list or a dependency list</param>
+		/// <param name="isDependency">Whether this is a package needed by another or not</param>
 		/// <param name="isRecommendation">Whether this is a package recommended by another or not</param>
-		internal void PopulatePackageList(List<Package> packageList, DataGridView dataGrid, bool simpleList, bool isDependancy,
+		internal void PopulatePackageList(List<Package> packageList, DataGridView dataGrid, bool simpleList, bool isDependency,
 			bool isRecommendation)
 		{
 			listPopulating = true;
-			if (this.InvokeRequired)
+			if (InvokeRequired)
 			{
-				this.BeginInvoke((MethodInvoker) delegate
+				BeginInvoke((MethodInvoker) delegate
 				{
-					PopulatePackageList(packageList, dataGrid, simpleList, isDependancy, isRecommendation);
+					PopulatePackageList(packageList, dataGrid, simpleList, isDependency, isRecommendation);
 				});
 				return;
 			}
 			//Clear the package list
-			// HACK: If we are working with recommendations, do not clear the list to show them together with dependancies
+			// HACK: If we are working with recommendations, do not clear the list to show them together with dependencies
 			if (!isRecommendation) dataGrid.Rows.Clear();
 			//Add the key column programatically if required
 			if (dataGrid.Columns[dataGrid.ColumnCount - 1].Name != "key")
@@ -473,7 +473,7 @@ namespace OpenBve
 				object[] packageToAdd;
 				if (!simpleList)
 				{
-					if (isDependancy)
+					if (isDependency)
 					{
 						packageToAdd = new object[]
 						{
@@ -508,8 +508,8 @@ namespace OpenBve
 					};
 				}
 
-				//Add to the datagrid view if not selected as dependancy or recommendation
-				if (!selectedDependacies.Contains(packageList[i].GUID) || isDependancy || isRecommendation)
+				//Add to the datagrid view if not selected as dependency or recommendation
+				if (!selectedDependacies.Contains(packageList[i].GUID) || isDependency || isRecommendation)
 				{
 					try
 					{
@@ -663,21 +663,9 @@ namespace OpenBve
 
 		private void buttonUninstallPackage_Click(object sender, EventArgs e)
 		{
-			if (currentPackage != null)
+			if (currentPackage != null && currentPackage.PackageType != PackageType.NotFound)
 			{
-				switch (currentPackage.PackageType)
-				{
-					case PackageType.Route:
-						UninstallPackage(currentPackage);
-						break;
-					case PackageType.Train:
-						UninstallPackage(currentPackage);
-						break;
-					case PackageType.Other:
-					case PackageType.Loksim3D:
-						UninstallPackage(currentPackage);
-						break;
-				}
+				UninstallPackage(currentPackage);
 			}
 			else
 			{
@@ -1095,7 +1083,6 @@ namespace OpenBve
 				panelReplacePackage.Hide();
 				panelNewPackage.Show();
 				panelNewPackage.Enabled = true;
-				string GUID = Guid.NewGuid().ToString();
 				currentPackage = new Package
 				{
 					Name = textBoxPackageName.Text,
@@ -1103,7 +1090,7 @@ namespace OpenBve
 					Description = textBoxPackageDescription.Text.Replace("\r\n", "\\r\\n"),
 					//TODO:
 					//Website = linkLabelPackageWebsite.Links[0],
-					GUID = GUID,
+					GUID = Guid.NewGuid().ToString(),
 					PackageVersion = new Version(0, 0, 0, 0),
 					PackageType = newPackageType
 				};
@@ -1158,7 +1145,6 @@ namespace OpenBve
 				{
 					//Don't generate a new GUID if we haven't decided whether this is a new/ replacement package
 					//Pointless & confusing UI update otherwise
-					string GUID = Guid.NewGuid().ToString();
 					currentPackage = new Package
 					{
 						Name = textBoxPackageName.Text,
@@ -1166,7 +1152,7 @@ namespace OpenBve
 						Description = textBoxPackageDescription.Text.Replace("\r\n", "\\r\\n"),
 						//TODO:
 						//Website = linkLabelPackageWebsite.Links[0],
-						GUID = GUID,
+						GUID = Guid.NewGuid().ToString(),
 						PackageVersion = new Version(0, 0, 0, 0),
 						PackageType = newPackageType
 					};
@@ -1375,7 +1361,7 @@ namespace OpenBve
 			DialogResult result = inputBox.ShowDialog();
 			try
 			{
-				if (textBox.Text == String.Empty || textBox.Text == @"0")
+				if (string.IsNullOrEmpty(textBox.Text) || textBox.Text == @"0")
 				{
 					minimumVersion = null;
 				}
@@ -1383,7 +1369,7 @@ namespace OpenBve
 				{
 					minimumVersion = Version.Parse(textBox.Text);	
 				}
-				if (textBox2.Text == String.Empty || textBox2.Text == @"0")
+				if (string.IsNullOrEmpty(textBox2.Text) || textBox2.Text == @"0")
 				{
 					maximumVersion = null;
 				}
@@ -1430,14 +1416,14 @@ namespace OpenBve
 			{
 				//Mono doesn't like our fancy folder selector
 				//Some versions of OS-X crash, and Linux just falls back- Safer to specifically use the old version on these...
-				var MonoDialog = new FolderBrowserDialog();
-				MonoDialog.RootFolder = Environment.SpecialFolder.MyComputer;
-				if (lastSelectedFolder != null) MonoDialog.SelectedPath = lastSelectedFolder;
-				if (MonoDialog.ShowDialog() == DialogResult.OK)
+				var monoDialog = new FolderBrowserDialog();
+				monoDialog.RootFolder = Environment.SpecialFolder.MyComputer;
+				if (lastSelectedFolder != null) monoDialog.SelectedPath = lastSelectedFolder;
+				if (monoDialog.ShowDialog() == DialogResult.OK)
 				{
-					lastSelectedFolder = MonoDialog.SelectedPath;
-					folder = Directory.GetParent(MonoDialog.SelectedPath)?.ToString();
-					folderDisplay = MonoDialog.SelectedPath;
+					lastSelectedFolder = monoDialog.SelectedPath;
+					folder = Directory.GetParent(monoDialog.SelectedPath)?.ToString();
+					folderDisplay = monoDialog.SelectedPath;
 					files = Directory.GetFiles(folderDisplay, "*.*", SearchOption.AllDirectories);
 					DialogOK = true;
 				}
@@ -1462,15 +1448,15 @@ namespace OpenBve
 			{
 
 				filesToPackageBox.Text += folderDisplay + Environment.NewLine;
-				var tempList = new List<PackageFile>();
+				List<PackageFile> tempList = new List<PackageFile>();
 				for (int i = 0; i < files.Length; i++)
 				{
-					var File = new PackageFile
+					PackageFile tempFile = new PackageFile
 					{
 						absolutePath = files[i],
-						relativePath = files[i].Replace(folder, ""),
+						relativePath = files[i].Replace(folder, "")
 					};
-					tempList.Add(File);
+					tempList.Add(tempFile);
 				}
 				if (filesToPackage == null)
 				{
@@ -1563,7 +1549,7 @@ namespace OpenBve
 			else if (radioButtonReplace.Checked)
 			{
 				//Reinstall
-				string result = String.Empty;
+				string result = string.Empty;
 				Manipulation.UninstallPackage(currentPackage, Program.FileSystem.PackageDatabaseFolder, ref result);
 				switch (currentPackage.PackageType)
 				{

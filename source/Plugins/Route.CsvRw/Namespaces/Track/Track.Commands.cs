@@ -106,7 +106,7 @@
 		Doppler,
 		/// <summary>Adds a doppler sound played in all cars</summary>
 		DopplerAll,
-		/// <summary>Adds a reigon where an announcement can be played in-game using the microphone</summary>
+		/// <summary>Adds a region where an announcement can be played in-game using the microphone</summary>
 		MicSound,
 		/// <summary>Controls the calling time of the PreTrain</summary>
 		PreTrain,
@@ -143,9 +143,16 @@
 		RailAccuracy,
 		/// <summary>Sets the adhesion value for a rail</summary>
 		RailAdhesion,
+		/// <summary>Adds an announcement played in the cab on a non-zero rail</summary>
+		RailAnnounce,
+		/// <summary>Adds an announcement played in all cars on a non-zero rail</summary>
+		RailAnnounceAll,
 		/// <summary>Changes the player path</summary>
 		PlayerPath,
-
+		/// <summary>Adds or changes the properties of a power supply</summary>
+		PowerSupply,
+		/// <summary>Ends a power supply</summary>
+		PowerSupplyEnd,
 		/*
 		 * HMMSIM
 		 */
@@ -155,6 +162,12 @@
 		/// <summary>Starts a repeating object cycle</summary>
 		PatternObj,
 		/// <summary>Ends a repeating object cycle</summary>
-		PatternEnd
+		PatternEnd,
+		/// <summary>Changes the rail sound</summary>
+		RailSound,
+		/// <summary>Begins a transition curve</summary>
+		CurveTransition,
+		/// <summary>Begins pitch transition</summary>
+		PitchTransition
 	}
 }

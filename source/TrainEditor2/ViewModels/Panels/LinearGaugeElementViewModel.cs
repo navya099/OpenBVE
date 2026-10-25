@@ -1,5 +1,6 @@
 ﻿using System.Globalization;
 using System.Reactive.Linq;
+using Formats.OpenBve;
 using OpenBveApi.Colors;
 using OpenBveApi.Math;
 using Reactive.Bindings;
@@ -94,13 +95,12 @@ namespace TrainEditor2.ViewModels.Panels
 				.ToReactivePropertyAsSynchronized(
 					x => x.Minimum,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
-					Utilities.TryParse(x, NumberRange.Any, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.Any, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -109,13 +109,12 @@ namespace TrainEditor2.ViewModels.Panels
 				.ToReactivePropertyAsSynchronized(
 					x => x.Maximum,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
-					Utilities.TryParse(x, NumberRange.Any, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.Any, out string message);
 					return message;
 				})
 				.AddTo(disposable);

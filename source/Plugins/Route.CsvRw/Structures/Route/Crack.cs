@@ -21,49 +21,47 @@ namespace CsvRwRouteParser
 			FileName = fileName;
 		}
 
-		internal void Create(int CurrentRail, Transformation RailTransformation, Vector3 pos, Block CurrentBlock, Block NextBlock, StructureData Structure, double StartingDistance, double EndingDistance)
+		internal void Create(int CurrentRail, Transformation RailTransformation, Vector3 pos, Block CurrentBlock, Block NextBlock, StructureData Structure, ObjectCreationParameters Parameters)
 		{
 			if (PrimaryRail != CurrentRail)
 			{
 				return;
 			}
 			CultureInfo Culture = CultureInfo.InvariantCulture;
-			int p = PrimaryRail;
-			double px0 = p > 0 ? CurrentBlock.Rails[p].RailStart.X : 0.0;
-			double px1 = p > 0 ? NextBlock.Rails[p].RailEnd.X : 0.0;
-			int s = SecondaryRail;
-			if (s < 0 || !CurrentBlock.Rails.ContainsKey(s) || !CurrentBlock.Rails[s].RailStarted)
+			double px0 = PrimaryRail > 0 ? CurrentBlock.Rails[PrimaryRail].RailStart.X : 0.0;
+			double px1 = PrimaryRail > 0 ? NextBlock.Rails[PrimaryRail].RailEnd.X : 0.0;
+			if (SecondaryRail < 0 || !CurrentBlock.Rails.ContainsKey(SecondaryRail) || !CurrentBlock.Rails[SecondaryRail].RailStarted)
 			{
-				Plugin.CurrentHost.AddMessage(MessageType.Error, false, "RailIndex2 is out of range in Track.Crack at track position " + StartingDistance.ToString(Culture) + " in file " + FileName);
+				Plugin.CurrentHost.AddMessage(MessageType.Error, false, "RailIndex2 is out of range in Track.Crack at track position " + Parameters.StartingDistance.ToString(Culture) + " in file " + FileName);
 			}
 			else
 			{
-				double sx0 = CurrentBlock.Rails[s].RailStart.X;
-				double sx1 = NextBlock.Rails[s].RailEnd.X;
+				double sx0 = CurrentBlock.Rails[SecondaryRail].RailStart.X;
+				double sx1 = NextBlock.Rails[SecondaryRail].RailEnd.X;
 				double d0 = sx0 - px0;
 				double d1 = sx1 - px1;
 				if (d0 < 0.0)
 				{
 					if (!Structure.CrackL.ContainsKey(Type))
 					{
-						Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CrackStructureIndex references a CrackL not loaded in Track.Crack at track position " + StartingDistance.ToString(Culture) + " in file " + FileName + ".");
+						Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CrackStructureIndex references a CrackL not loaded in Track.Crack at track position " + Parameters.StartingDistance.ToString(Culture) + " in file " + FileName + ".");
 					}
 					else
 					{
 						StaticObject Crack = (StaticObject) Structure.CrackL[Type].Transform(d0, d1);
-						Plugin.CurrentHost.CreateStaticObject(Crack, pos, RailTransformation, Transformation.NullTransformation, 0.0, StartingDistance, EndingDistance, StartingDistance, 1.0);
+						Plugin.CurrentHost.CreateStaticObject(Crack, pos, Parameters.WithoutShadow(), RailTransformation);
 					}
 				}
 				else if (d0 > 0.0)
 				{
 					if (!Structure.CrackR.ContainsKey(Type))
 					{
-						Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CrackStructureIndex references a CrackR not loaded in Track.Crack at track position " + StartingDistance.ToString(Culture) + " in file " + FileName + ".");
+						Plugin.CurrentHost.AddMessage(MessageType.Error, false, "CrackStructureIndex references a CrackR not loaded in Track.Crack at track position " + Parameters.StartingDistance.ToString(Culture) + " in file " + FileName + ".");
 					}
 					else
 					{
 						StaticObject Crack = (StaticObject) Structure.CrackR[Type].Transform(d0, d1);
-						Plugin.CurrentHost.CreateStaticObject(Crack, pos, RailTransformation, Transformation.NullTransformation, 0.0, StartingDistance, EndingDistance, StartingDistance, 1.0);
+						Plugin.CurrentHost.CreateStaticObject(Crack, pos, Parameters.WithoutShadow(), RailTransformation);
 					}
 				}
 			}

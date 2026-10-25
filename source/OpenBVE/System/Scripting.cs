@@ -1,5 +1,6 @@
 ﻿using System;
 using OpenBveApi.Math;
+using TrainManager.BrakeSystems;
 using TrainManager.Handles;
 using TrainManager.Trains;
 
@@ -7,7 +8,7 @@ using TrainManager.Trains;
 
 namespace OpenBve
 {
-    /// <summary>This is a proxy class, which provides read-only access to variables, in a manner analagous to that found in .animated files </summary>
+    /// <summary>This is a proxy class, which provides read-only access to variables, in a manner analogous to that found in .animated files </summary>
     /// Notes:
     /// A proxy class is required, as otherwise we start making a horrendous amount of stuff public which shouldn't be, when working with cross-assembly access.
     /// Doing it this way, also allows for sensible scripting access, rather than climbing through multiple levels.
@@ -28,20 +29,19 @@ namespace OpenBve
                 if (IsPartOfTrain)
                 {
                     int nextSectionIndex = Train.CurrentSectionIndex + 1;
-                    if (nextSectionIndex >= 0 & nextSectionIndex < Program.CurrentRoute.Sections.Length)
+                    if (nextSectionIndex >= 0 && nextSectionIndex < Program.CurrentRoute.Sections.Length)
                     {
                         int a = Program.CurrentRoute.Sections[nextSectionIndex].CurrentAspect;
-                        if (a >= 0 & a < Program.CurrentRoute.Sections[nextSectionIndex].Aspects.Length)
+                        if (a >= 0 && a < Program.CurrentRoute.Sections[nextSectionIndex].Aspects.Length)
                         {
                             return Program.CurrentRoute.Sections[nextSectionIndex].Aspects[a].Number;
                         }
-                        return 0;
                     }
                 }
-                else if (SectionIndex >= 0 & SectionIndex < Program.CurrentRoute.Sections.Length)
+                else if (SectionIndex >= 0 && SectionIndex < Program.CurrentRoute.Sections.Length)
                 {
                     int a = Program.CurrentRoute.Sections[SectionIndex].CurrentAspect;
-                    if (a >= 0 & a < Program.CurrentRoute.Sections[SectionIndex].Aspects.Length)
+                    if (a >= 0 && a < Program.CurrentRoute.Sections[SectionIndex].Aspects.Length)
                     {
                         return Program.CurrentRoute.Sections[SectionIndex].Aspects[a].Number;
                     }
@@ -122,16 +122,16 @@ namespace OpenBve
                 if (Train == null) return 0.0;
                 for (int j = 0; j < Train.Cars.Length; j++)
                 {
-                    if (Train.Cars[j].Specs.IsMotorCar)
+                    if (Train.Cars[j].TractionModel.ProvidesPower)
                     {
                         // hack: MotorAcceleration does not distinguish between forward/backward
-                        if (Train.Cars[j].Specs.MotorAcceleration < 0.0)
+                        if (Train.Cars[j].TractionModel.CurrentAcceleration < 0.0)
                         {
-                            return Train.Cars[j].Specs.MotorAcceleration * Math.Sign(Train.Cars[j].CurrentSpeed);
+                            return Train.Cars[j].TractionModel.CurrentAcceleration * Math.Sign(Train.Cars[j].CurrentSpeed);
                         }
-                        if (Train.Cars[j].Specs.MotorAcceleration > 0.0)
+                        if (Train.Cars[j].TractionModel.CurrentAcceleration > 0.0)
                         {
-                            return Train.Cars[j].Specs.MotorAcceleration*
+                            return Train.Cars[j].TractionModel.CurrentAcceleration*
                                    (double) Train.Handles.Reverser.Actual;
                         }
                     }
@@ -146,16 +146,16 @@ namespace OpenBve
             public static double accelerationMotor(TrainBase Train, int CarIndex)
             {
                 if (Train == null || Train.Cars.Length <= CarIndex) return 0.0;
-                if (Train.Cars[CarIndex].Specs.IsMotorCar)
+                if (Train.Cars[CarIndex].TractionModel.ProvidesPower)
                 {
                     // hack: MotorAcceleration does not distinguish between forward/backward
-                    if (Train.Cars[CarIndex].Specs.MotorAcceleration < 0.0)
+                    if (Train.Cars[CarIndex].TractionModel.CurrentAcceleration < 0.0)
                     {
-                        return Train.Cars[CarIndex].Specs.MotorAcceleration * Math.Sign(Train.Cars[CarIndex].CurrentSpeed);
+                        return Train.Cars[CarIndex].TractionModel.CurrentAcceleration * Math.Sign(Train.Cars[CarIndex].CurrentSpeed);
                     }
-                    if (Train.Cars[CarIndex].Specs.MotorAcceleration > 0.0)
+                    if (Train.Cars[CarIndex].TractionModel.CurrentAcceleration > 0.0)
                     {
-                        return Train.Cars[CarIndex].Specs.MotorAcceleration * (double)Train.Handles.Reverser.Actual;
+                        return Train.Cars[CarIndex].TractionModel.CurrentAcceleration * (double)Train.Handles.Reverser.Actual;
                     }
                 }
                 return 0.0;
@@ -245,7 +245,7 @@ namespace OpenBve
                 {
                     return 0.0;
                 }
-                return Train.Cars[CarIndex].CarBrake.mainReservoir.CurrentPressure;
+                return Train.Cars[CarIndex].CarBrake.MainReservoir.CurrentPressure;
             }
 
             /// <summary>Returns the brake pipe pressure of the selected car of the selected train</summary>
@@ -259,7 +259,7 @@ namespace OpenBve
                 {
                     return 0.0;
                 }
-                return Train.Cars[CarIndex].CarBrake.brakePipe.CurrentPressure;
+                return Train.Cars[CarIndex].CarBrake.BrakePipe.CurrentPressure;
             }
 
             /// <summary>Returns the brake cylinder pressure of the selected car of the selected train</summary>
@@ -273,7 +273,7 @@ namespace OpenBve
                 {
                     return 0.0;
                 }
-                return Train.Cars[CarIndex].CarBrake.brakeCylinder.CurrentPressure;
+                return Train.Cars[CarIndex].CarBrake.BrakeCylinder.CurrentPressure;
             }
 
             /// <summary>Returns the brake pipe pressure of the selected car of the selected train</summary>
@@ -283,11 +283,11 @@ namespace OpenBve
             public static double straightAirPipe(TrainBase Train, int CarIndex)
             {
                 if (Train == null) return 0.0;
-                if (Train.Cars.Length > CarIndex)
+                if (Train.Cars.Length > CarIndex || !(Train.Cars[CarIndex].CarBrake is AirBrake airBrake))
                 {
                     return 0.0;
                 }
-                return Train.Cars[CarIndex].CarBrake.straightAirPipe.CurrentPressure;
+                return airBrake.StraightAirPipe.CurrentPressure;
             }
 
             /// <summary>Returns the doors state of the selected train</summary>
@@ -625,7 +625,7 @@ namespace OpenBve
                 return Train.Handles.HasHoldBrake;
             }
 
-            /// <summary>Whether the constant speed devicee is currently active for the selected train</summary>
+            /// <summary>Whether the constant speed device is currently active for the selected train</summary>
             /// <param name="Train">The selected train</param>
             /// <returns>Whether the constant speed device is currently active</returns>
             public static bool constantSpeed(TrainBase Train)

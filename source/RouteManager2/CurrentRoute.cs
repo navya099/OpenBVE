@@ -9,6 +9,7 @@ using OpenBveApi.Routes;
 using OpenBveApi.Runtime;
 using OpenBveApi.Trains;
 using RouteManager2.Climate;
+using RouteManager2.Events;
 using RouteManager2.MessageManager;
 using RouteManager2.SignalManager;
 using RouteManager2.SignalManager.PreTrain;
@@ -49,7 +50,7 @@ namespace RouteManager2
 		/// <remarks>Must be in distance and time ascending order</remarks>
 		public BogusPreTrainInstruction[] BogusPreTrainInstructions;
 
-		public double[] PrecedingTrainTimeDeltas = new double[] { };
+		public double[] PrecedingTrainTimeDeltas = { };
 
 		/// <summary>Holds all points of interest within the game world</summary>
 		public PointOfInterest[] PointsOfInterest;
@@ -216,17 +217,14 @@ namespace RouteManager2
 
 				if (train == null)
 				{
-					double b = -Double.MaxValue;
+					double b = -double.MaxValue;
 
 					foreach (AbstractTrain t in currentHost.Trains)
 					{
-						if (t.State == TrainState.Available)
+						if (t.State == TrainState.Available && t.TimetableDelta > b)
 						{
-							if (t.TimetableDelta > b)
-							{
-								b = t.TimetableDelta;
-								train = t;
-							}
+							b = t.TimetableDelta;
+							train = t;
 						}
 					}
 				}
@@ -238,7 +236,7 @@ namespace RouteManager2
 					{
 						if (train.Station == d)
 						{
-							int c = Stations[d].GetStopIndex(train.NumberOfCars);
+							int c = Stations[d].GetStopIndex(train);
 
 							if (c >= 0)
 							{
@@ -441,6 +439,26 @@ namespace RouteManager2
 			return null;
 		}
 
+		/// <summary>Gets the next speed limit, starting from the specified track element</summary>
+		/// <param name="trackElement">The specified track element</param>
+		/// <param name="trackPosition">The next limit's track position</param>
+		public double NextLimit(int trackElement, out double trackPosition)
+		{
+			for (int i = trackElement + 1; i < Tracks[0].Elements.Length; i++)
+			{
+				trackPosition = Tracks[0].Elements[i].StartingTrackPosition;
+				for (int j = 0; j < Tracks[0].Elements[i].Events.Count; j++)
+				{
+					if (Tracks[0].Elements[i].Events[j] is LimitChangeEvent lim)
+					{
+						return lim.NextSpeedLimit;
+					}
+				}
+			}
+			trackPosition = double.PositiveInfinity;
+			return double.PositiveInfinity;
+		}
+
 		/// <summary>Updates the currently displayed background</summary>
 		/// <param name="TimeElapsed">The time elapsed since the previous call to this function</param>
 		/// <param name="GamePaused">Whether the game is currently paused</param>
@@ -452,38 +470,45 @@ namespace RouteManager2
 				TimeElapsed = 0.0;
 			}
 
-			const float scale = 0.5f;
+			// scale value is used to update the size of the fog region relative to the actual background object
+			float scale = 0.5f * (float)(CurrentBackground.BackgroundImageDistance / CurrentBackground.FogDistance);
+			float clipAdjustment = 1.0f;
+
+			if (CurrentBackground.BackgroundImageDistance > 1100)
+			{
+				// HACK: BackgroundImageDistance above ~1100 can cause things to go out
+				// of the viewing plane, which then bugs out OpenGL clipping, so clamp the scale
+				// downwards to compensate
+				clipAdjustment = 1100f/ (float)CurrentBackground.BackgroundImageDistance;
+			}
 
 			// fog
 			const float fogDistance = 600.0f;
 
 			if (CurrentFog.Start < CurrentFog.End & CurrentFog.Start < fogDistance)
 			{
-				float ratio = (float)CurrentBackground.BackgroundImageDistance / fogDistance;
+				float ratio = (float)(CurrentBackground.BackgroundImageDistance / fogDistance) * clipAdjustment;
 
-				renderer.OptionFog = true;
+				renderer.Fog.Enabled = true;
 				renderer.Fog.Start = CurrentFog.Start * ratio * scale;
 				renderer.Fog.End = CurrentFog.End * ratio * scale;
 				renderer.Fog.Color = CurrentFog.Color;
 				renderer.Fog.Density = CurrentFog.Density;
 				renderer.Fog.IsLinear = CurrentFog.IsLinear;
-				if (!renderer.AvailableNewRenderer)
-				{
-					renderer.Fog.SetForImmediateMode();
-				}
+				renderer.Fog.Set();
 			}
 			else
 			{
-				renderer.OptionFog = false;
+				renderer.Fog.Enabled = false;
 			}
-
-			//Update the currently displayed background
-			CurrentBackground.UpdateBackground(SecondsSinceMidnight, TimeElapsed, false);
+			
+            //Update the currently displayed background
+            CurrentBackground.UpdateBackground(SecondsSinceMidnight, TimeElapsed, false);
 
 			if (TargetBackground == null || TargetBackground == CurrentBackground)
 			{
 				//No target background, so call the render function
-				renderer.Background.Render(CurrentBackground, scale);
+				renderer.Background.Render(CurrentBackground, scale * clipAdjustment);
 				return;
 			}
 
@@ -499,12 +524,12 @@ namespace RouteManager2
 			{
 				//Render, switching on the transition mode
 				case BackgroundTransitionMode.FadeIn:
-					renderer.Background.Render(CurrentBackground, 1.0f, scale);
-					renderer.Background.Render(TargetBackground, TargetBackground.CurrentAlpha, scale);
+					renderer.Background.Render(CurrentBackground, 1.0f, scale * clipAdjustment);
+					renderer.Background.Render(TargetBackground, TargetBackground.CurrentAlpha, scale * clipAdjustment);
 					break;
 				case BackgroundTransitionMode.FadeOut:
-					renderer.Background.Render(TargetBackground, 1.0f, scale);
-					renderer.Background.Render(CurrentBackground, TargetBackground.CurrentAlpha, scale);
+					renderer.Background.Render(TargetBackground, 1.0f, scale * clipAdjustment);
+					renderer.Background.Render(CurrentBackground, TargetBackground.CurrentAlpha, scale * clipAdjustment);
 					break;
 			}
 
@@ -538,13 +563,10 @@ namespace RouteManager2
 				t = double.NegativeInfinity;
 				for (int i = 0; i < PointsOfInterest.Length; i++)
 				{
-					if (PointsOfInterest[i].TrackPosition < renderer.CameraTrackFollower.TrackPosition)
+					if (PointsOfInterest[i].TrackPosition < renderer.CameraTrackFollower.TrackPosition && PointsOfInterest[i].TrackPosition > t)
 					{
-						if (PointsOfInterest[i].TrackPosition > t)
-						{
-							t = PointsOfInterest[i].TrackPosition;
-							j = i;
-						}
+						t = PointsOfInterest[i].TrackPosition;
+						j = i;
 					}
 				}
 			}
@@ -553,13 +575,10 @@ namespace RouteManager2
 				t = double.PositiveInfinity;
 				for (int i = 0; i < PointsOfInterest.Length; i++)
 				{
-					if (PointsOfInterest[i].TrackPosition > renderer.CameraTrackFollower.TrackPosition)
+					if (PointsOfInterest[i].TrackPosition > renderer.CameraTrackFollower.TrackPosition && PointsOfInterest[i].TrackPosition < t)
 					{
-						if (PointsOfInterest[i].TrackPosition < t)
-						{
-							t = PointsOfInterest[i].TrackPosition;
-							j = i;
-						}
+						t = PointsOfInterest[i].TrackPosition;
+						j = i;
 					}
 				}
 			}
@@ -575,9 +594,9 @@ namespace RouteManager2
 			if (PointsOfInterest[j].Text != null)
 			{
 				double n = 3.0 + 0.5 * Math.Sqrt(PointsOfInterest[j].Text.Length);
-				currentHost.AddMessage(PointsOfInterest[j].Text, MessageDependency.PointOfInterest, GameMode.Expert, MessageColor.White, SecondsSinceMidnight + n, null);
+				currentHost.AddMessage(PointsOfInterest[j].Text, MessageDependency.PointOfInterest, GameMode.Expert, MessageColor.White, n, null);
 			}
-
+			renderer.UpdateVisibility(true);
 			return true;
 		}
 
@@ -593,14 +612,11 @@ namespace RouteManager2
 				{
 					for (int i = Stations.Length -1; i > 0; i--)
 					{
-						if (!string.IsNullOrEmpty(InitialStationName))
+						if (!string.IsNullOrEmpty(InitialStationName) && string.Equals(InitialStationName, Stations[i].Name, StringComparison.InvariantCultureIgnoreCase))
 						{
-							if (InitialStationName.ToLowerInvariant() == Stations[i].Name.ToLowerInvariant())
-							{
-								return i;
-							}
+							return i;
 						}
-						if (Stations[i].StopMode == StationStopMode.AllStop | Stations[i].StopMode == StationStopMode.PlayerStop & Stations[i].Stops.Length != 0)
+						if (Stations[i].StopMode == StationStopMode.AllStop | Stations[i].StopMode == StationStopMode.PlayerStop && Stations[i].Stops.Length != 0)
 						{
 							if (f == false)
 							{
@@ -614,14 +630,11 @@ namespace RouteManager2
 				{
 					for (int i = 0; i < Stations.Length; i++)
 					{
-						if (!string.IsNullOrEmpty(InitialStationName))
+						if (!string.IsNullOrEmpty(InitialStationName) && string.Equals(InitialStationName, Stations[i].Name, StringComparison.InvariantCultureIgnoreCase))
 						{
-							if (InitialStationName.ToLowerInvariant() == Stations[i].Name.ToLowerInvariant())
-							{
-								return i;
-							}
+							return i;
 						}
-						if (Stations[i].StopMode == StationStopMode.AllStop | Stations[i].StopMode == StationStopMode.PlayerStop & Stations[i].Stops.Length != 0)
+						if (Stations[i].StopMode == StationStopMode.AllStop | Stations[i].StopMode == StationStopMode.PlayerStop && Stations[i].Stops.Length != 0)
 						{
 							if (f == false)
 							{

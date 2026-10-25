@@ -1,7 +1,9 @@
+using OpenBveApi.Colors;
 using OpenBveApi.Graphics;
 using OpenBveApi.Objects;
 using OpenBveApi.Routes;
 using OpenBveApi.Trains;
+using OpenBveApi.Interface;
 
 namespace OpenBveApi
 {
@@ -12,7 +14,7 @@ namespace OpenBveApi
 		public string LanguageCode;
 		/// <summary>Whether the program is to be run in full-screen mode</summary>
 		public bool FullscreenMode;
-		/// <summary>Whether the program is to be rendered using vertical syncronisation</summary>
+		/// <summary>Whether the program is to be rendered using vertical synchronisation</summary>
 		public bool VerticalSynchronization;
 		/// <summary>The screen width (Windowed Mode)</summary>
 		public int WindowWidth;
@@ -60,7 +62,7 @@ namespace OpenBveApi
 		public int InitialDestination = -1;
 		/// <summary>The initial camera viewpoint</summary>
 		public int InitialViewpoint = 0;
-		/// <summary>The speed limit for any preceeding AI trains</summary>
+		/// <summary>The speed limit for any preceding AI trains</summary>
 		public double PrecedingTrainSpeedLimit = double.PositiveInfinity;
 		/// <summary>The name of the current train</summary>
 		public string TrainName = "";
@@ -74,12 +76,32 @@ namespace OpenBveApi
 		 */
 		/// <summary>The minimum number of vertices for basic optimisation to be performed on an object</summary>
 		public int ObjectOptimizationBasicThreshold;
-		/// <summary>The minimum number of verticies for full optimisation to be performed on an object</summary>
-		public int ObjectOptimizationFullThreshold;
 		/// <summary>The maximum number of sounds playing at any one time</summary>
 		public int SoundNumber;
-		/// <summary>Whether to use the new rendering method.</summary>
-		public bool IsUseNewRenderer;
+		/// <summary>Shadow map resolution per cascade. Off disables shadows.</summary>
+		public ShadowMapResolution ShadowResolution = ShadowMapResolution.Off;
+		/// <summary>Maximum distance from the camera at which shadows appear.</summary>
+		public ShadowDistance ShadowDrawDistance = ShadowDistance.Medium;
+		/// <summary>Number of shadow cascades.</summary>
+		public ShadowCascadeCount ShadowCascades = ShadowCascadeCount.Three;
+		/// <summary>Shadow darkness strength. 0.0 = invisible, 1.0 = full black.</summary>
+		public double ShadowStrength = 0.7;
+		/// <summary>Shadow bias to prevent shadow acne.</summary>
+		public double ShadowBias = 0.000005; // default synced to 0.000005
+		/// <summary>Shadow normal bias in shadow-map texels (Unity-style). Typical 0.3-1.0; higher detaches shadows.</summary>
+		public double ShadowNormalBias = 0.8;
+		/// <summary>Whether to filter shadow casters per cascade to improve performance.</summary>
+		public bool ShadowFilterCascades = true;
+		/// <summary>Whether smooth (Vogel disk + IGN) shadow filtering is enabled. If false, sharp 4-tap grid is used.</summary>
+		public bool ShadowSmooth = true;
+		/// <summary>Shadow filter radius in texels for smooth mode (1.0 = sharper, 2.5 = softer).</summary>
+		public double ShadowFilterRadius = 1.5;
+
+
+		/// <summary>The sun azimuth in degrees</summary>
+		public double LightAzimuth = -26.57;
+		/// <summary>The sun elevation in degrees</summary>
+		public double LightElevation = 60.0;
 		/// <summary>Whether debug logs should be generated</summary>
 		public bool GenerateDebugLogging;
 		/// <summary>Whether loading sway is added</summary>
@@ -106,10 +128,25 @@ namespace OpenBveApi
 		/// <summary>Whether delayed animated updates based upon track position are used</summary>
 		/// <remarks>Not saved</remarks>
 		public bool DelayedAnimatedUpdates;
+		/// <summary>Whether the adhesion hack is enabled</summary>
+		/// <remarks>Not saved</remarks>
+		public bool AdhesionHack;
 		/// <summary>Enables scripted trains on BVE5 routes</summary>
 		public bool EnableBve5ScriptedTrain;
 		/// <summary>The scale factor for the user interface</summary>
 		public int UserInterfaceScaleFactor;
+		/// <summary>Whether loaded objects are automatically reloaded on change</summary>
+		public bool AutoReloadObjects;
+		
+		/// <summary>The near clipping plane for scenery</summary>
+		public double NearClipScenery = 0.5;
+		/// <summary>The near clipping plane for the cab</summary>
+		public double NearClipCab = 0.025;
+		/// <summary>The near clipping plane for the base renderer</summary>
+		public double NearClipBase = 0.2;
+		/// <summary>The color used by the renderer when issuing GL.Clear()</summary>
+		/// <remarks>Not saved</remarks>
+		public Color24 ClearColor = new Color24(170, 170, 170);
 
 		/// <summary>Saves the options to the specified filename</summary>
 		/// <param name="fileName">The filename to save the options to</param>

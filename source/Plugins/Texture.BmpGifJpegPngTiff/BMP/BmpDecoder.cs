@@ -31,6 +31,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using OpenBveApi;
 using OpenBveApi.Hosts;
 
 namespace Plugin.BMP
@@ -71,7 +72,7 @@ namespace Plugin.BMP
 		internal BitsPerPixel BitsPerPixel;
 		/// <summary>The image data</summary>
 		internal byte[] ImageData;
-		/// <summary>Stores the color table when using a restricted pallette</summary>
+		/// <summary>Stores the color table when using a restricted palette</summary>
 		internal Color24[] ColorTable;
 		/// <summary>The bitmap format</summary>
 		internal BmpFormat Format;
@@ -104,22 +105,21 @@ namespace Plugin.BMP
 					// not a bitmap file
 					return false;
 				}
-				fileSize = ToInt32(buffer, 2);
+				fileSize = LittleEndianBinaryExtensions.ToInt32(buffer, 2);
 				/*
 				 * Next 4 bytes are unused
 				 * Actually specified as application specific data, but in practice always set to zero
 				 * unless using some ridiculously obscure DOS stuff, which we can safely ignore
 				 */
-				dataOffset = ToInt32(buffer, 10);
+				dataOffset = LittleEndianBinaryExtensions.ToInt32(buffer, 10);
 
 				// INFO HEADER
-				buffer = new byte[4];
 				if (fileReader.Read(buffer, 0, 4) != 4)
 				{
 					Plugin.CurrentHost.ReportProblem(ProblemType.InvalidData, "Insufficient InfoHeader data in Bitmap file " + fileName);
 					return false;
 				}
-				int headerSize = ToInt32(buffer, 0);
+				int headerSize = LittleEndianBinaryExtensions.ToInt32(buffer, 0);
 				switch (headerSize)
 				{
 					case 12:
@@ -151,10 +151,10 @@ namespace Plugin.BMP
 				switch (Format)
 				{
 					case BmpFormat.OS2v1:
-						Width = ToInt16(buffer, 0);
-						Height = ToInt16(buffer, 2);
-						numPlanes = ToInt16(buffer, 4);
-						BitsPerPixel = (BitsPerPixel)ToInt16(buffer, 6);
+						Width = LittleEndianBinaryExtensions.ToInt16(buffer, 0);
+						Height = LittleEndianBinaryExtensions.ToInt16(buffer, 2);
+						numPlanes = LittleEndianBinaryExtensions.ToInt16(buffer, 4);
+						BitsPerPixel = (BitsPerPixel)LittleEndianBinaryExtensions.ToInt16(buffer, 6);
 						CompressionFormat = CompressionFormat.BI_RGB;
 						switch (BitsPerPixel)
 						{
@@ -174,10 +174,10 @@ namespace Plugin.BMP
 						}
 						break;
 					case BmpFormat.OS2v2:
-						Width = ToInt32(buffer, 0);
-						Height = ToInt32(buffer, 4);
-						numPlanes = ToInt16(buffer, 8);
-						BitsPerPixel = (BitsPerPixel)ToInt16(buffer, 10);
+						Width = LittleEndianBinaryExtensions.ToInt32(buffer, 0);
+						Height = LittleEndianBinaryExtensions.ToInt32(buffer, 4);
+						numPlanes = LittleEndianBinaryExtensions.ToInt16(buffer, 8);
+						BitsPerPixel = (BitsPerPixel)LittleEndianBinaryExtensions.ToInt16(buffer, 10);
 						CompressionFormat = CompressionFormat.BI_RGB;
 						switch (BitsPerPixel)
 						{
@@ -197,16 +197,16 @@ namespace Plugin.BMP
 						}
 						break;
 					default:
-						Width = ToInt32(buffer, 0);
-						Height = ToInt32(buffer, 4);
-						numPlanes = ToInt16(buffer, 8);
-						BitsPerPixel = (BitsPerPixel)ToInt16(buffer, 10);
-						CompressionFormat = (CompressionFormat)ToInt32(buffer, 12);
-						ImageResolution.X = ToInt32(buffer, 20);
-						ImageResolution.Y = ToInt32(buffer, 24);
-						ColorsUsed = ToInt32(buffer, 28);
-						ImportantColors = ToInt32(buffer, 32);
-						ImageSize = ToInt32(buffer, 16);
+						Width = LittleEndianBinaryExtensions.ToInt32(buffer, 0);
+						Height = LittleEndianBinaryExtensions.ToInt32(buffer, 4);
+						numPlanes = LittleEndianBinaryExtensions.ToInt16(buffer, 8);
+						BitsPerPixel = (BitsPerPixel)LittleEndianBinaryExtensions.ToInt16(buffer, 10);
+						CompressionFormat = (CompressionFormat)LittleEndianBinaryExtensions.ToInt32(buffer, 12);
+						ImageResolution.X = LittleEndianBinaryExtensions.ToInt32(buffer, 20);
+						ImageResolution.Y = LittleEndianBinaryExtensions.ToInt32(buffer, 24);
+						ColorsUsed = LittleEndianBinaryExtensions.ToInt32(buffer, 28);
+						ImportantColors = LittleEndianBinaryExtensions.ToInt32(buffer, 32);
+						ImageSize = LittleEndianBinaryExtensions.ToInt32(buffer, 16);
 						break;
 				}
 				
@@ -236,9 +236,10 @@ namespace Plugin.BMP
 					return false;
 				}
 				
-				if (ImageSize == 0 && Format > BmpFormat.OS2v2)
+				if (ImageSize == 0 && Format > BmpFormat.OS2v2 && CompressionFormat != CompressionFormat.BI_RGB)
 				{
-					/* Compressed image size of zero should only be valid with uncompressed data, unless OS/2 bitmaps
+					/* biSizeImage may legally be zero for uncompressed (BI_RGB) bitmaps,
+					 * and pixels are read up to EOF below, so only warn for compressed data.
 					 * However, continue to load and see what happens
 					 *
 					 * Only report this in debug mode, as this seems to be a 'common' problem....
@@ -285,7 +286,7 @@ namespace Plugin.BMP
 					/*
 					 * NOTE:
 					 * Documentation states that if the number of colors used is set to zero,
-					 * the color table is set to the one of the standard Windows color pallettes
+					 * the color table is set to the one of the standard Windows color palettes
 					 *
 					 * However, in practice there seem to be some bitmaps in the wild
 					 * which contain a color table regardless. 
@@ -296,6 +297,7 @@ namespace Plugin.BMP
 						case BitsPerPixel.Monochrome:
 							ColorsUsed = 2;
 							ColorTable = ColorPalettes.MonochromePalette;
+							AttemptToFindColorTable(fileReader, colorSize);
 							break;
 						case BitsPerPixel.FourBitPalletized:
 							ColorsUsed = 16;
@@ -338,36 +340,27 @@ namespace Plugin.BMP
 									{
 										destIdx = (Height - currentRow - 1) * Width * 4;
 									}
-									for (int currentPixel = 0; currentPixel < Width; currentPixel++)
+									
+									int currentPixel = 0;
+									while (currentPixel < Width)
 									{
-										for (int currentBit = 0; currentBit < 8; currentBit++)
+										int bitIdx = currentPixel % 8;
+										byte bit = ((buffer[sourceIdx] & 1 << (7 - bitIdx % 8)) != 0) ? (byte)1 : (byte)0;
+										ImageData[destIdx] = ColorTable[bit].R;
+										ImageData[destIdx + 1] = ColorTable[bit].G;
+										ImageData[destIdx + 2] = ColorTable[bit].B;
+										ImageData[destIdx + 3] = byte.MaxValue;
+										currentPixel++;
+										destIdx += 4;
+										if (bitIdx == 7)
 										{
-											if ((buffer[sourceIdx] & 1 << (7 - currentBit % 8)) != 0)
-											{
-												ImageData[destIdx] = ColorTable[1].R;
-												ImageData[destIdx + 1] = ColorTable[1].G;
-												ImageData[destIdx + 2] = ColorTable[1].B;
-												ImageData[destIdx + 3] = byte.MaxValue;
-											}
-											else
-											{
-												ImageData[destIdx] = ColorTable[0].R;
-												ImageData[destIdx + 1] = ColorTable[0].G;
-												ImageData[destIdx + 2] = ColorTable[0].B;
-												ImageData[destIdx + 3] = byte.MaxValue;
-											}
-											destIdx += 4;
-											currentPixel++;
-											if (currentPixel >= Width)
-											{
-												// A single byte contains 8px, but the image may not be of a multiple of this
-												break;
-											}
+											sourceIdx++;
 										}
-										sourceIdx++;
 									}
+
 									// BMP scan lines are zero-padded to the nearest 4-byte boundary
 									sourceIdx = sourceIdx % 4 == 0 ? sourceIdx : sourceIdx + 4 - sourceIdx % 4;
+
 								}
 								break;
 							case BitsPerPixel.TwoBitPalletized:
@@ -503,7 +496,7 @@ namespace Plugin.BMP
 									}
 									for (int currentPixel = 0; currentPixel < Width; currentPixel++)
 									{
-										short px = ToShort(buffer, sourceIdx);
+										short px = LittleEndianBinaryExtensions.ToShort(buffer, sourceIdx);
 										byte r = (byte)((px & 0xF800) >> 11);
 										byte g = (byte)((px & 0x07E0) >> 5);
 										byte b = (byte)(px & 0x1F);
@@ -793,16 +786,17 @@ namespace Plugin.BMP
 		{
 			int possibleColorTableSize = dataOffset - (int)fileReader.Position;
 			int possibleColors = possibleColorTableSize / colorSize;
-			if (possibleColors > 3) // color table appears to be present, even though length was declared as zero
+			if (possibleColors >= 2) // color table appears to be present, even though length was declared as zero
 			{
 				buffer = new byte[possibleColorTableSize];
 				// ReSharper disable once MustUseReturnValue
 				fileReader.Read(buffer, 0, possibleColorTableSize);
 				bool colorTableFound = false;
+				byte val = buffer[0];
 				for (int i = 0; i < buffer.Length; i++)
 				{
-					// sense check- there should be some colors here, not just pure black / white!
-					if (buffer[i] != byte.MinValue && buffer[i] != byte.MaxValue)
+					// sense check- there should be some colors here, not just zero / ones
+					if ((buffer[i] != byte.MinValue && buffer[i] != byte.MaxValue) || buffer[i] != val)
 					{
 						colorTableFound = true;
 						break;
@@ -845,37 +839,7 @@ namespace Plugin.BMP
 			rowPixel = 0;
 		}
 
-		/*
-		 * Couple of little helper methods
-		 * This is faster than using the BitConvertor as we don't have to init a new class every time we call it
-		 */
-
-		/// <summary>Gets a short from the specified offset in a byte array</summary>
-		/// <param name="byteArray">The byte array</param>
-		/// <param name="offset">The starting offset of the short</param>
-		internal short ToShort(byte[] byteArray, int offset)
-		{
-			short number = byteArray[offset + 1];
-			number <<= 4;
-			number += byteArray[offset];
-			return number;
-		}
-
-		/// <summary>Gets an Int16 from the specified offset in a byte array</summary>
-		/// <param name="byteArray">The byte array</param>
-		/// <param name="offset">The starting offset of the Int16</param>
-		internal int ToInt16(byte[] byteArray, int offset)
-		{
-			return byteArray[offset] | (byteArray[offset + 1] << 8);
-		}
-
-		/// <summary>Gets an Int32 from the specified offset in a byte array</summary>
-		/// <param name="byteArray">The byte array</param>
-		/// <param name="offset">The starting offset of the Int32</param>
-		internal int ToInt32(byte[] byteArray, int offset)
-		{
-			return (byteArray[offset] & 0xFF) | ((byteArray[offset + 1] & 0xFF) << 8) | ((byteArray[offset + 2] & 0xFF) << 16) | ((byteArray[offset + 3] & 0xFF) << 24);
-		}
+		
 
 		public void Dispose()
 		{

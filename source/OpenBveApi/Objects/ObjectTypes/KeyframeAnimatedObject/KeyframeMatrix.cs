@@ -35,33 +35,32 @@ namespace OpenBveApi.Objects
 		private readonly double zTranslation;
 
 		/// <summary>Creates a new keyframe matrix</summary>
-		public KeyframeMatrix(KeyframeAnimatedObject container, string name, Matrix4D matrix)
+		public KeyframeMatrix(KeyframeAnimatedObject container, int index, string name, Matrix4D matrix)
 		{
 			containerObject = container;
+			Index = index;
 			Name = name;
 			zTranslation = matrix.ExtractTranslation().Z;
 			_matrix = matrix;
 		}
 
+		/// <summary>The matrix index</summary>
+		public readonly int Index;
 		/// <summary>The matrix name</summary>
 		public readonly string Name;
 		/// <summary>The base matrix before transformations</summary>
-		internal readonly Matrix4D _matrix;
+		public Matrix4D _matrix;
 		/// <summary>Gets the final transformed matrix</summary>
 		public Matrix4D Matrix
 		{
 			get
 			{
-				Matrix4D matrix;
-				if (containerObject.Animations != null && containerObject.Animations.ContainsKey(Name))
+				Matrix4D matrix = _matrix;
+				if (containerObject.Animations.ContainsKey(Index))
 				{
-					matrix = containerObject.Animations[Name].Matrix;
+					matrix = containerObject.Animations[Index].Matrix;
 				}
-				else
-				{
-					matrix = _matrix;
-				}
-
+				
 				if (containerObject.Pivots.ContainsKey(Name) && containerObject.BaseCar != null)
 				{
 					// This somewhat misuses a single track follower, but it works OK

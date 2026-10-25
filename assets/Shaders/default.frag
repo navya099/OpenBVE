@@ -1,6 +1,6 @@
 //Simplified BSD License (BSD-2-Clause)
 //
-//Copyright (c) 2024, Christopher Lees, S520, The OpenBVE Project
+//Copyright (c) 2024, Christopher Lees, S520, Aditiya Afrizal, The OpenBVE Project
 //
 //Redistribution and use in source and binary forms, with or without
 //modification, are permitted provided that the following conditions are met:
@@ -22,14 +22,58 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#version 430 core
+#version 410 core
 precision highp float;
 in vec4 oViewPos;
 in vec2 oUv;
 in vec4 oColor;
 in vec4 oLightResult;
-uniform vec2 uAlphaTest;
+// --- SHADOW MAPPING ---
+uniform bool              uShadowEnabled;
+uniform float             uShadowStrength;
+uniform int               uShadowCascadeCount;
+uniform bool              uShadowSmooth;
+uniform float             uShadowFilterRadius;
+
+uniform sampler2DShadow   uShadowMap0;
+uniform sampler2DShadow   uShadowMap1;
+uniform sampler2DShadow   uShadowMap2;
+uniform sampler2DShadow   uShadowMap3;
+
+uniform float             uShadowSplit0;      // Boundary where cascade 0 ends and 1 begins
+uniform float             uShadowSplit1;      // Boundary where cascade 1 ends and 2 begins
+uniform float             uShadowSplit2;      // Boundary where cascade 2 ends and 3 begins
+uniform float             uShadowSplit3;      // Final shadow distance boundary
+
+uniform float             uShadowBias0;
+uniform float             uShadowBias1;
+uniform float             uShadowBias2;
+uniform float             uShadowBias3;
+
+uniform float             uShadowNormalBias0;
+uniform float             uShadowNormalBias1;
+uniform float             uShadowNormalBias2;
+uniform float             uShadowNormalBias3;
+
+uniform vec2              uAlphaTest;
 uniform sampler2D uTexture;
+
+struct Light
+{
+	vec3 position;
+	vec3 ambient;
+	vec3 diffuse;
+	vec3 specular;
+	vec4 lightModel;
+};
+uniform Light uLight;
+
+// Inputs from vertex shader
+in vec3  vNormal;
+in vec4  vPosLightSpace0;
+in vec4  vPosLightSpace1;
+in vec4  vPosLightSpace2;
+in vec4  vPosLightSpace3;
 uniform int uMaterialFlags;
 uniform float uBrightness;
 uniform float uOpacity;
@@ -40,6 +84,174 @@ uniform vec3  uFogColor;
 uniform float uFogDensity;
 uniform bool uFogIsLinear;
 out vec4 fragColor;
+
+const float SHADOW_TWO_PI = 6.28318530718;
+const float SHADOW_MIN_RADIUS = 0.5;
+const float SHADOW_MAX_RADIUS = 3.0;
+const float SHADOW_MIN_BLEND = 5.0;
+const float SHADOW_MAX_BLEND = 25.0;
+const float SHADOW_BLEND_FRACTION = 0.1;
+const float SHADOW_BIAS_GUARD_TEXELS = 4.0;
+const float SHADOW_BIAS_EPSILON = 0.00002;
+
+// Interleaved Gradient Noise (Jimenez 2014) - per-pixel rotation without texture
+float interleavedGradientNoise(vec2 p) {
+    const vec3 magic = vec3(0.06711056, 0.00583715, 52.9829189);
+    return fract(magic.z * fract(dot(p, magic.xy)));
+}
+
+// Precomputed Vogel disk (n=5): r=sqrt((i+0.5)/5), theta=i*GOLDEN_ANGLE.
+// Saves 5x sqrt + 4x cos/sin per pixel vs computing per-tap; single
+// rotation by phi (IGN) hides the sampling pattern.
+const vec2 VOGEL_DISK_5[5] = vec2[5](
+    vec2(0.31622777, 0.0),
+    vec2(-0.40387357, 0.36998127),
+    vec2(0.06181932, -0.70439930),
+    vec2(0.50905647, 0.66397403),
+    vec2(-0.93418124, -0.16524351)
+);
+vec2 vogelDiskSample(int i, float cosPhi, float sinPhi) {
+    vec2 o = VOGEL_DISK_5[i];
+    return vec2(o.x * cosPhi - o.y * sinPhi, o.x * sinPhi + o.y * cosPhi);
+}
+
+/// Samples a single cascade using hardware PCF.
+/// When uShadowSmooth is true: 5-tap Vogel disk + IGN rotation (soft, no banding).
+/// Each tap is hardware PCF bilinear (2x2) -> 5 taps effectively cover a smooth disk.
+/// When false: 4-tap tight grid (0.5 texel) for sharp, pixel-perfect shadows.
+/// bias is ~1 texel of depth (auto per-cascade + user). normalBias is now Unity-style
+/// texels (typ. 0.3-1.0); slope acne is mostly handled by the vertex normal offset,
+/// so the depth-side slope term stays small to avoid peter-panning.
+float GetCascadeShadowFactor(sampler2DShadow shadowMap, vec4 posLightSpace, float bias, float normalBias)
+{
+    vec3 projCoords = posLightSpace.xyz / posLightSpace.w;
+    projCoords = projCoords * 0.5 + 0.5;
+
+    // Out-of-bounds check
+    if (projCoords.x < 0.0 || projCoords.x > 1.0 ||
+        projCoords.y < 0.0 || projCoords.y > 1.0 ||
+        projCoords.z < 0.0 || projCoords.z > 1.0)
+    {
+        return 1.0;
+    }
+
+    // Slope-scaled Z-bias, deliberately small: 1 texel base + up to +1.5 texel at grazing.
+    // Capped so a stale config can't push shadows off their caster.
+    // Mesa-safe: a zero-length vNormal (uninitialized VAO normals) must not yield NaN.
+    // Fall back to the light direction so the slope term is 0 and shadows stay attached.
+    vec3 lightDir = uLight.position; // pre-normalized on CPU in SetLightPosition
+    float nLen2 = dot(vNormal, vNormal);
+    vec3 normal = nLen2 < 1e-10 ? lightDir : vNormal * inversesqrt(nLen2);
+    float slope = clamp(1.0 - dot(normal, lightDir), 0.0, 1.0);
+    float slopeScale = clamp(normalBias, 0.0, 1.5);
+    float activeBias = bias * (1.0 + slope * slopeScale);
+
+    vec2 texelSize = 1.0 / textureSize(shadowMap, 0);
+    // Single clamp, reused for both depth guard and UV spread.
+    // Soft kernel spreads taps in UV; depth only needs a small guard, not full scaling.
+    // Sharp (0.5 texel) -> 1.0x, max 3.0 -> ~1.6x (was ~2.9x, caused detachment in soft mode).
+    float radiusScaled = uShadowSmooth ? clamp(uShadowFilterRadius, SHADOW_MIN_RADIUS, SHADOW_MAX_RADIUS) : SHADOW_MIN_RADIUS;
+    float biasedDepth = projCoords.z - activeBias * (1.0 + (radiusScaled - SHADOW_MIN_RADIUS) * 0.25);
+    // Hard clamp: never push more than ~4 texels of depth + epsilon.
+    biasedDepth = max(biasedDepth, projCoords.z - (bias * SHADOW_BIAS_GUARD_TEXELS + SHADOW_BIAS_EPSILON));
+
+    if (uShadowSmooth) {
+        // Smooth path: Vogel disk + IGN - rotated per-pixel to hide sampling pattern.
+        // radius in texels: 1.5 = soft but detailed (exposed via uShadowFilterRadius, tune 1.0-2.5).
+        float phi = interleavedGradientNoise(gl_FragCoord.xy) * SHADOW_TWO_PI;
+        float cosPhi = cos(phi);
+        float sinPhi = sin(phi);
+        float shadow = 0.0;
+        // 5 taps, constant loop bounds -> driver will unroll; each tap is HW PCF bilinear.
+        for (int i = 0; i < 5; ++i) {
+            vec2 offset = vogelDiskSample(i, cosPhi, sinPhi) * texelSize * radiusScaled;
+            shadow += texture(shadowMap, vec3(projCoords.xy + offset, biasedDepth));
+        }
+        shadow *= 0.2;
+        return shadow;
+    } else {
+        // Sharp path: tight 4-tap grid at 0.5 texels, hardware PCF per tap.
+        float shadow = 0.0;
+        shadow += texture(shadowMap, vec3(projCoords.xy + vec2(-0.5, -0.5) * texelSize, biasedDepth));
+        shadow += texture(shadowMap, vec3(projCoords.xy + vec2( 0.5, -0.5) * texelSize, biasedDepth));
+        shadow += texture(shadowMap, vec3(projCoords.xy + vec2(-0.5,  0.5) * texelSize, biasedDepth));
+        shadow += texture(shadowMap, vec3(projCoords.xy + vec2( 0.5,  0.5) * texelSize, biasedDepth));
+        shadow *= 0.25;
+        return shadow;
+    }
+}
+
+/// Helper to sample a cascade by index.
+float SampleCascadeByIndex(int idx)
+{
+    if (idx == 0) return GetCascadeShadowFactor(uShadowMap0, vPosLightSpace0, uShadowBias0, uShadowNormalBias0);
+    if (idx == 1) return GetCascadeShadowFactor(uShadowMap1, vPosLightSpace1, uShadowBias1, uShadowNormalBias1);
+    if (idx == 2) return GetCascadeShadowFactor(uShadowMap2, vPosLightSpace2, uShadowBias2, uShadowNormalBias2);
+    if (idx == 3) return GetCascadeShadowFactor(uShadowMap3, vPosLightSpace3, uShadowBias3, uShadowNormalBias3);
+    return 1.0;
+}
+
+/// Helper to get the split distance of a cascade by index.
+float GetShadowSplitDistance(int idx)
+{
+    if (idx == 0) return uShadowSplit0;
+    if (idx == 1) return uShadowSplit1;
+    if (idx == 2) return uShadowSplit2;
+    if (idx == 3) return uShadowSplit3;
+    return 0.0;
+}
+
+/// Calculates the final shadow factor using CSM with smooth blending.
+float CalculateShadowFactor()
+{
+    if (!uShadowEnabled) return 1.0;
+    if (uShadowStrength <= 0.0) return 1.0; // strength 0 = no visible shadow, skip all fetches
+    
+    // Calculate view depth per-pixel for perspective correctness (crucial for large polygons like ground)
+    float vViewDepth = abs(oViewPos.z);
+
+    float shadow = 1.0;
+    int cascadeCount = uShadowCascadeCount;
+
+    for (int i = 0; i < cascadeCount; i++)
+    {
+        float splitDist = GetShadowSplitDistance(i);
+        // Proportional blend: 10% of split distance, clamped. Fixed 15.0 was
+        // too wide for near cascades and too narrow for far ones.
+        float blendRange = clamp(splitDist * SHADOW_BLEND_FRACTION, SHADOW_MIN_BLEND, SHADOW_MAX_BLEND);
+
+        if (vViewDepth < splitDist)
+        {
+            shadow = SampleCascadeByIndex(i);
+
+            // Blend toward next cascade near the boundary
+            if (i < cascadeCount - 1)
+            {
+                float blendStart = splitDist - blendRange;
+                if (vViewDepth > blendStart)
+                {
+                    float nextShadow = SampleCascadeByIndex(i + 1);
+                    float t = smoothstep(blendStart, splitDist, vViewDepth);
+                    shadow = mix(shadow, nextShadow, t);
+                }
+            }
+            else
+            {
+                // Last cascade: fade out at far edge
+                float fadeStart = splitDist - blendRange * 2.0;
+                if (vViewDepth > fadeStart)
+                {
+                    float t = smoothstep(fadeStart, splitDist, vViewDepth);
+                    shadow = mix(shadow, 1.0, t);
+                }
+            }
+
+            break;
+        }
+    }
+
+    return mix(1.0, shadow, uShadowStrength);
+}
 
 void main(void)
 {
@@ -101,7 +313,18 @@ void main(void)
 	 * as otherwise light coming through a semi-transparent material will 
 	 * affect it's final opacity, and hence whether its discarded or not
 	 */
-	finalColor *= oLightResult;
+	float shadow = CalculateShadowFactor();
+	
+	if ((uMaterialFlags & 1) == 0 && (uMaterialFlags & 4) == 0)
+	{
+		// Material is not emissive, apply shadow to the light factor
+		finalColor.rgb *= (oLightResult.rgb * shadow);
+		finalColor.a *= oLightResult.a;
+	}
+	else
+	{
+		finalColor *= oLightResult;
+	}
 	
 	// Fog
 	float fogFactor = 1.0;

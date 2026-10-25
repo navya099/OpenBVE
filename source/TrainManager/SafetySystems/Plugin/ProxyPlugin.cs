@@ -1,4 +1,28 @@
-﻿using System;
+//Simplified BSD License (BSD-2-Clause)
+//
+//Copyright (c) 2020, Christopher Lees, The OpenBVE Project
+//
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions are met:
+//
+//1. Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+//ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+//WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+//ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+//(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+//LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+//ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+//(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+//SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -28,10 +52,10 @@ namespace TrainManager.SafetySystems {
 			externalCrashed = false;
 			PluginTitle = System.IO.Path.GetFileName(pluginFile);
 			//Load the plugin via the proxy callback
-			var handle = Process.GetCurrentProcess().MainWindowHandle;
+			IntPtr handle = Process.GetCurrentProcess().MainWindowHandle;
 			try
 			{
-				var hostProcess = new Process();
+				Process hostProcess = new Process();
 				hostProcess.StartInfo.FileName = @"Win32PluginProxy.exe";
 				hostProcess.Start();
 				HostInterface.Win32PluginHostReady.WaitOne();
@@ -110,12 +134,24 @@ namespace TrainManager.SafetySystems {
 
 		public override void Unload()
 		{
-			pipeProxy.Unload();
+			if (externalCrashed == false)
+			{
+				pipeProxy.Unload();
+			}
 		}
 
 		public override void BeginJump(InitializationModes mode)
 		{
-			pipeProxy.BeginJump(mode);
+			try
+			{
+				pipeProxy.BeginJump(mode);
+			}
+			catch(Exception ex)
+			{
+				lastError = ex.ToString();
+				externalCrashed = true;
+			}
+			
 			if (SupportsAI == AISupport.Program)
 			{
 				AI.BeginJump(mode);
@@ -144,15 +180,16 @@ namespace TrainManager.SafetySystems {
 					}
 				}
 				Train.UnloadPlugin();
+				if (!string.IsNullOrEmpty(lastError))
+				{
+
+					TrainManagerBase.currentHost.AddMessage("The train plugin " + PluginTitle + " has been unloaded due to an error. Some train features may no longer work.");
+					TrainManagerBase.FileSystem.AppendToLogFile(lastError);
+					lastError = string.Empty;
+				}
 				return;
 			}
-			if (!string.IsNullOrEmpty(lastError))
-			{
-				
-				//TrainManagercurrentHost.A("ERROR: The proxy plugin " + PluginFile + " generated the following error:");
-				//Program.FileSystem.AppendToLogFile(pluginProxy.callback.lastError);
-				lastError = string.Empty;
-			}
+			
 
 			try
 			{

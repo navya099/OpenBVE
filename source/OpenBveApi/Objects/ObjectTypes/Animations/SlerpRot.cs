@@ -46,12 +46,12 @@ namespace OpenBveApi.Objects
 			Quaternion q = Quaternion.Slerp(animationFrames[currentFrame].Quaternion, animationFrames[interpolateFrame].Quaternion, (float)frac);
 			Vector3 location = matrix.ExtractTranslation();
 			Matrix4D newMatrix = Matrix4D.CreateFromQuaternion(q);
-			matrix *= newMatrix;
+			matrix = newMatrix;
 			matrix.Row3.Xyz = location;
 		}
 
-	    /// <inheritdoc />
-	    public override AbstractAnimation Clone()
+		/// <inheritdoc />
+		public override AbstractAnimation Clone()
 	    {
 		    return new SlerpRot(Name, animationFrames);
 	    }

@@ -16,14 +16,29 @@ jobs:
 - job: WindowsBuild
   displayName: 'Build on Windows (sln)'
   pool:
-    vmImage: 'windows-2019'
+    vmImage: 'windows-2022'
 
   variables:
     solution: 'OpenBVE.sln'
     buildPlatform: 'Any CPU'
     buildConfiguration: 'Release'
-
+    
   steps:
+  - task: ChocolateyCommand@0
+    inputs:
+      command: 'install'
+      installPackageId: 'dotnet4.6-targetpack'
+
+  - task: ChocolateyCommand@0
+    inputs:
+      command: 'install'
+      installPackageId: 'netfx-4.6.1-devpack'
+      
+  - task: ChocolateyCommand@0
+    inputs:
+      command: 'install'
+      installPackageId: 'netfx-4.6.2-devpack'
+      
   - task: NuGetToolInstaller@1
 
   - task: NuGetCommand@2
@@ -47,11 +62,12 @@ jobs:
      targetFolder: '/var/www/vps.bvecornwall.co.uk/public/OpenBVE/Stable/'
      overwrite: true
      readyTimeout: 90000
+    timeoutInMinutes: 5
 
 - job: AppleMakeBuild
   displayName: 'Build on Apple OS-X (makefile)'
   pool:
-    vmImage: 'macos-13'
+    vmImage: 'macos-14'
 
   variables:
     solution: 'OpenBVE.sln'
@@ -72,6 +88,7 @@ jobs:
      targetFolder: '/var/www/vps.bvecornwall.co.uk/public/OpenBVE/Stable/'
      overwrite: true
      readyTimeout: 90000
+    timeoutInMinutes: 5
 
 ### Linux makefile build
 ### This runs on the latest Mono version installed
@@ -79,7 +96,7 @@ jobs:
 - job: LinuxMakeBuild
   displayName: 'Build on Linux (makefile)'
   pool:
-    vmImage: 'ubuntu-20.04'
+    vmImage: 'ubuntu-22.04'
 
   variables:
     solution: 'OpenBVE.sln'
@@ -97,6 +114,7 @@ jobs:
      targetFolder: '/var/www/vps.bvecornwall.co.uk/public/OpenBVE/Stable/'
      overwrite: true
      readyTimeout: 90000
+    timeoutInMinutes: 5
      
 ### Linux makefile build
 ### This runs on the latest Mono version installed
@@ -104,7 +122,7 @@ jobs:
 - job: LinuxDebBuild
   displayName: 'Build on Linux (makefile, debian package)'
   pool:
-    vmImage: 'ubuntu-20.04'
+    vmImage: 'ubuntu-22.04'
 
   variables:
     solution: 'OpenBVE.sln'
@@ -122,3 +140,4 @@ jobs:
      targetFolder: '/var/www/vps.bvecornwall.co.uk/public/OpenBVE/Stable/'
      overwrite: true
      readyTimeout: 90000
+    timeoutInMinutes: 5

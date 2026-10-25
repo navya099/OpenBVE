@@ -25,8 +25,10 @@
 using System;
 using System.Text;
 using OpenBveApi;
+using OpenBveApi.Colors;
 using OpenBveApi.FileSystem;
 using OpenBveApi.Hosts;
+using OpenBveApi.Objects;
 using OpenBveApi.Routes;
 using RouteManager2;
 using TrainManager;
@@ -38,8 +40,6 @@ namespace Route.Bve5
 	    internal static HostInterface CurrentHost;
 
 	    internal static CurrentRoute CurrentRoute;
-
-	    internal static Random RandomNumberGenerator = new Random();
 
 	    internal static FileSystem FileSystem;
 
@@ -70,7 +70,7 @@ namespace Route.Bve5
 		    return Bve5ScenarioParser.IsBve5(path);
 	    }
 		
-	    public override bool LoadRoute(string path, Encoding Encoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly, ref object route)
+	    public override bool LoadRoute(string path, Encoding textEncoding, string trainPath, string objectPath, string soundPath, bool previewOnly, ref object route)
 	    {
 		    LastException = null;
 		    Cancel = false;
@@ -79,9 +79,23 @@ namespace Route.Bve5
 		    FileSystem.AppendToLogFile("Loading route file: " + path);
 		    FileSystem.AppendToLogFile("INFO: Route file hash " + Path.GetChecksum(path));
 		    CurrentRoute = (CurrentRoute)route;
-		    try
+
+		    CompatabilityHacks EnabledHacks = new CompatabilityHacks();
+		    EnabledHacks.BveTsHacks = CurrentOptions.EnableBveTsHacks;
+
+			// YUCK: Turn OFF transparency hack first of all (may be on if we've loaded something else)
+			for (int i = 0; i < CurrentHost.Plugins.Length; i++)
 		    {
-			    Bve5ScenarioParser.ParseScenario(path, PreviewOnly);
+			    if (CurrentHost.Plugins[i].Object != null)
+			    {
+				    EnabledHacks.TransparencyMode = BlackTransparencyMode.BMPOnly;
+				    CurrentHost.Plugins[i].Object.SetCompatibilityHacks(EnabledHacks);
+			    }
+		    }
+
+			try
+		    {
+			    Bve5ScenarioParser.ParseScenario(path, previewOnly);
 			    route = CurrentRoute;
 		    }
 		    catch(Exception ex)
@@ -90,7 +104,19 @@ namespace Route.Bve5
 			    return false;
 		    }
 
-		    return true;
+			// YUCK: Some trains need BVETSHacks or black transparency, but we don't want them turned on until the route is loaded
+		    for (int i = 0; i < CurrentHost.Plugins.Length; i++)
+		    {
+			    if (CurrentHost.Plugins[i].Object != null)
+			    {
+				    EnabledHacks.TransparencyMode = BlackTransparencyMode.AllFiles;
+				    EnabledHacks.BveTsHacks = CurrentOptions.EnableBveTsHacks;
+					CurrentHost.Plugins[i].Object.SetCompatibilityHacks(EnabledHacks);
+			    }
+		    }
+
+		    CurrentOptions.ClearColor = Color24.Black;
+			return true;
 
 	    }
     }

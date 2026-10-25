@@ -22,21 +22,44 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+using OpenBveApi.Interface;
+
 namespace TrainManager.Motor
 {
     public abstract class AbstractComponent
     {
 		/// <summary>Holds a reference to the base engine</summary>
-	    internal AbstractEngine baseEngine;
+	    internal TractionModel baseEngine;
 
-	    protected AbstractComponent(AbstractEngine engine)
+	    public readonly bool Automatic;
+
+
+	    protected AbstractComponent(TractionModel engine, bool automaticOperation)
 	    {
 			baseEngine = engine;
+			Automatic = automaticOperation;
+	    }
+
+	    protected AbstractComponent(TractionModel engine)
+	    {
+			baseEngine = engine;
+			Automatic = false;
 	    }
 
 	    public virtual void Update(double timeElapsed)
 	    {
-
 	    }
-    }
+
+	    /// <summary>Called when a control is raised</summary>
+	    /// <param name="Control">The control</param>
+	    public virtual void ControlUp(Translations.Command Control)
+	    {
+	    }
+
+	    /// <summary>Called when a control is pressed</summary>
+	    /// <param name="Control">The control</param>
+	    public virtual void ControlDown(Translations.Command Control)
+	    {
+	    }
+	}
 }

@@ -25,6 +25,7 @@ namespace LibRender2.Text
 		/// <summary>Represents the largest sans serif font.</summary>
 		public readonly OpenGlFont EvenLargerFont;
 
+
 		private static HostInterface currentHost;
 
 		/// <summary>Gets the next smallest font</summary>
@@ -74,7 +75,7 @@ namespace LibRender2.Text
 			}
 		}
 		
-		public Fonts(HostInterface host, string fontName)
+		public Fonts(HostInterface host, BaseRenderer renderer, string fontName)
 		{
 			currentHost = host;
 			FontFamily uiFont = FontFamily.GenericSansSerif;
@@ -92,7 +93,7 @@ namespace LibRender2.Text
 				
 			}
 
-			float scaleFactor = (float)BaseRenderer.ScaleFactor.X;
+			float scaleFactor = (float)renderer.ScaleFactor.X;
 			
 			VerySmallFont = new OpenGlFont(uiFont, 9.0f * scaleFactor);
 			SmallFont = new OpenGlFont(uiFont, 12.0f * scaleFactor);

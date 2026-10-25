@@ -23,9 +23,10 @@
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using Bve5_Parsing.MapGrammar.EvaluateData;
+using System.Threading.Tasks;
 using OpenBveApi;
 using OpenBveApi.Interface;
 using OpenBveApi.Objects;
@@ -33,44 +34,51 @@ using Path = OpenBveApi.Path;
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
-		private static void LoadStructureList(string FileName, bool PreviewOnly, MapData ParseData, RouteData RouteData)
+		/// <summary>A single deferred structure load collected from the structure list.</summary>
+		private struct PendingStructureEntry
+		{
+			internal string Key;
+			internal string FilePath;
+		}
+		private static void LoadStructureList(string FileName, bool PreviewOnly, string StructureListPath, RouteData RouteData)
 		{
 			RouteData.Objects = new ObjectDictionary();
 
-			if (PreviewOnly || string.IsNullOrEmpty(ParseData.StructureListPath))
+			if (PreviewOnly || string.IsNullOrEmpty(StructureListPath))
 			{
 				return;
 			}
 
-			string structureList = ParseData.StructureListPath;
-
-			if (!File.Exists(structureList))
+			if (!File.Exists(StructureListPath))
 			{
-				structureList = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), structureList);
+				StructureListPath = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), StructureListPath);
 
-				if (!File.Exists(structureList))
+				if (!File.Exists(StructureListPath))
 				{
-					Plugin.CurrentHost.AddMessage(MessageType.Error, true, "The BVE5 Structure List file " + structureList + " was not found.");
+					Plugin.CurrentHost.AddMessage(MessageType.Error, true, "BVE5: Structure List file " + StructureListPath + " was not found.");
 					return;
 				}
 			}
 
-			string BaseDirectory = System.IO.Path.GetDirectoryName(structureList);
+			string BaseDirectory = System.IO.Path.GetDirectoryName(StructureListPath);
 
-			System.Text.Encoding Encoding = Text.DetermineBVE5FileEncoding(structureList);
-			string[] Lines = File.ReadAllLines(structureList, Encoding).Select(Line => Line.Trim('"').Trim()).ToArray();
-			if (structureList.IndexOf("Tn_E235", StringComparison.InvariantCultureIgnoreCase) != -1)
+			System.Text.Encoding Encoding = Text.DetermineBVE5FileEncoding(StructureListPath);
+			string[] Lines = File.ReadAllLines(StructureListPath, Encoding).Select(Line => Line.Trim('"').Trim()).ToArray();
+			if (StructureListPath.IndexOf("Tn_E235", StringComparison.InvariantCultureIgnoreCase) != -1 || StructureListPath.IndexOf("TSLSeoul4", StringComparison.InvariantCultureIgnoreCase) != -1)
 			{
-				// This route uses some 5m track segments with over 1000 faces, which kill FPS, so set the optimisation threshold a little higher here
-				Plugin.CurrentOptions.ObjectOptimizationBasicThreshold = 5000;
+				// Preserve the existing safety threshold for the other route-specific workarounds.
+				Plugin.CurrentOptions.ObjectOptimizationBasicThreshold = 2000;
 			}
+			// Pass 1 (sequential, cheap): parse lines and emit warnings / errors in file order,
+			// collecting the entries whose object files actually need decoding.
+			List<PendingStructureEntry> entries = new List<PendingStructureEntry>();
 			for (int i = 1; i < Lines.Length; i++)
 			{
 				//Cycle through the list of objects
 				//An object index is formatted as follows:
-				// --KEY USED BY ROUTEFILE-- , --PATH TO OBJECT RELATIVE TO STRUCTURE FILE--
+				// --KEY USED BY ROUTEFILE-- , --PATH TO OBJECT RELATIVE TO STRUCTURE FILE-- , --OPTIONAL COMMENT ETC.--
 
 				Lines[i] = Lines[i].TrimBVE5Comments();
 				if (string.IsNullOrEmpty(Lines[i]))
@@ -78,17 +86,32 @@ namespace Route.Bve5
 					continue;
 				}
 
-				int a = Lines[i].IndexOf(',');
-				string FilePath = Lines[i].Substring(a + 1, Lines[i].Length - a - 1).Trim();
-
-				if (string.IsNullOrEmpty(FilePath) || a == -1)
+				if (string.IsNullOrEmpty(Lines[i]))
 				{
-					// empty object name
-					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "No object file was specified for key " + Lines[i]);
 					continue;
 				}
 
-				string Key = Lines[i].Substring(0, a).Trim();
+				string[] splitStrings = Lines[i].Split(',');
+				string Key = splitStrings[0].Trim();
+
+				if (splitStrings.Length < 2 || string.IsNullOrEmpty(splitStrings[1]))
+				{
+					// empty object file name
+					if (string.Equals(Key, "null", StringComparison.InvariantCultureIgnoreCase) || string.Equals(Key, "empty", StringComparison.InvariantCultureIgnoreCase))
+					{
+						RouteData.Objects.Add(Key, new StaticObject(Plugin.CurrentHost));
+					}
+					else
+					{
+						// Like BVE5, a key with no file is a null mesh, skipped silently later.
+						RouteData.Objects.Add(Key, null);
+					}
+					continue;
+				}
+
+				
+				string FilePath = splitStrings[1].Trim();
+				FilePath = FilePath.Trim('"', '\''); 
 				try
 				{
 					FilePath = Path.CombineFile(BaseDirectory, FilePath);
@@ -100,13 +123,131 @@ namespace Route.Bve5
 
 				if (!File.Exists(FilePath))
 				{
-					Plugin.CurrentHost.AddMessage(MessageType.Error, false, "The Object File " + FilePath + " with key " + Key + " was not found.");
+					Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Object File " + splitStrings[1] + " with key " + Key + " was not found.");
 					continue;
 				}
 
-				System.Text.Encoding ObjectEncoding = TextEncoding.GetSystemEncodingFromFile(FilePath);
-				Plugin.CurrentHost.LoadObject(FilePath, ObjectEncoding, out UnifiedObject obj);
-				RouteData.Objects.Add(Key, obj);
+				entries.Add(new PendingStructureEntry { Key = Key, FilePath = FilePath });
+			}
+			// Pass 2: decode the (deduplicated) object files in parallel, then commit per key
+			// in file order with the old loop's semantics (failed loads still store null).
+			LoadAndCommitStructureEntries(RouteData, entries);
+		}
+
+		/// <summary>Computes worker count from machine capability, reserving one thread for the loading screen on small machines.</summary>
+		private static int ComputeStructureLoadDop()
+		{
+			int cpu = Environment.ProcessorCount;
+			if (cpu <= 4)
+			{
+				return Math.Max(1, cpu - 1);
+			}
+			return Math.Min(8, cpu);
+		}
+
+		/// <summary>Decodes pending structure objects in parallel, then commits them per key in file order.</summary>
+		private static void LoadAndCommitStructureEntries(RouteData routeData, List<PendingStructureEntry> entries)
+		{
+			int n = entries.Count;
+			if (n == 0 || plugin.Cancel)
+			{
+				return;
+			}
+
+			// Dedupe by exact path: each unique file is decoded once, shared files are cloned per key below.
+			List<string> uniquePaths = new List<string>();
+			Dictionary<string, int> uniqueIndex = new Dictionary<string, int>(StringComparer.Ordinal);
+			int[] prototypeIndex = new int[n];
+			for (int i = 0; i < n; i++)
+			{
+				if (!uniqueIndex.TryGetValue(entries[i].FilePath, out int u))
+				{
+					u = uniquePaths.Count;
+					uniqueIndex.Add(entries[i].FilePath, u);
+					uniquePaths.Add(entries[i].FilePath);
+				}
+				prototypeIndex[i] = u;
+			}
+
+			int m = uniquePaths.Count;
+			UnifiedObject[] prototypes = new UnifiedObject[m];
+			int dop = ComputeStructureLoadDop();
+
+			if (dop <= 1 || m < 2)
+			{
+				for (int u = 0; u < m && !plugin.Cancel; u++)
+				{
+					prototypes[u] = LoadSingleStructure(uniquePaths[u]);
+				}
+			}
+			else
+			{
+				// Workers handle distinct files via thread-safe host loads (caches, messages and
+				// object parsers are all lock-protected, as in the CSV route parser).
+				ParallelOptions options = new ParallelOptions { MaxDegreeOfParallelism = dop };
+				Parallel.For(0, m, options, u =>
+				{
+					if (plugin.Cancel)
+					{
+						return;
+					}
+					prototypes[u] = LoadSingleStructure(uniquePaths[u]);
+				});
+			}
+
+			if (plugin.Cancel)
+			{
+				return;
+			}
+
+			// Commit in file order; each key gets its own instance.
+			int[] useCount = new int[m];
+			for (int i = 0; i < n; i++)
+			{
+				useCount[prototypeIndex[i]]++;
+			}
+			for (int i = 0; i < n; i++)
+			{
+				UnifiedObject prototype = prototypes[prototypeIndex[i]];
+				if (prototype == null)
+				{
+					// Mirrors the old loop, which ignored LoadObject's return value and stored null.
+					routeData.Objects.Add(entries[i].Key, null);
+					continue;
+				}
+				if (useCount[prototypeIndex[i]] < 2)
+				{
+					routeData.Objects.Add(entries[i].Key, prototype);
+					continue;
+				}
+				try
+				{
+					routeData.Objects.Add(entries[i].Key, prototype.Clone());
+				}
+				catch
+				{
+					// Fall back to a sequential host load (served from the host cache populated above).
+					Plugin.CurrentHost.LoadObject(entries[i].FilePath, TextEncoding.GetSystemEncodingFromFile(entries[i].FilePath), out UnifiedObject fallback);
+					routeData.Objects.Add(entries[i].Key, fallback);
+				}
+			}
+		}
+
+		/// <summary>Decodes a single structure file, returning null on any failure.</summary>
+		private static UnifiedObject LoadSingleStructure(string filePath)
+		{
+			try
+			{
+				System.Text.Encoding objectEncoding = TextEncoding.GetSystemEncodingFromFile(filePath);
+				if (Plugin.CurrentHost.LoadObject(filePath, objectEncoding, out UnifiedObject obj))
+				{
+					return obj;
+				}
+				return null;
+			}
+			catch
+			{
+				return null;
 			}
 		}
 	}

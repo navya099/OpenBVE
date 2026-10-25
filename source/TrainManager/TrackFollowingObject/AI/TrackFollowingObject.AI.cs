@@ -1,8 +1,37 @@
-﻿using System;
+//Simplified BSD License (BSD-2-Clause)
+//
+//Copyright (c) 2025, S520, The OpenBVE Project
+//
+//Redistribution and use in source and binary forms, with or without
+//modification, are permitted provided that the following conditions are met:
+//
+//1. Redistributions of source code must retain the above copyright notice, this
+//   list of conditions and the following disclaimer.
+//2. Redistributions in binary form must reproduce the above copyright notice,
+//   this list of conditions and the following disclaimer in the documentation
+//   and/or other materials provided with the distribution.
+//
+//THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+//ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+//WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+//DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+//ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+//(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+//LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+//ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+//(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+//SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+using System;
 using System.Linq;
+using OpenBveApi;
+using OpenBveApi.Interface;
+using OpenBveApi.Motor;
 using OpenBveApi.Routes;
 using OpenBveApi.Trains;
+using TrainManager.Car;
 using TrainManager.Handles;
+using TrainManager.Motor;
 
 namespace TrainManager.Trains
 {
@@ -93,7 +122,23 @@ namespace TrainManager.Trains
 			{
 				double oldSpeed = Train.CurrentSpeed;
 				Train.CurrentSpeed = DeltaPosition / TimeElapsed;
-				Train.Specs.CurrentAverageAcceleration = (int)NewDirection * (Train.CurrentSpeed - oldSpeed) / TimeElapsed;
+				if (Math.Abs(Train.CurrentSpeed - oldSpeed) < 0.0001)
+				{
+					/*
+					 * The TFO model sets the current speed directly
+					 * However, the physics engine alters it via resistance
+					 * etc. - This causes the sounds to bug out with constant
+					 * acceleration / deceleration by a tiny fraction
+					 * 
+					 * So, if our speed delta is very minimal here, let's assume
+					 * we're not actually doing anything....
+					 */
+					Train.Specs.CurrentAverageAcceleration = 0;
+				}
+				else
+				{
+					Train.Specs.CurrentAverageAcceleration = (int)NewDirection * (Train.CurrentSpeed - oldSpeed) / TimeElapsed;
+				}
 			}
 			else
 			{
@@ -101,7 +146,7 @@ namespace TrainManager.Trains
 				Train.Specs.CurrentAverageAcceleration = 0.0;
 			}
 
-			foreach (var Car in Train.Cars)
+			foreach (CarBase Car in Train.Cars)
 			{
 				SetRailIndex(NewMileage, NewDirection, Car.FrontAxle.Follower);
 				SetRailIndex(NewMileage, NewDirection, Car.RearAxle.Follower);
@@ -115,7 +160,26 @@ namespace TrainManager.Trains
 				Car.CurrentSpeed = Train.CurrentSpeed;
 				Car.Specs.PerceivedSpeed = Train.CurrentSpeed;
 				Car.Specs.Acceleration = Train.Specs.CurrentAverageAcceleration;
-				Car.Specs.MotorAcceleration = Train.Specs.CurrentAverageAcceleration;
+				Car.TractionModel.CurrentAcceleration = Train.Specs.CurrentAverageAcceleration;
+
+				// Traction model related AI
+				if (Car.TractionModel.Components.TryGetTypedValue(EngineComponent.Pantograph, out Pantograph p) && p.State == PantographState.Lowered)
+				{
+					p.Raise();
+				}
+
+				if (Car.TractionModel.Components.TryGetTypedValue(EngineComponent.CylinderCocks, out CylinderCocks c) && !c.Automatic)
+				{
+					if (Car.CurrentSpeed == 0 && c.Opened == false)
+					{
+						c.ControlDown(Translations.Command.CylinderCocks);
+					}
+
+					if (Car.CurrentSpeed > 5 && c.Opened)
+					{
+						c.ControlDown(Translations.Command.CylinderCocks);
+					}
+				}
 			}
 
 			CurrentPosition = NewPosition;

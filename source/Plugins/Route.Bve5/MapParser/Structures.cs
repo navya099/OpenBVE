@@ -22,6 +22,7 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+using System;
 using System.Collections.Generic;
 using OpenBveApi.Objects;
 using OpenBveApi.Routes;
@@ -30,7 +31,7 @@ using TrainManager.Motor;
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
 		internal class Block
 		{
@@ -102,11 +103,13 @@ namespace Route.Bve5
 		private class CarSound
 		{
 			internal readonly string Key;
-			internal readonly double Distance1;
-			internal readonly double Distance2;
+			internal readonly double? Distance1;
+			internal readonly double? Distance2;
 			internal readonly BVE5AISoundControl Function;
 
-			internal CarSound(string key, double distance1, double distance2, BVE5AISoundControl function)
+			internal double Radius => Distance1.HasValue && Distance2.HasValue ? Math.Abs(Distance2.Value - Distance1.Value) / 2 : 4;
+
+			internal CarSound(string key, double? distance1, double? distance2, BVE5AISoundControl function)
 			{
 				Key = key;
 				Distance1 = distance1;

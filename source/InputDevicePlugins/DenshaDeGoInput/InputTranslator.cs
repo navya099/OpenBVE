@@ -188,7 +188,7 @@ namespace DenshaDeGoInput
 		/// <summary>
 		/// The GUID of the active controller.
 		/// </summary>
-		internal static Guid ActiveControllerGuid = new Guid();
+		internal static Guid ActiveControllerGuid = Guid.Empty;
 
 		/// <summary>
 		/// Whether the active controller is connected or not.
@@ -261,18 +261,6 @@ namespace DenshaDeGoInput
 			}
 			// Unbalance controllers
 			foreach (KeyValuePair<Guid, Controller> controller in UnbalanceController.GetControllers())
-			{
-				if (!Controllers.ContainsKey(controller.Key))
-				{
-					Controllers.Add(controller.Key, controller.Value);
-				}
-				else
-				{
-					Controllers[controller.Key] = controller.Value;
-				}
-			}
-			// Zuiki controllers
-			foreach (KeyValuePair<Guid, Controller> controller in ZuikiController.GetControllers())
 			{
 				if (!Controllers.ContainsKey(controller.Key))
 				{

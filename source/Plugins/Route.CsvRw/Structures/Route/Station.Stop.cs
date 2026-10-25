@@ -1,5 +1,6 @@
 ﻿using System;
 using OpenBveApi.Math;
+using OpenBveApi.Objects;
 using OpenBveApi.World;
 using RouteManager2.Stations;
 
@@ -29,12 +30,11 @@ namespace CsvRwRouteParser
 				double dx = 1.8 * Direction;
 				double dz = TrackPosition - StartingDistance;
 				wpos += dx * RailTransformation.X + dz * RailTransformation.Z;
-				double tpos = TrackPosition;
 				if (CompatibilityObjects.StopPost == null)
 				{
 					return;
 				}
-				CompatibilityObjects.StopPost.CreateObject(wpos, RailTransformation, Transformation.NullTransformation, -1, StartingDistance, EndingDistance, tpos, b);
+				CompatibilityObjects.StopPost.CreateObject(wpos, RailTransformation, Transformation.NullTransformation, new ObjectCreationParameters(TrackPosition, 0, StartingDistance, EndingDistance, b));
 			}
 		}
 
@@ -57,7 +57,7 @@ namespace CsvRwRouteParser
 			}
 			
 			Stations[StationIndex].Stops[t].Cars = Cars;
-			double dx, dy = 2.0;
+			double dx = 0.0;
 			if (Stations[StationIndex].OpenLeftDoors & !Stations[StationIndex].OpenRightDoors)
 			{
 				dx = -5.0;
@@ -66,12 +66,8 @@ namespace CsvRwRouteParser
 			{
 				dx = 5.0;
 			}
-			else
-			{
-				dx = 0.0;
-			}
 
-			Stations[StationIndex].SoundOrigin = Position + dx * Side + dy * Up;
+			Stations[StationIndex].SoundOrigin = Position + dx * Side + 2.0 * Up;
 		}
 	}
 }

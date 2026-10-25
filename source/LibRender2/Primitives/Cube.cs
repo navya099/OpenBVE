@@ -24,8 +24,10 @@
 
 
 using System.Linq;
+using LibRender2.Shaders;
 using OpenBveApi.Colors;
 using OpenBveApi.Math;
+using OpenBveApi.Objects;
 using OpenBveApi.Textures;
 using OpenBveApi.World;
 using OpenTK.Graphics.OpenGL;
@@ -33,7 +35,7 @@ using Vector2 = OpenBveApi.Math.Vector2;
 
 namespace LibRender2.Primitives
 {
-	/// <summary>A Cube of nomimal 1.0 size</summary>
+	/// <summary>A Cube of nominal 1.0 size</summary>
 	public class Cube
 	{
 		private readonly BaseRenderer renderer;
@@ -56,25 +58,43 @@ namespace LibRender2.Primitives
 				{
 					Position = new Vector3f(1.0f, 1.0f, 1.0f),
 					UV = Vector2f.Null,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, 1.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, 1.0f, 1.0f),
 					UV = Vector2f.Right,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, 1.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, -1.0f, 1.0f),
 					UV = Vector2f.One,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, 1.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(1.0f, 1.0f, 1.0f),
+					UV = Vector2f.Null,
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, 1.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(-1.0f, -1.0f, 1.0f),
+					UV = Vector2f.One,
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, 1.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, -1.0f, 1.0f),
 					UV = Vector2f.Down,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, 1.0f),
 				},
 
 				// right
@@ -82,25 +102,43 @@ namespace LibRender2.Primitives
 				{
 					Position = new Vector3f(1.0f, 1.0f, 1.0f),
 					UV = Vector2f.Right,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(1.0f, 0.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, -1.0f, 1.0f),
 					UV = Vector2f.One,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(1.0f, 0.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, -1.0f, -1.0f),
 					UV = Vector2f.Down,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(1.0f, 0.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(1.0f, 1.0f, 1.0f),
+					UV = Vector2f.Right,
+					Color = color,
+					Normal = new Vector3f(1.0f, 0.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(1.0f, -1.0f, -1.0f),
+					UV = Vector2f.Down,
+					Color = color,
+					Normal = new Vector3f(1.0f, 0.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, 1.0f, -1.0f),
 					UV = Vector2f.Null,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(1.0f, 0.0f, 0.0f),
 				},
 
 				// top
@@ -108,25 +146,43 @@ namespace LibRender2.Primitives
 				{
 					Position = new Vector3f(1.0f, 1.0f, 1.0f),
 					UV = Vector2f.Right,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 1.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, 1.0f, -1.0f),
 					UV = Vector2f.One,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 1.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, 1.0f, -1.0f),
 					UV = Vector2f.Down,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 1.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(1.0f, 1.0f, 1.0f),
+					UV = Vector2f.Right,
+					Color = color,
+					Normal = new Vector3f(0.0f, 1.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(-1.0f, 1.0f, -1.0f),
+					UV = Vector2f.Down,
+					Color = color,
+					Normal = new Vector3f(0.0f, 1.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, 1.0f, 1.0f),
 					UV = Vector2f.Null,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 1.0f, 0.0f),
 				},
 
 				// front
@@ -134,25 +190,43 @@ namespace LibRender2.Primitives
 				{
 					Position = new Vector3f(-1.0f, -1.0f, -1.0f),
 					UV = Vector2f.Down,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, -1.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, 1.0f, -1.0f),
 					UV = Vector2f.Null,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, -1.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, 1.0f, -1.0f),
 					UV = Vector2f.Right,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, -1.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(-1.0f, -1.0f, -1.0f),
+					UV = Vector2f.Down,
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, -1.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(1.0f, 1.0f, -1.0f),
+					UV = Vector2f.Right,
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, -1.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, -1.0f, -1.0f),
 					UV = Vector2f.One,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, 0.0f, -1.0f),
 				},
 
 				// left
@@ -160,25 +234,43 @@ namespace LibRender2.Primitives
 				{
 					Position = new Vector3f(-1.0f, -1.0f, -1.0f),
 					UV = Vector2f.One,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(-1.0f, 0.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, -1.0f, 1.0f),
 					UV = Vector2f.Down,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(-1.0f, 0.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, 1.0f, 1.0f),
 					UV = Vector2f.Null,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(-1.0f, 0.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(-1.0f, -1.0f, -1.0f),
+					UV = Vector2f.One,
+					Color = color,
+					Normal = new Vector3f(-1.0f, 0.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(-1.0f, 1.0f, 1.0f),
+					UV = Vector2f.Null,
+					Color = color,
+					Normal = new Vector3f(-1.0f, 0.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, 1.0f, -1.0f),
 					UV = Vector2f.Right,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(-1.0f, 0.0f, 0.0f),
 				},
 
 				// bottom
@@ -186,46 +278,53 @@ namespace LibRender2.Primitives
 				{
 					Position = new Vector3f(-1.0f, -1.0f, -1.0f),
 					UV = Vector2f.Null,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, -1.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, -1.0f, -1.0f),
 					UV = Vector2f.Right,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, -1.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(1.0f, -1.0f, 1.0f),
 					UV = Vector2f.One,
-					Color = color
+					Color = color,
+					Normal = new Vector3f(0.0f, -1.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(-1.0f, -1.0f, -1.0f),
+					UV = Vector2f.Null,
+					Color = color,
+					Normal = new Vector3f(0.0f, -1.0f, 0.0f),
 				},
 				new LibRenderVertex
 				{
 					Position = new Vector3f(-1.0f, -1.0f, 1.0f),
 					UV = Vector2f.Down,
-					Color = color
-				}
+					Color = color,
+					Normal = new Vector3f(0.0f, -1.0f, 0.0f),
+				},
+				new LibRenderVertex
+				{
+					Position = new Vector3f(1.0f, -1.0f, 1.0f),
+					UV = Vector2f.One,
+					Color = color,
+					Normal = new Vector3f(0.0f, -1.0f, 0.0f),
+				},
 			};
 
-			if (!renderer.ForceLegacyOpenGL)
-			{
-				try
-				{
-					defaultVAO = new VertexArrayObject();
-					defaultVAO.Bind();
-					defaultVAO.SetVBO(new VertexBufferObject(vertexData, BufferUsageHint.StaticDraw));
-					defaultVAO.SetIBO(new IndexBufferObjectUS(Enumerable.Range(0, vertexData.Length).Select(x => (ushort)x).ToArray(), BufferUsageHint.StaticDraw));
-					defaultVAO.SetAttributes(renderer.DefaultShader.VertexLayout);
-					defaultVAO.UnBind();
-				}
-				catch
-				{
-					renderer.ForceLegacyOpenGL = true;
-				}
-				
-			}
-		}
+			defaultVAO = new VertexArrayObject();
+			defaultVAO.Bind();
+			defaultVAO.SetVBO(new VertexBufferObject(vertexData, BufferUsageHint.StaticDraw));
+			defaultVAO.SetIBO(new IndexBufferObjectUS(Enumerable.Range(0, vertexData.Length).Select(x => (ushort)x).ToArray(), BufferUsageHint.StaticDraw));
+			defaultVAO.SetAttributes(renderer.DefaultShader.VertexLayout);
+			defaultVAO.UnBind();
+        }
 
 		/// <summary>Draws a 3D cube</summary>
 		/// <param name="Position">The position in world-space</param>
@@ -237,15 +336,8 @@ namespace LibRender2.Primitives
 		/// <param name="TextureIndex">The texture to apply</param>
 		public void Draw(Vector3 Position, Vector3 Direction, Vector3 Up, Vector3 Side, double Size, Vector3 Camera, Texture TextureIndex)
 		{
-			if (renderer.AvailableNewRenderer)
-			{
-				Draw(Position, Direction, Up, Side, new Vector3(Size, Size, Size), Camera, TextureIndex);
-			}
-			else
-			{
-				DrawImmediate(Position, Direction, Up, Side, new Vector3(Size, Size, Size), Camera, TextureIndex);
-			}
-		}
+			Draw(Position, Direction, Up, Side, new Vector3(Size, Size, Size), Camera, TextureIndex);
+        }
 
 		/// <summary>Draws a 3D cube</summary>
 		/// <param name="Position">The position in world-space</param>
@@ -257,15 +349,56 @@ namespace LibRender2.Primitives
 		/// <param name="TextureIndex">The texture to apply</param>
 		public void Draw(Vector3 Position, Vector3 Direction, Vector3 Up, Vector3 Side, Vector3 Size, Vector3 Camera, Texture TextureIndex)
 		{
-			if (renderer.AvailableNewRenderer)
+			DrawRetained(defaultVAO, Position, Direction, Up, Side, Size, Camera, TextureIndex);
+        }
+
+		/// <summary>Draws a 3D cube with the currently bound shader, lighting and shadow state</summary>
+		/// <remarks>Unlike Draw, this does not reset the shader: the caller must have activated DefaultShader with lighting and shadow maps bound. Uses a default white material so the vertex colors render unmodified, mirroring RenderFace state handling.</remarks>
+		/// <param name="Position">The position in world-space</param>
+		/// <param name="Direction">The direction vector</param>
+		/// <param name="Up">The up vector</param>
+		/// <param name="Side">The side vector</param>
+		/// <param name="Size">A 3D vector describing the size of the cube</param>
+		/// <param name="Camera">The camera position</param>
+		public void DrawLit(Vector3 Position, Vector3 Direction, Vector3 Up, Vector3 Side, Vector3 Size, Vector3 Camera)
+		{
+			Shader shader = renderer.DefaultShader;
+			shader.Activate();
+			// matrix
+			shader.SetCurrentModelViewMatrix(Matrix4D.Scale(Size) * (Matrix4D)new Transformation(Direction, Up, Side) * Matrix4D.CreateTranslation(Position.X - Camera.X, Position.Y - Camera.Y, -Position.Z + Camera.Z) * renderer.CurrentViewMatrix);
+			shader.SetCurrentTextureMatrix(Matrix4D.Identity);
+			shader.DisableTexturing();
+			// default white material so the vertex colors render unmodified
+			shader.SetMaterialFlags(MaterialFlags.None);
+			if (renderer.OptionLighting)
 			{
-				DrawRetained(defaultVAO, Position, Direction, Up, Side, Size, Camera, TextureIndex);
+				shader.SetMaterialAmbient(Color32.White);
+				shader.SetMaterialDiffuse(Color32.White);
+				shader.SetMaterialSpecular(Color32.White);
+				shader.SetMaterialShininess(1.0f);
 			}
 			else
 			{
-				DrawImmediate(Position, Direction, Up, Side, Size, Camera, TextureIndex);
+				shader.SetMaterialAmbient(Color32.White);
 			}
-		}
+			// keep the renderer's color cache in sync so following faces set their own state
+			renderer.lastColor = Color32.White;
+			// match the day/night brightness of a plain static face (no glow, no night texture)
+			float blendFactor = 1.0f - renderer.Lighting.OptionLightingResultingAmount;
+			if (blendFactor > 1.0f)
+			{
+				blendFactor = 1.0f;
+			}
+			if (blendFactor < 0.0f)
+			{
+				blendFactor = 0.0f;
+			}
+			shader.SetBrightness(1.0f - 0.7f * blendFactor);
+			shader.SetOpacity(1.0f);
+			// render polygon
+			defaultVAO.Bind();
+			defaultVAO.Draw(PrimitiveType.Triangles);
+        }
 
 		/// <summary>Draws a 3D cube</summary>
 		/// <param name="VAO"></param>
@@ -297,99 +430,8 @@ namespace LibRender2.Primitives
 
 			// render polygon
 			VAO.Bind();
-			VAO.Draw(PrimitiveType.Quads);
+			VAO.Draw(PrimitiveType.Triangles);
 			GL.Disable(EnableCap.Texture2D);
-		}
-
-		/// <summary>Draws a 3D cube in immediate mode</summary>
-		/// <param name="Position">The position in world-space</param>
-		/// <param name="Direction">The direction vector</param>
-		/// <param name="Up">The up vector</param>
-		/// <param name="Side">The side vector</param>
-		/// <param name="Size">A 3D vector describing the size of the cube</param>
-		/// <param name="Camera">The camera position</param>
-		/// <param name="TextureIndex">The texture to apply</param>
-		private void DrawImmediate(Vector3 Position, Vector3 Direction, Vector3 Up, Vector3 Side, Vector3 Size, Vector3 Camera, Texture TextureIndex)
-		{
-			renderer.LastBoundTexture = null;
-			GL.MatrixMode(MatrixMode.Projection);
-			GL.PushMatrix();
-			GL.LoadIdentity();
-			OpenTK.Matrix4d perspective = OpenTK.Matrix4d.Perspective(renderer.Camera.VerticalViewingAngle, -renderer.Screen.AspectRatio, 0.2, 1000.0);
-			GL.MultMatrix(ref perspective);
-			double dx = renderer.Camera.AbsoluteDirection.X;
-			double dy = renderer.Camera.AbsoluteDirection.Y;
-			double dz = renderer.Camera.AbsoluteDirection.Z;
-			double ux = renderer.Camera.AbsoluteUp.X;
-			double uy = renderer.Camera.AbsoluteUp.Y;
-			double uz = renderer.Camera.AbsoluteUp.Z;
-			OpenTK.Matrix4d lookat = OpenTK.Matrix4d.LookAt(0.0, 0.0, 0.0, dx, dy, dz, ux, uy, uz);
-			GL.MatrixMode(MatrixMode.Modelview);
-			GL.PushMatrix();
-			GL.LoadMatrix(ref lookat);
-			Vector3[] v = new Vector3[8];
-			v[0] = new Vector3(Size.X, Size.Y, -Size.Z);
-			v[1] = new Vector3(Size.X, -Size.Y, -Size.Z);
-			v[2] = new Vector3(-Size.X, -Size.Y, -Size.Z);
-			v[3] = new Vector3(-Size.X, Size.Y, -Size.Z);
-			v[4] = new Vector3(Size.X, Size.Y, Size.Z);
-			v[5] = new Vector3(Size.X, -Size.Y, Size.Z);
-			v[6] = new Vector3(-Size.X, -Size.Y, Size.Z);
-			v[7] = new Vector3(-Size.X, Size.Y, Size.Z);
-			for (int i = 0; i < 8; i++)
-			{
-				v[i].Rotate(Direction, Up, Side);
-				v[i] += Position - Camera;
-			}
-			int[][] Faces = new int[6][];
-			Faces[0] = new[] { 0, 1, 2, 3 };
-			Faces[1] = new[] { 0, 4, 5, 1 };
-			Faces[2] = new[] { 0, 3, 7, 4 };
-			Faces[3] = new[] { 6, 5, 4, 7 };
-			Faces[4] = new[] { 6, 7, 3, 2 };
-			Faces[5] = new[] { 6, 2, 1, 5 };
-			if (TextureIndex == null || !renderer.currentHost.LoadTexture(ref TextureIndex, OpenGlTextureWrapMode.ClampClamp))
-			{
-				GL.Disable(EnableCap.Texture2D);
-				for (int i = 0; i < 6; i++)
-				{
-					GL.Begin(PrimitiveType.Quads);
-					for (int j = 0; j < 4; j++)
-					{
-						GL.Vertex3(v[Faces[i][j]].X, v[Faces[i][j]].Y, v[Faces[i][j]].Z);
-					}
-					GL.End();
-				}
-				GL.PopMatrix();
-
-				GL.MatrixMode(MatrixMode.Projection);
-				GL.PopMatrix();
-				return;
-			}
-			GL.Enable(EnableCap.Texture2D);
-			GL.BindTexture(TextureTarget.Texture2D, TextureIndex.OpenGlTextures[(int)OpenGlTextureWrapMode.ClampClamp].Name);
-			Vector2[][] t = new Vector2[6][];
-			t[0] = new[] { new Vector2(1.0, 0.0), new Vector2(1.0, 1.0), new Vector2(0.0, 1.0), new Vector2(0.0, 0.0) };
-			t[1] = new[] { new Vector2(0.0, 0.0), new Vector2(1.0, 0.0), new Vector2(1.0, 1.0), new Vector2(0.0, 1.0) };
-			t[2] = new[] { new Vector2(1.0, 1.0), new Vector2(0.0, 1.0), new Vector2(0.0, 0.0), new Vector2(1.0, 0.0) };
-			t[3] = new[] { new Vector2(1.0, 1.0), new Vector2(0.0, 1.0), new Vector2(0.0, 0.0), new Vector2(1.0, 0.0) };
-			t[4] = new[] { new Vector2(0.0, 1.0), new Vector2(0.0, 0.0), new Vector2(1.0, 0.0), new Vector2(1.0, 1.0) };
-			t[5] = new[] { new Vector2(0.0, 1.0), new Vector2(0.0, 0.0), new Vector2(1.0, 0.0), new Vector2(1.0, 1.0) };
-			for (int i = 0; i < 6; i++)
-			{
-				GL.Begin(PrimitiveType.Quads);
-				GL.Color3(1.0, 1.0, 1.0);
-				for (int j = 0; j < 4; j++)
-				{
-					GL.TexCoord2(t[i][j].X, t[i][j].Y);
-					GL.Vertex3(v[Faces[i][j]].X, v[Faces[i][j]].Y, v[Faces[i][j]].Z);
-				}
-				GL.End();
-			}
-			GL.PopMatrix();
-
-			GL.MatrixMode(MatrixMode.Projection);
-			GL.PopMatrix();
 		}
 	}
 }

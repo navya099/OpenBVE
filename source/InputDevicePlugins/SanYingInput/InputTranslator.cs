@@ -97,19 +97,16 @@ namespace SanYingInput
 		/// <returns>Middle position or not</returns>
 		public static bool TranslateNotchPosition(List<ButtonState> buttonsState, out int notchPosition)
 		{
-			uint notchButtonsState;
-			MakeBitFromNotchButtons(buttonsState, out notchButtonsState);
+			MakeBitFromNotchButtons(buttonsState, out uint notchButtonsState);
 
 			if (_bitPatternMap.ContainsKey(notchButtonsState))
 			{
 				notchPosition = _bitPatternMap[notchButtonsState];
 				return false;
 			}
-			else
-			{
-				notchPosition = 0;
-				return true;
-			}
+
+			notchPosition = 0;
+			return true;
 		}
 
 		/// <summary>
@@ -145,7 +142,7 @@ namespace SanYingInput
 		}
 
 		/// <summary>
-		/// Funtction that convert into the position of reverser from state of axial of the joy-stick.
+		/// Function that convert into the position of reverser from state of axial of the joy-stick.
 		/// </summary>
 		/// <param name="axises">State of axial of the joy-stick</param>
 		/// <param name="reverserPosition">Position of reverser</param>

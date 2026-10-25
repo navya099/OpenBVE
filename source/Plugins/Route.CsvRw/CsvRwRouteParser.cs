@@ -1,16 +1,19 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using OpenBveApi;
 using OpenBveApi.Colors;
-using OpenBveApi.Math;
 using OpenBveApi.Interface;
+using OpenBveApi.Math;
 using OpenBveApi.Objects;
 using OpenBveApi.Routes;
 using RouteManager2;
 using RouteManager2.Climate;
 using RouteManager2.SignalManager;
 using RouteManager2.Stations;
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using OpenBveApi;
+using Path = OpenBveApi.Path;
 
 namespace CsvRwRouteParser {
 	internal partial class Parser {
@@ -21,16 +24,21 @@ namespace CsvRwRouteParser {
 		internal static CompatabilityHacks EnabledHacks;
 		internal bool SplitLineHack = true;
 		internal bool AllowTrackPositionArguments = false;
-		internal bool IsRW;
-		internal bool IsHmmsim;
+		internal readonly Plugin Plugin;
 
-		internal Plugin Plugin;
+		internal static RouteData Data;
+
+		internal Parser(Plugin plugin)
+		{
+			Plugin = plugin;
+		}
+
+		
 
 		internal CurrentRoute CurrentRoute;
 		// parse route
-		internal void ParseRoute(string FileName, bool isRW, System.Text.Encoding Encoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly, Plugin hostPlugin)
+		internal void ParseRoute(string fileName, System.Text.Encoding Encoding, string trainPath, string objectPath, string soundPath, bool PreviewOnly)
 		{
-			Plugin = hostPlugin;
 			CurrentRoute = Plugin.CurrentRoute;
 			/*
 			 * Store paths for later use
@@ -38,7 +46,6 @@ namespace CsvRwRouteParser {
 			ObjectPath = objectPath;
 			SoundPath = soundPath;
 			TrainPath = trainPath;
-			IsRW = isRW;
 			if (!PreviewOnly)
 			{
 				for (int i = 0; i < Plugin.CurrentHost.Plugins.Length; i++)
@@ -54,29 +61,27 @@ namespace CsvRwRouteParser {
 			Plugin.CurrentOptions.UnitOfSpeed = "km/h";
 			Plugin.CurrentOptions.SpeedConversionFactor = 0.0;
 			CompatibilityFolder = Plugin.FileSystem.GetDataFolder("Compatibility");
-			if (!PreviewOnly)
-			{
-				CompatibilityObjects.LoadCompatibilityObjects(Path.CombineFile(CompatibilityFolder,"CompatibilityObjects.xml"));
-			}
+			CompatibilityObjects.LoadCompatibilityObjects(Path.CombineFile(CompatibilityFolder, "CompatibilityObjects.xml"));
 
 			RoutePatchDatabaseParser.LoadRoutePatchDatabase(ref availableRoutefilePatches);
 			Plugin.CurrentOptions.ObjectDisposalMode = ObjectDisposalMode.Legacy;
-			RouteData Data = new RouteData(PreviewOnly);
-			
+
+			//First, check the format of the route file
+			//RW routes were written for BVE1 / 2, and have a different command syntax
+			Data = new RouteData(PreviewOnly, fileName.EndsWith(".rw", StringComparison.InvariantCultureIgnoreCase));
+			Plugin.FileSystem.AppendToLogFile("Route file format is: " + (Data.FileFormat == RoutefileFormat.RW ? "RW" : "CSV"));
 			if (!PreviewOnly)
 			{
 				Data.Blocks[0].Background = 0;
 				Data.Blocks[0].Fog = new Fog(CurrentRoute.NoFogStart, CurrentRoute.NoFogEnd, Color24.Grey, 0);
 				Data.Blocks[0].Cycle = new[] {-1};
-				Data.Blocks[0].Height = IsRW ? 0.3 : 0.0;
+				Data.Blocks[0].Height = Data.FileFormat == RoutefileFormat.RW ? 0.3 : 0.0;
 				Data.Blocks[0].RailFreeObj = new Dictionary<int, List<FreeObj>>();
 				Data.Blocks[0].GroundFreeObj = new List<FreeObj>();
 				Data.Blocks[0].RailWall = new Dictionary<int, WallDike>();
 				Data.Blocks[0].RailDike = new Dictionary<int, WallDike>();
 				Data.Blocks[0].RailPole = new Pole[] {};
-				Data.Markers = new Marker[] {};
-				Data.RequestStops = new StopRequest[] { };
-				string PoleFolder = Path.CombineDirectory(CompatibilityFolder, "Poles");
+				string poleFolder = Path.CombineDirectory(CompatibilityFolder, "Poles");
 				Data.Structure.Poles = new PoleDictionary
 				{
 					{0, new ObjectDictionary()}, 
@@ -84,12 +89,11 @@ namespace CsvRwRouteParser {
 					{2, new ObjectDictionary()}, 
 					{3, new ObjectDictionary()}
 				};
-				Data.Structure.Poles[0].Add(0, LoadStaticObject(Path.CombineFile(PoleFolder, "pole_1.csv"), System.Text.Encoding.UTF8, false));
-				Data.Structure.Poles[1].Add(0, LoadStaticObject(Path.CombineFile(PoleFolder, "pole_2.csv"), System.Text.Encoding.UTF8, false));
-				Data.Structure.Poles[2].Add(0, LoadStaticObject(Path.CombineFile(PoleFolder, "pole_3.csv"), System.Text.Encoding.UTF8, false));
-				Data.Structure.Poles[3].Add(0, LoadStaticObject(Path.CombineFile(PoleFolder, "pole_4.csv"), System.Text.Encoding.UTF8, false));
+				Data.Structure.Poles[0].Add(0, LoadStaticObject(Path.CombineFile(poleFolder, "pole_1.csv"), System.Text.Encoding.UTF8, false));
+				Data.Structure.Poles[1].Add(0, LoadStaticObject(Path.CombineFile(poleFolder, "pole_2.csv"), System.Text.Encoding.UTF8, false));
+				Data.Structure.Poles[2].Add(0, LoadStaticObject(Path.CombineFile(poleFolder, "pole_3.csv"), System.Text.Encoding.UTF8, false));
+				Data.Structure.Poles[3].Add(0, LoadStaticObject(Path.CombineFile(poleFolder, "pole_4.csv"), System.Text.Encoding.UTF8, false));
 				
-				Data.Structure.RailObjects = new ObjectDictionary();
 				Data.Structure.RailObjects = new ObjectDictionary();
 				Data.Structure.Ground = new ObjectDictionary();
 				Data.Structure.WallL = new ObjectDictionary();
@@ -133,19 +137,32 @@ namespace CsvRwRouteParser {
 				CurrentRoute.Sections[0].CurrentAspect = 0;
 				CurrentRoute.Sections[0].StationIndex = -1;
 			}
-			ParseRouteForData(FileName, Encoding, ref Data, PreviewOnly);
+		Stopwatch parseTimer = Stopwatch.StartNew();
+		try
+		{
+			ParseRouteForData(fileName, Encoding, ref Data, PreviewOnly);
 			if (Plugin.Cancel)
 			{
 				Plugin.IsLoading = false;
 				return;
 			}
-			ApplyRouteData(FileName, ref Data, PreviewOnly);
+			Plugin.CurrentHost.PluginParseTime = parseTimer.ElapsedMilliseconds;
+			Stopwatch applyTimer = Stopwatch.StartNew();
+			ApplyRouteData(fileName, ref Data, PreviewOnly);
+			Plugin.CurrentHost.PluginApplyTime = applyTimer.ElapsedMilliseconds;
 		}
+		finally
+		{
+			// Working set fully consumed; release it so the parsed objects
+			// are not pinned after the load finishes.
+			Data = null;
+		}
+	}
 
 		private void ParseRouteForData(string FileName, System.Text.Encoding Encoding, ref RouteData Data, bool PreviewOnly) {
 			//Read the entire routefile into memory
-			List<string> Lines = System.IO.File.ReadAllLines(FileName, Encoding).ToList();
-			PreprocessSplitIntoExpressions(FileName, Lines, out Expression[] Expressions, true);
+			List<string> Lines = File.ReadAllLines(FileName, Encoding).ToList();
+			PreprocessSplitIntoExpressions(FileName, Lines, out IList<Expression> Expressions, true);
 			PreprocessChrRndSub(FileName, Encoding, ref Expressions);
 			double[] UnitOfLength = { 1.0 };
 			//Set units of speed initially to km/h
@@ -164,17 +181,17 @@ namespace CsvRwRouteParser {
 		private readonly System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.InvariantCulture;
 
 		// parse route for data
-		private void ParseRouteForData(string FileName, System.Text.Encoding Encoding, Expression[] Expressions, double[] UnitOfLength, ref RouteData Data, bool PreviewOnly) {
+		private void ParseRouteForData(string FileName, System.Text.Encoding Encoding, IList<Expression> Expressions, double[] UnitOfLength, ref RouteData Data, bool PreviewOnly) {
 			CurrentStation = -1;
 			CurrentStop = -1;
 			CurrentSection = 0;
 			
-			string Section = ""; bool SectionAlwaysPrefix = false;
+			string Section = string.Empty; 
+			bool SectionAlwaysPrefix = false;
 			int BlockIndex = 0;
 			CurrentRoute.Tracks[0].Direction = TrackDirection.Forwards;
 			CurrentRoute.Stations = new RouteStation[] { };
-			Data.RequestStops = new StopRequest[] { };
-			double progressFactor = Expressions.Length == 0 ? 0.3333 : 0.3333 / Expressions.Length;
+			double progressFactor = Expressions.Count == 0 ? 0.15 : 0.15 / Expressions.Count;
 			// process non-track namespaces
 			//Check for any special-cased fixes we might need
 			CheckForAvailablePatch(FileName, ref Data, ref Expressions, PreviewOnly);
@@ -186,7 +203,7 @@ namespace CsvRwRouteParser {
 					if (Plugin.CurrentHost.Plugins[i].Object != null)
 					{
 						EnabledHacks.BveTsHacks = Plugin.CurrentOptions.EnableBveTsHacks;
-						EnabledHacks.BlackTransparency = true;
+						EnabledHacks.TransparencyMode = BlackTransparencyMode.AllFiles;
 						Plugin.CurrentHost.Plugins[i].Object.SetCompatibilityHacks(EnabledHacks);
 						//Remember that these will be ignored if not the correct plugin
 						Plugin.CurrentHost.Plugins[i].Object.SetObjectParser(Plugin.CurrentOptions.CurrentXParser);
@@ -195,10 +212,10 @@ namespace CsvRwRouteParser {
 				}
 			}
 			
-			for (int j = 0; j < Expressions.Length; j++) {
+			for (int j = 0; j < Expressions.Count; j++) {
 				Plugin.CurrentProgress = j * progressFactor;
 				if ((j & 255) == 0) {
-					System.Threading.Thread.Sleep(1);
+					System.Threading.Thread.Yield();
 					if (Plugin.Cancel)
 					{
 						Plugin.IsLoading = false;
@@ -215,37 +232,47 @@ namespace CsvRwRouteParser {
 					SectionAlwaysPrefix = true;
 				} else {
 					// find equals
-					if (IsRW)
+					if (Data.FileFormat == RoutefileFormat.RW)
 					{
 						Expressions[j].ConvertRwToCsv(Section, SectionAlwaysPrefix);
 					}
 					
 					// separate command and arguments
-					Expressions[j].SeparateCommandsAndArguments(out string Command, out string ArgumentSequence, Culture, false, IsRW, Section);
+					Expressions[j].SeparateCommandsAndArguments(out string Command, out string ArgumentSequence, Culture, Data.FileFormat, false, Section);
 					// process command
-					bool NumberCheck = !IsRW || string.Compare(Section, "track", StringComparison.OrdinalIgnoreCase) == 0;
+					bool NumberCheck = Data.FileFormat != RoutefileFormat.RW || string.Compare(Section, "track", StringComparison.OrdinalIgnoreCase) == 0;
 					if (NumberCheck && NumberFormats.IsValidDouble(Command, UnitOfLength)) {
 						// track position (ignored)
 					} else {
 						string[] Arguments = SplitArguments(ArgumentSequence);
 
 						// preprocess command
-						if (Command.ToLowerInvariant() == "with") {
-							if (Arguments.Length >= 1) {
-								Section = Arguments[0];
-								SectionAlwaysPrefix = false;
-							} else {
-								Section = "";
-								SectionAlwaysPrefix = false;
-							}
+						if (string.Equals(Command, "with", StringComparison.OrdinalIgnoreCase)) {
+							SectionAlwaysPrefix = false;
+							Section = Arguments.Length >= 1 ? Arguments[0] : string.Empty;
 							Command = null;
 						} else {
 							if (Command.StartsWith(".")) {
-								Command = Section + Command;
+								if (Plugin.CurrentOptions.EnableBveTsHacks && (Command.StartsWith(".run", StringComparison.InvariantCultureIgnoreCase) || Command.StartsWith(".flange", StringComparison.InvariantCultureIgnoreCase)) && Section != "train")
+								{
+									/*
+									 * Handle run / flange sounds in the following format:
+									 *
+									 *  Train.Folder X911_3
+									 *  .Run(0) 0
+									 *
+									 */
+									Command = "train" + Command;
+								}
+								else
+								{
+									Command = Section + Command;
+								}
+									
 							} else if (SectionAlwaysPrefix) {
 								Command = Section + "." + Command;
 							}
-							Command = Command.Replace(".Void", "");
+							Command = Command.Replace(".Void", string.Empty);
 							
 							if (Command.StartsWith("structure", StringComparison.OrdinalIgnoreCase) && Command.EndsWith(".load", StringComparison.OrdinalIgnoreCase))
 							{
@@ -363,7 +390,9 @@ namespace CsvRwRouteParser {
 								case "cycle":
 									if (Enum.TryParse(Command, true, out CycleCommand parsedCycleCommand))
 									{
-										ParseCycleCommand(parsedCycleCommand, Arguments, commandIndices[0], Expressions[j], ref Data, PreviewOnly);
+										// Deferred: Cycle validates indices against committed
+										// Structure dictionaries, replayed after the parallel load.
+										QueueCycle(parsedCycleCommand, Arguments, commandIndices[0], Expressions[j]);
 									}
 									else
 									{
@@ -386,11 +415,31 @@ namespace CsvRwRouteParser {
 
 			Data.Blocks[0].LightDefinition = new LightDefinition(Plugin.CurrentRoute.Atmosphere.AmbientLightColor, Plugin.CurrentRoute.Atmosphere.DiffuseLightColor, Plugin.CurrentRoute.Atmosphere.LightPosition, -1, -1);
 			Data.Blocks[0].DynamicLightDefinition = int.MaxValue;
+			// Parallel object load: all Structure.* paths collected above are decoded
+			// concurrently, then committed sequentially. Barrier: this call returns
+			// only after every object is ready, so 100% loading still means playable.
+			Stopwatch objectTimer = Stopwatch.StartNew();
+			LoadAndCommitPendingObjects(Encoding, 0.15, 0.1833);
+			objectTimer.Stop();
+			Plugin.CurrentHost.PluginObjectLoadTime = objectTimer.ElapsedMilliseconds;
+			if (Plugin.Cancel)
+			{
+				Plugin.IsLoading = false;
+				return;
+			}
+			// Replay deferred Cycle commands now that Structure dictionaries are populated.
+			CommitPendingCycles(PreviewOnly);
+			if (Plugin.Cancel)
+			{
+				Plugin.IsLoading = false;
+				return;
+			}
 			// process track namespace
-			for (int j = 0; j < Expressions.Length; j++) {
-				Plugin.CurrentProgress = 0.3333 + j * progressFactor;
+			double trackProgressFactor = Expressions.Count == 0 ? 0.3333 : 0.3333 / Expressions.Count;
+			for (int j = 0; j < Expressions.Count; j++) {
+				Plugin.CurrentProgress = 0.3333 + j * trackProgressFactor;
 				if ((j & 255) == 0) {
-					System.Threading.Thread.Sleep(1);
+					System.Threading.Thread.Yield();
 					if (Plugin.Cancel)
 					{
 						Plugin.IsLoading = false;
@@ -413,14 +462,22 @@ namespace CsvRwRouteParser {
 					}
 					SectionAlwaysPrefix = true;
 				} else {
-					if (IsRW)
+					if (Data.FileFormat == RoutefileFormat.RW)
 					{
 						Expressions[j].ConvertRwToCsv(Section, SectionAlwaysPrefix);
 					}
 					// separate command and arguments
-					Expressions[j].SeparateCommandsAndArguments(out string Command, out string ArgumentSequence, Culture, false, IsRW, Section);
+					Expressions[j].SeparateCommandsAndArguments(out string Command, out string ArgumentSequence, Culture, Data.FileFormat, false, Section);
+
+					if (Command == "." && string.IsNullOrWhiteSpace(ArgumentSequence))
+					{
+						// e.g. extra period at the end of a line- otherwise this produces pointless empty error
+						Expressions[j].Skip = true;
+						continue;
+					}
+
 					// process command
-					bool NumberCheck = !IsRW || string.Compare(Section, "track", StringComparison.OrdinalIgnoreCase) == 0;
+					bool NumberCheck = Data.FileFormat != RoutefileFormat.RW || string.Compare(Section, "track", StringComparison.OrdinalIgnoreCase) == 0;
 					if (NumberCheck && NumberFormats.TryParseDouble(Command, UnitOfLength, out double currentTrackPosition)) {
 						// track position
 						if (ArgumentSequence.Length != 0) {
@@ -435,7 +492,7 @@ namespace CsvRwRouteParser {
 						} else if (currentTrackPosition < 0.0) {
 							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Negative track position encountered at line " + Expressions[j].Line.ToString(Culture) + ", column " + Expressions[j].Column.ToString(Culture) + " in file " + Expressions[j].File);
 						} else {
-							if (Plugin.CurrentOptions.EnableBveTsHacks && IsRW && currentTrackPosition == 4535545100)
+							if (Plugin.CurrentOptions.EnableBveTsHacks && Data.FileFormat == RoutefileFormat.RW && currentTrackPosition == 4535545100)
 							{
 								//WMATA Red line has an erroneous track position causing an out of memory cascade
 								currentTrackPosition = 45355;
@@ -449,14 +506,9 @@ namespace CsvRwRouteParser {
 						string[] Arguments = SplitArguments(ArgumentSequence);
 						
 						// preprocess command
-						if (Command.ToLowerInvariant() == "with") {
-							if (Arguments.Length >= 1) {
-								Section = Arguments[0];
-								SectionAlwaysPrefix = false;
-							} else {
-								Section = "";
-								SectionAlwaysPrefix = false;
-							}
+						if (string.Equals(Command, "with", StringComparison.OrdinalIgnoreCase)) {
+							SectionAlwaysPrefix = false;
+							Section = Arguments.Length >= 1 ? Arguments[0] : string.Empty;
 							Command = null;
 						} else {
 							if (Command.StartsWith(".")) {
@@ -464,7 +516,7 @@ namespace CsvRwRouteParser {
 							} else if (SectionAlwaysPrefix) {
 								Command = Section + "." + Command;
 							}
-							Command = Command.Replace(".Void", "");
+							Command = Command.Replace(".Void", string.Empty);
 						}
 						
 						// process command
@@ -478,7 +530,7 @@ namespace CsvRwRouteParser {
 							}
 							if (nameSpace.StartsWith("signal", StringComparison.InvariantCultureIgnoreCase))
 							{
-								nameSpace = "";
+								nameSpace = string.Empty;
 							}
 							Command = Command.ToLowerInvariant();
 
@@ -487,11 +539,11 @@ namespace CsvRwRouteParser {
 								case "track":
 									if (Enum.TryParse(Command, true, out TrackCommand parsedCommand))
 									{
-										ParseTrackCommand(parsedCommand, Arguments, FileName, UnitOfLength, Expressions[j], ref Data, BlockIndex, PreviewOnly, IsRW);
+										ParseTrackCommand(parsedCommand, Arguments, FileName, UnitOfLength, Expressions[j], ref Data, BlockIndex, PreviewOnly);
 									}
 									else
 									{
-										if (IsHmmsim)
+										if (Data.FileFormat == RoutefileFormat.Hmmsim)
 										{
 											period = Command.IndexOf('.');
 											string railKey = Command.Substring(0, period);
@@ -507,16 +559,16 @@ namespace CsvRwRouteParser {
 											Command = Command.Substring(period + 1);
 											if (Enum.TryParse(Command, true, out parsedCommand))
 											{
-												ParseTrackCommand(parsedCommand, Arguments, FileName, UnitOfLength, Expressions[j], ref Data, BlockIndex, PreviewOnly, IsRW);
+												ParseTrackCommand(parsedCommand, Arguments, FileName, UnitOfLength, Expressions[j], ref Data, BlockIndex, PreviewOnly);
 											}
 											else
 											{
-												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Hmmsim: Unrecognised command " + Command + " encountered in the Route namespace at line " + Expressions[j].Line.ToString(Culture) + ", column " + Expressions[j].Column.ToString(Culture) + " in file " + Expressions[j].File);	
+												Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Hmmsim: Unrecognised command " + Command + " encountered in the Track namespace at line " + Expressions[j].Line.ToString(Culture) + ", column " + Expressions[j].Column.ToString(Culture) + " in file " + Expressions[j].File);	
 											}
 										}
 										else
 										{
-											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "OpenBVE: Unrecognised command " + Command + " encountered in the Route namespace at line " + Expressions[j].Line.ToString(Culture) + ", column " + Expressions[j].Column.ToString(Culture) + " in file " + Expressions[j].File);	
+											Plugin.CurrentHost.AddMessage(MessageType.Error, false, "OpenBVE: Unrecognised command " + Command + " encountered in the Track namespace at line " + Expressions[j].Line.ToString(Culture) + ", column " + Expressions[j].Column.ToString(Culture) + " in file " + Expressions[j].File);	
 										}
 										
 									}

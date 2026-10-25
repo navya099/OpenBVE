@@ -9,7 +9,7 @@ namespace OpenBveApi.Math {
 		/// <summary>Parses a double formatted as a Visual Basic 6 string</summary>
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="Value">The value to return (Default 0.0)</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool TryParseDoubleVb6(string Expression, out double Value)
 		{
 			if (Expression.Length == 0)
@@ -44,7 +44,7 @@ namespace OpenBveApi.Math {
 		/// <summary>Parses a float formatted as a Visual Basic 6 string</summary>
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="Value">The value to return (Default 0.0)</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool TryParseFloatVb6(string Expression, out float Value)
 		{
 			Expression = TrimInside(Expression);
@@ -64,7 +64,7 @@ namespace OpenBveApi.Math {
 		/// <summary>Parses an integer formatted as a Visual Basic 6 string</summary>
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="Value">The value to return (Default 0.0)</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool TryParseIntVb6(string Expression, out int Value)
 		{
 			Expression = TrimInside(Expression);
@@ -78,7 +78,8 @@ namespace OpenBveApi.Math {
 						Value = (int)System.Math.Round(a);
 						return true;
 					}
-					else break;
+
+					break;
 				}
 			}
 			Value = 0;
@@ -88,7 +89,7 @@ namespace OpenBveApi.Math {
 		/// <summary>Parses a byte bounded number formatted as a Visual Basic 6 string</summary>
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="Value">The value to return (Default 0.0)</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool TryParseByteVb6(string Expression, out int Value)
 		{
 			if (Expression.IndexOf(',') != -1)
@@ -118,7 +119,7 @@ namespace OpenBveApi.Math {
 		/// <summary>Returns whether a string contains a valid double, using the supplied unit conversion factor(s)</summary>
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="UnitFactors">An array of unit conversion factors</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool IsValidDouble(string Expression, double[] UnitFactors)
 		{
 			return TryParseDouble(Expression, UnitFactors, out _);
@@ -128,7 +129,7 @@ namespace OpenBveApi.Math {
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="UnitFactors">An array of unit conversion factors</param>
 		/// <param name="Value">The value to return (Default 0.0)</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool TryParseDouble(string Expression, double[] UnitFactors, out double Value)
 		{
 			if (double.TryParse(Expression, NumberStyles.Number, CultureInfo.InvariantCulture, out double a))
@@ -136,39 +137,35 @@ namespace OpenBveApi.Math {
 				Value = a * UnitFactors[UnitFactors.Length - 1];
 				return true;
 			}
-			else
+
+			string[] parameters = Expression.Split(':');
+			if (parameters.Length <= UnitFactors.Length)
 			{
-				string[] parameters = Expression.Split(':');
-				if (parameters.Length <= UnitFactors.Length)
+				Value = 0.0;
+				for (int i = 0; i < parameters.Length; i++)
 				{
-					Value = 0.0;
-					for (int i = 0; i < parameters.Length; i++)
+					if (double.TryParse(parameters[i].Trim(new char[] { }), NumberStyles.Float, CultureInfo.InvariantCulture, out a))
 					{
-						if (double.TryParse(parameters[i].Trim(new char[] { }), NumberStyles.Float, CultureInfo.InvariantCulture, out a))
-						{
-							int j = i + UnitFactors.Length - parameters.Length;
-							Value += a * UnitFactors[j];
-						}
-						else
-						{
-							return false;
-						}
+						int j = i + UnitFactors.Length - parameters.Length;
+						Value += a * UnitFactors[j];
 					}
-					return true;
+					else
+					{
+						return false;
+					}
 				}
-				else
-				{
-					Value = 0.0;
-					return false;
-				}
+				return true;
 			}
+
+			Value = 0.0;
+			return false;
 		}
 
 		/// <summary>Parses an integer formatted as a Visual Basic 6 string, using the supplied unit conversion factor(s)</summary>
 		/// <param name="Expression">The expression to parse</param>
 		/// <param name="UnitFactors">An array of unit conversion factors</param>
 		/// <param name="Value">The value to return (Default 0.0)</param>
-		/// <returns>True if parsing succeds, false otherwise</returns>
+		/// <returns>True if parsing succeeds, false otherwise</returns>
 		public static bool TryParseDoubleVb6(string Expression, double[] UnitFactors, out double Value)
 		{
 			if (double.TryParse(Expression, NumberStyles.Number, CultureInfo.InvariantCulture, out double a))
@@ -176,31 +173,27 @@ namespace OpenBveApi.Math {
 				Value = a * UnitFactors[UnitFactors.Length - 1];
 				return true;
 			}
-			else
+
+			string[] parameters = Expression.Split(':');
+			Value = 0.0;
+			if (parameters.Length <= UnitFactors.Length)
 			{
-				string[] parameters = Expression.Split(':');
-				Value = 0.0;
-				if (parameters.Length <= UnitFactors.Length)
+				for (int i = 0; i < parameters.Length; i++)
 				{
-					for (int i = 0; i < parameters.Length; i++)
+					if (TryParseDoubleVb6(parameters[i].Trim(), out a))
 					{
-						if (TryParseDoubleVb6(parameters[i].Trim(), out a))
-						{
-							int j = i + UnitFactors.Length - parameters.Length;
-							Value += a * UnitFactors[j];
-						}
-						else
-						{
-							return false;
-						}
+						int j = i + UnitFactors.Length - parameters.Length;
+						Value += a * UnitFactors[j];
 					}
-					return true;
+					else
+					{
+						return false;
+					}
 				}
-				else
-				{
-					return false;
-				}
+				return true;
 			}
+
+			return false;
 		}
 
 		/// <summary>Converts a value given in degrees to Radians</summary>
@@ -217,6 +210,8 @@ namespace OpenBveApi.Math {
 				Builder.Append(c);
 			} return Builder.ToString();
 		}
+
+		
 	}
 	
 }

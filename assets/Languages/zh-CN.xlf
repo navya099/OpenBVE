@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2.xsd">
 	<file datatype="plaintext" original="en-US.xlf" source-language="en-US" target-language="zh-CN">
 		<body>
@@ -173,6 +173,9 @@
 					</trans-unit>
 				</group>
 				<group id="errors">
+					<trans-unit id="critical_loading">
+						<source>A critical error occured: \n\n [error] \n\n Please inspect the error log file for further information.</source>
+					</trans-unit>
 					<trans-unit id="critical_file">
 						<source>A critical error occured whilst parsing the [file] file</source>
 						<target>在解析文件 [file] 时出现了非常严重的错误。</target>
@@ -1367,6 +1370,12 @@
 						<source>Enabled</source>
 						<target>启用</target>
 					</trans-unit>
+					<trans-unit id="display_fpslimit">
+						<source>FPS Limit:</source>
+					</trans-unit>
+					<trans-unit id="display_fpslimit_unlimited">
+						<source>Unlimited</source>
+					</trans-unit>
 					<trans-unit id="display_window">
 						<source>Window mode</source>
 						<target>窗口模式</target>
@@ -1462,6 +1471,22 @@
 					<trans-unit id="quality_distance_viewingdistance_meters">
 						<source>m</source>
 						<target>米</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip">
+						<source>Near clip:</source>
+						<target>Near clip:</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_scenery">
+						<source>Near clip (scenery):</source>
+						<target>Near clip (scenery):</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_cab">
+						<source>Near clip (cab):</source>
+						<target>Near clip (cab):</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_base">
+						<source>Near clip (base):</source>
+						<target>Near clip (base):</target>
 					</trans-unit>
 					<trans-unit id="quality_distance_motionblur">
 						<source>Motion blur:</source>
@@ -1573,11 +1598,7 @@
 					</trans-unit>
 					<trans-unit id="advanced_load_advance">
 						<source>Load in advance</source>
-						<target>提前加载</target>
-					</trans-unit>
-					<trans-unit id="advanced_is_use_new_renderer">
-						<source>Enable the new renderer</source>
-						<target>启用新渲染器</target>
+						<target>预先加载</target>
 					</trans-unit>
 					<trans-unit id="advanced_timefactor">
 						<source>Accelerated Time Factor</source>
@@ -1585,7 +1606,7 @@
 					</trans-unit>
 					<trans-unit id="advanced_unload_textures">
 						<source>Unload unused textures</source>
-						<target>卸载未使用的材质</target>
+						<target>不加载未使用的材质</target>
 					</trans-unit>
 					<trans-unit id="advanced_cursor">
 						<source>Cursor</source>
@@ -1630,6 +1651,9 @@
 					<trans-unit id="package_other_directory">
 						<source>Other items installation directory:</source>
 						<target>其他安装目录: </target>
+					</trans-unit>
+					<trans-unit id="package_msts_directory">
+						<source>MSTS installation directory:</source>
 					</trans-unit>
 					<trans-unit id="package_compression">
 						<source>Package compression format:</source>
@@ -2919,6 +2943,9 @@
 					<trans-unit id="blowers">
 						<source>Activates or deactivates the blowers</source>
 						<target>开关送风机</target>
+					</trans-unit>
+					<trans-unit id="cylinder_cocks">
+						<source>Activates or deactivates the cylinder cocks</source>
 					</trans-unit>
 					<trans-unit id="engine_start">
 						<source>Starts the engine</source>
@@ -6071,3 +6098,4 @@
 		</body>
 	</file>
 </xliff>
+

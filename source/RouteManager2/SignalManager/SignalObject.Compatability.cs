@@ -23,11 +23,11 @@ namespace RouteManager2.SignalManager
 		public readonly StaticObject[] Objects;
 
 		private readonly HostInterface currentHost;
-		public CompatibilitySignalObject(int[] aspectNumbers, StaticObject[] Objects, HostInterface Host)
+		public CompatibilitySignalObject(int[] aspectNumbers, StaticObject[] aspectObjects, HostInterface Host)
 		{
-			this.AspectNumbers = aspectNumbers;
-			this.Objects = Objects;
-			this.currentHost = Host;
+			AspectNumbers = aspectNumbers;
+			Objects = aspectObjects;
+			currentHost = Host;
 		}
 
 		public override void Create(Vector3 wpos, Transformation railTransformation, Transformation localTransformation, int sectionIndex, double startingDistance, double endingDistance, double trackPosition, double brightness)
@@ -58,8 +58,8 @@ namespace RouteManager2.SignalManager
 					expr += " ?";
 				}
 				aoc.Objects[0].StateFunction = new FunctionScript(currentHost, expr, false);
-				aoc.Objects[0].RefreshRate = 1.0 + 0.01 * new Random().NextDouble();
-				aoc.CreateObject(wpos, railTransformation, localTransformation, sectionIndex, startingDistance, endingDistance, trackPosition, brightness);
+				aoc.Objects[0].RefreshRate = 1.0 + 0.01 * currentHost.Random.NextDouble();
+				aoc.CreateObject(wpos, railTransformation, localTransformation, new ObjectCreationParameters(trackPosition, startingDistance, endingDistance, 1.0, sectionIndex));
 			}
 		}
 
@@ -69,7 +69,7 @@ namespace RouteManager2.SignalManager
 		/// <param name="objects">The returned array of speed limits</param>
 		/// <param name="signalPost">Sets the default signal post</param>
 		/// <param name="speedLimits">The array of signal speed limits</param>
-		/// <returns>An array of compatability signal objects</returns>
+		/// <returns>An array of compatibility signal objects</returns>
 		public static void ReadCompatibilitySignalXML(HostInterface currentHost, string fileName, out CompatibilitySignalObject[] objects, out UnifiedObject signalPost, out double[] speedLimits)
 		{
 			signalPost = new StaticObject(currentHost);
@@ -107,7 +107,7 @@ namespace RouteManager2.SignalManager
 
 									if (!NumberFormats.TryParseIntVb6(n.Attributes["Number"].Value, out int aspect))
 									{
-										currentHost.AddMessage(MessageType.Error, true, "Invalid aspect number " + aspect + " in the signal object list in the compatability signal file " + fileName);
+										currentHost.AddMessage(MessageType.Error, true, "Invalid aspect number " + aspect + " in the signal object list in the compatibility signal file " + fileName);
 										continue;
 									}
 
@@ -132,7 +132,7 @@ namespace RouteManager2.SignalManager
 						}
 						catch
 						{
-							currentHost.AddMessage(MessageType.Error, true, "An unexpected error was encountered whilst processing the compatability signal file " + fileName);
+							currentHost.AddMessage(MessageType.Error, true, "An unexpected error was encountered whilst processing the compatibility signal file " + fileName);
 						}
 						objects[index] = new CompatibilitySignalObject(aspectList.ToArray(), objectList.ToArray(), currentHost);
 						index++;
@@ -155,7 +155,7 @@ namespace RouteManager2.SignalManager
 				}
 				catch
 				{
-					currentHost.AddMessage(MessageType.Error, true, "An unexpected error was encountered whilst processing the compatability signal file " + fileName);
+					currentHost.AddMessage(MessageType.Error, true, "An unexpected error was encountered whilst processing the compatibility signal file " + fileName);
 				}
 
 				DocumentNodes = currentXML.DocumentElement.SelectNodes("/openBVE/CompatibilitySignals/SpeedLimits");
@@ -179,7 +179,7 @@ namespace RouteManager2.SignalManager
 									{
 										if (!NumberFormats.TryParseIntVb6(n.Attributes["Number"].Value, out aspect))
 										{
-											currentHost.AddMessage(MessageType.Error, true, "Invalid aspect number " + aspect + " in the speed limit list in the compatability signal file " + fileName);
+											currentHost.AddMessage(MessageType.Error, true, "Invalid aspect number " + aspect + " in the speed limit list in the compatibility signal file " + fileName);
 											continue;
 										}
 									}
@@ -198,7 +198,7 @@ namespace RouteManager2.SignalManager
 											speedLimits[aspect] = double.MaxValue;
 											if (n.InnerText.ToLowerInvariant() != "unlimited")
 											{
-												currentHost.AddMessage(MessageType.Error, true, "Invalid speed limit provided for aspect " + aspect + " in the compatability signal file " + fileName);
+												currentHost.AddMessage(MessageType.Error, true, "Invalid speed limit provided for aspect " + aspect + " in the compatibility signal file " + fileName);
 											}
 										}
 										else
@@ -212,7 +212,7 @@ namespace RouteManager2.SignalManager
 						}
 						catch
 						{
-							currentHost.AddMessage(MessageType.Error, true, "An unexpected error was encountered whilst processing the compatability signal file " + fileName);
+							currentHost.AddMessage(MessageType.Error, true, "An unexpected error was encountered whilst processing the compatibility signal file " + fileName);
 						}
 					}
 				}

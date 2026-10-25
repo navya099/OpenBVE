@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using OpenBveApi;
 using OpenBveApi.Colors;
 using OpenBveApi.Trains;
@@ -9,7 +8,7 @@ using TrainManager;
 
 namespace OpenBve
 {
-	partial class MessageManager
+	internal partial class MessageManager
 	{
 		/// <summary>Contains the current textual messages</summary>
 		internal static readonly List<AbstractMessage> TextualMessages = new List<AbstractMessage>();
@@ -22,7 +21,7 @@ namespace OpenBve
 		/// <param name="Mode"></param>
 		/// <param name="Color">The color of the message text</param>
 		/// <param name="Timeout">The time this message will display for</param>
-		/// <param name="key">The textual key identifiying this message</param>
+		/// <param name="key">The textual key identifying this message</param>
 		internal static void AddMessage(string Text, MessageDependency Depencency, GameMode Mode, MessageColor Color, double Timeout, string key)
 		{
 			if (TrainManagerBase.PlayerTrain == null)
@@ -35,7 +34,7 @@ namespace OpenBve
 				GameMessage message = new GameMessage
 				{
 					InternalText = Text,
-					MessageToDisplay = String.Empty,
+					MessageToDisplay = string.Empty,
 					Depencency = Depencency,
 					Color = Color,
 					Timeout = Timeout,
@@ -64,18 +63,15 @@ namespace OpenBve
 			}
 			if (message is MarkerImage || message is TextureMessage)
 			{
-				for (int i = 0; i < ImageMessages.Count; i++)
+				if (ImageMessages.Contains(message))
 				{
-					if (ImageMessages[i] == message)
-					{
-						return;
-					}
+					return;
 				}
 				message.AddMessage(Program.CurrentRoute.SecondsSinceMidnight);
 				ImageMessages.Add(message);
 				return;
 			}
-			var m = message as GameMessage;
+			GameMessage m = message as GameMessage;
 			if (m != null && m.Depencency == MessageDependency.PassedRedSignal)
 			{
 				for (int i = TextualMessages.Count -1; i >= 0; i--)
@@ -144,11 +140,11 @@ namespace OpenBve
 		}
 
 		/// <summary>Updates all current messages</summary>
-		internal static void UpdateMessages()
+		internal static void UpdateMessages(double timeElapsed)
 		{
 			for (int i = TextualMessages.Count -1; i >= 0; i--)
 			{
-				TextualMessages[i].Update();
+				TextualMessages[i].Update(timeElapsed);
 				if (TextualMessages[i].QueueForRemoval)
 				{
 					TextualMessages.RemoveAt(i);
@@ -156,7 +152,7 @@ namespace OpenBve
 			}
 			for (int i = ImageMessages.Count - 1; i >= 0; i--)
 			{
-				ImageMessages[i].Update();
+				ImageMessages[i].Update(timeElapsed);
 				if (ImageMessages[i].QueueForRemoval)
 				{
 					ImageMessages.RemoveAt(i);

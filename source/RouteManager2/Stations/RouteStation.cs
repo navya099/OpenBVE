@@ -37,21 +37,21 @@ namespace RouteManager2.Stations
 		public bool AccessibilityAnnounced;
 
 		/// <summary>Whether this station is a dummy station for signalling purposes</summary>
-		/// <remarks>Used by some BVE2 / BVE4 routes in conjunction with forced redsignal</remarks>
+		/// <remarks>Used by some BVE2 / BVE4 routes in conjunction with forced red signal</remarks>
 		public bool Dummy;
 
 		/// <summary>The key for this station</summary>
 		public readonly string Key;
-		
-		/// <summary>Gets the index of the stop corresponding to the train's number of cars</summary>
-		/// <param name="Cars">The number of cars the train has</param>
-		public int GetStopIndex(int Cars)
+
+		/// <summary>Gets the index of the stop for the train</summary>
+		/// <param name="train">The train</param>
+		public int GetStopIndex(AbstractTrain train)
 		{
 			int j = -1;
 			int allCars = -1;
 			for (int i = Stops.Length - 1; i >= 0; i--)
 			{
-				if (Cars == Stops[i].Cars)
+				if (train.NumberOfCars == Stops[i].Cars)
 				{
 					 // If we have found the specified number of cars, stop searching
 					 return i;
@@ -60,7 +60,7 @@ namespace RouteManager2.Stations
 				{
 					allCars = j;
 				}
-				if (Stops[i].Cars != 0 && Cars < Stops[i].Cars)
+				if (Stops[i].Cars != 0 && train.NumberOfCars < Stops[i].Cars)
 				{
 					/*
 					 * The stop has greater than the specified number of cars (hence all cars will be platformed)
@@ -87,6 +87,14 @@ namespace RouteManager2.Stations
 			}
 			// Return the final stop point, as nothing better :/
 			return Stops.Length -1;
+		}
+
+		/// <summary>Gets the stop position corresponding to the train</summary>
+		/// <param name="train">The train</param>
+		public double GetStopPosition(AbstractTrain train)
+		{
+			int n = GetStopIndex(train);
+			return Stops.Length > 0 ? Stops[n].TrackPosition : DefaultTrackPosition;
 		}
 
 		/// <summary>Indicates whether the specified train stops at this station.</summary>

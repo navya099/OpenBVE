@@ -1,4 +1,6 @@
-﻿namespace OpenBveApi.Objects
+using System;
+
+namespace OpenBveApi.Objects
 {
 	/// <summary>Represents the interface for loading objects. Plugins must implement this interface if they wish to expose objects.</summary>
 	public abstract class ObjectInterface
@@ -6,12 +8,12 @@
 		/// <summary>
 		/// Array of supported animated object extensions.
 		/// </summary>
-		public virtual string[] SupportedAnimatedObjectExtensions => new string[0];
+		public virtual string[] SupportedAnimatedObjectExtensions => Array.Empty<string>();
 
 		/// <summary>
 		/// Array of supported static object extensions.
 		/// </summary>
-		public virtual string[] SupportedStaticObjectExtensions => new string[0];
+		public virtual string[] SupportedStaticObjectExtensions => Array.Empty<string>();
 
 		/// <summary>Called when the plugin is loaded.</summary>
 		/// <param name="host">The host that loaded the plugin.</param>
@@ -45,9 +47,22 @@
 		/// <summary>Loads the specified object.</summary>
 		/// <param name="path">The path to the file or folder that contains the object.</param>
 		/// <param name="unifiedObject">Receives the object.</param>
+		/// <param name="textEncoding">The encoding for the object</param>
+		/// <returns>Whether loading the object was successful.</returns>
+		public abstract bool LoadObject(string path, System.Text.Encoding textEncoding, out UnifiedObject unifiedObject);
+
+		/// <summary>Loads the specified object.</summary>
+		/// <param name="path">The path to the file or folder that contains the object.</param>
+		/// <param name="unifiedObject">Receives the object.</param>
+		/// <param name="wagonFileDirectory">The path to the wagon file</param>
 		/// <param name="Encoding">The encoding for the object</param>
 		/// <returns>Whether loading the object was successful.</returns>
-		public abstract bool LoadObject(string path, System.Text.Encoding Encoding, out UnifiedObject unifiedObject);
+		/// <remarks>Useful for loading MSTS content only</remarks>
+		public virtual bool LoadObject(string path, string wagonFileDirectory, System.Text.Encoding Encoding, out UnifiedObject unifiedObject)
+		{
+			unifiedObject = null;
+			return false;
+		}
 	}
 
 	/// <summary>Controls various hacks used with older content</summary>
@@ -60,11 +75,16 @@
 		public bool CylinderHack;
 		/// <summary>Pure black is used as a transparent color</summary>
 		/// <remarks>Used to provide color-key transparency in BVE4 X format files</remarks>
-		public bool BlackTransparency;
+		public BlackTransparencyMode TransparencyMode;
 		/// <summary>Semi-transparent faces are disabled</summary>
 		/// <remarks>BVE2 did not support semi-transparent faces</remarks>
 		public bool DisableSemiTransparentFaces;
 		/// <summary>Whether aggressive RW bracket fixing is performed</summary>
 		public bool AggressiveRwBrackets;
+		/// <summary> Whether a wall / dike with insufficient arguments is accepted</summary>
+		public bool InsufficientWallDikeArguments;
+		/// <summary>Whether the RailEnded object behaviour is reproduced</summary>
+		/// <remarks>If an object is placed on an ended Rail in BVE2, it actually appears at the start of the last valid block</remarks>
+		public bool RailEndedObject;
 	}
 }

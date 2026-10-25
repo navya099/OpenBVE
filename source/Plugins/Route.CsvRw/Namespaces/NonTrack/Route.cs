@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Linq;
 using OpenBveApi;
@@ -29,6 +29,10 @@ namespace CsvRwRouteParser
 						CurrentRoute.Comment = Arguments[0];
 					}
 
+					if (CurrentRoute.Comment.IndexOf("Hmmsim", StringComparison.InvariantCultureIgnoreCase) != -1 && CurrentRoute.Comment.IndexOf(@"建議openBVE版本", StringComparison.InvariantCultureIgnoreCase) == -1) // block HKHOS 
+					{
+						Data.SetHmmsimProperties();
+					}
 					break;
 				case RouteCommand.Image:
 					if (Arguments.Length < 1)
@@ -54,7 +58,7 @@ namespace CsvRwRouteParser
 					{
 						if (Arguments.Length < 1)
 						{
-							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "" + Command + " is expected to have one argument at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
+							Plugin.CurrentHost.AddMessage(MessageType.Error, false, Command + " is expected to have one argument at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 						}
 						else
 						{
@@ -72,7 +76,7 @@ namespace CsvRwRouteParser
 							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Mode is invalid in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 							change = 0;
 						}
-						else if (change < -1 | change > 1)
+						else if (change < -1 || change > 1)
 						{
 							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Mode is expected to be -1, 0 or 1 in " + Command + " at line " + Expression.Line.ToString(Culture) + ", column " + Expression.Column.ToString(Culture) + " in file " + Expression.File);
 							change = 0;
@@ -208,7 +212,7 @@ namespace CsvRwRouteParser
 						}
 						else
 						{
-							Texture t = new Texture(f, new TextureParameters(null, null), Plugin.CurrentHost);
+							Texture t = new Texture(f, TextureParameters.NoChange, Plugin.CurrentHost);
 							CurrentRoute.Information.LoadingScreenBackground = t;
 						}
 					}

@@ -1,5 +1,3 @@
-using System;
-using System.IO;
 using Formats.OpenBve;
 using OpenBveApi.FunctionScripting;
 using OpenBveApi.Interface;
@@ -7,6 +5,8 @@ using OpenBveApi.Math;
 using OpenBveApi.Objects;
 using OpenBveApi.Sounds;
 using OpenBveApi.Textures;
+using System;
+using System.IO;
 using Path = OpenBveApi.Path;
 
 namespace Plugin
@@ -17,7 +17,7 @@ namespace Plugin
 		/// <param name="FileName">The text file to load the animated object from. Must be an absolute file name.</param>
 		/// <param name="Encoding">The encoding the file is saved in. If the file uses a byte order mark, the encoding indicated by the byte order mark is used and the Encoding parameter is ignored.</param>
 		/// <returns>The collection of animated objects.</returns>
-		private static AnimatedObjectCollection ReadObject(string FileName, System.Text.Encoding Encoding)
+		private AnimatedObjectCollection ReadObject(string FileName, System.Text.Encoding Encoding)
 		{
 			AnimatedObjectCollection Result = new AnimatedObjectCollection(currentHost)
 			{
@@ -28,7 +28,7 @@ namespace Plugin
 			int SoundCount = 0;
 			// load file
 
-			ConfigFile<AnimatedSection, AnimatedKey> cfg = new ConfigFile<AnimatedSection, AnimatedKey>(File.ReadAllLines(FileName, Encoding), Plugin.currentHost);
+			ConfigFile<AnimatedSection, AnimatedKey> cfg = new ConfigFile<AnimatedSection, AnimatedKey>(File.ReadAllLines(FileName, Encoding), FileName, currentHost);
 
 			while (cfg.RemainingSubBlocks > 0)
 			{
@@ -41,20 +41,16 @@ namespace Plugin
 						UnifiedObject[] obj = new UnifiedObject[4];
 						int objCount = 0;
 						Block.GetVector3(AnimatedKey.Position, ',', out Position);
-						while (Block.RemainingDataValues > 0)
+						while (Block.RemainingDataValues > 0 && Block.GetNextPath(Folder, out string file))
 						{
-							if (Block.GetNextPath(Folder, out string file))
+							if (obj.Length == objCount)
 							{
-								if (obj.Length == objCount)
-								{
-									Array.Resize(ref obj, obj.Length << 1);
-								}
-
-								currentHost.LoadObject(file, Encoding, out obj[objCount]);
-								objCount++;
+								Array.Resize(ref obj, obj.Length << 1);
 							}
-						}
 
+							currentHost.LoadObject(file, Encoding, out obj[objCount]);
+							objCount++;
+						}
 						for (int j = 0; j < objCount; j++)
 						{
 							if (obj[j] != null)
@@ -107,6 +103,26 @@ namespace Plugin
 										SoundCount++;
 									}
 								}
+								else if (obj[j] is KeyframeAnimatedObject k)
+								{
+									currentHost.AddMessage(MessageType.Warning, false, "Including MSTS Shape in an AnimatedObject- Contained animations may be lost. In the Section " + Block.Key + " in file " + FileName);
+									StaticObject so = (StaticObject)k;
+									so.Dynamic = true;
+									if (ObjectCount >= Result.Objects.Length)
+									{
+										Array.Resize(ref Result.Objects, Result.Objects.Length << 1);
+									}
+
+									AnimatedObject a = new AnimatedObject(currentHost, FileName);
+									ObjectState aos = new ObjectState
+									{
+										Prototype = so,
+										Translation = Matrix4D.CreateTranslation(Position.X, Position.Y, -Position.Z)
+									};
+									a.States = new[] { aos };
+									Result.Objects[ObjectCount] = a;
+									ObjectCount++;
+								}
 							}
 						}
 
@@ -139,7 +155,7 @@ namespace Plugin
 							Block.GetFunctionScript(new[] { AnimatedKey.TranslateXFunction, AnimatedKey.TranslateXFunctionRPN, AnimatedKey.TranslateXScript }, Folder, out Result.Objects[ObjectCount].TranslateXFunction);
 							Block.GetFunctionScript(new[] { AnimatedKey.TranslateYFunction, AnimatedKey.TranslateYFunctionRPN, AnimatedKey.TranslateYScript }, Folder, out Result.Objects[ObjectCount].TranslateYFunction);
 							Block.GetFunctionScript(new[] { AnimatedKey.TranslateZFunction, AnimatedKey.TranslateZFunctionRPN, AnimatedKey.TranslateZScript }, Folder, out Result.Objects[ObjectCount].TranslateZFunction);
-							Block.GetFunctionScript(new[] { AnimatedKey.StateFunction, AnimatedKey.StateFunctionRPN, AnimatedKey.StateScript }, Folder, out Result.Objects[ObjectCount].StateFunction);
+							Block.GetFunctionScript(new[] { AnimatedKey.StateFunction, AnimatedKey.StateFunctionRPN, AnimatedKey.StateScript }, Folder, out Result.Objects[ObjectCount].StateFunction, stateFiles.Length);
 							Block.GetFunctionScript(new[] { AnimatedKey.TextureShiftXFunction, AnimatedKey.TextureShiftXFunctionRPN, AnimatedKey.TextureShiftXScript }, Folder, out Result.Objects[ObjectCount].TextureShiftXFunction);
 							Block.GetFunctionScript(new[] { AnimatedKey.TextureShiftYFunction, AnimatedKey.TextureShiftYFunctionRPN, AnimatedKey.TextureShiftYScript }, Folder, out Result.Objects[ObjectCount].TextureShiftYFunction);
 							// n.b. For unknown reasons, the ScaleFunction never had a RPN listing in the animated file. Michelle listed these as obsolete, and I've seen *one* use of them. As they're not really supposed to be used
@@ -155,9 +171,17 @@ namespace Plugin
 							Block.TryGetVector3(AnimatedKey.RotateZDirection, ',', ref Result.Objects[ObjectCount].RotateZDirection);
 							Block.TryGetVector2(AnimatedKey.TextureShiftXDirection, ',', ref Result.Objects[ObjectCount].TextureShiftXDirection);
 							Block.TryGetVector2(AnimatedKey.TextureShiftYDirection, ',', ref Result.Objects[ObjectCount].TextureShiftYDirection);
-							Block.GetVector2(AnimatedKey.Axles, ',', out Vector2 axleLocations);
-							Result.Objects[ObjectCount].FrontAxlePosition = axleLocations.X;
-							Result.Objects[ObjectCount].RearAxlePosition = axleLocations.Y;
+							if (Block.GetVector2(AnimatedKey.Axles, ',', out Vector2 axleLocations))
+							{
+								if (axleLocations.X <= axleLocations.Y)
+								{
+									currentHost.AddMessage(MessageType.Error, false, "Rear is expected to be less than Front in " + AnimatedKey.Axles + " in file " + FileName);
+									axleLocations = new Vector2(0.5, -0.5);
+								}
+								Result.Objects[ObjectCount].FrontAxlePosition = axleLocations.X;
+								Result.Objects[ObjectCount].RearAxlePosition = axleLocations.Y;
+							}
+							
 							Block.GetFunctionScript(new[] { AnimatedKey.TrackFollowerFunction, AnimatedKey.TrackFollowerScript }, Folder, out Result.Objects[ObjectCount].TrackFollowerFunction);
 							Block.GetDamping(AnimatedKey.RotateXDamping, ',', out Result.Objects[ObjectCount].RotateXDamping);
 							Block.GetDamping(AnimatedKey.RotateYDamping, ',', out Result.Objects[ObjectCount].RotateYDamping);
@@ -171,7 +195,8 @@ namespace Plugin
 										break;
 									case "timetable":
 										currentHost.AddObjectForCustomTimeTable(Result.Objects[ObjectCount]);
-										Result.Objects[ObjectCount].StateFunction = new FunctionScript(currentHost, "timetable", true);
+										Result.Objects[ObjectCount].isTimeTableObject = true;
+										Result.Objects[ObjectCount].StateFunction = new FunctionScript(currentHost, "timetable", true, stateFiles.Length);
 										break;
 									default:
 										currentHost.AddMessage(MessageType.Error, false, "Unknown texture override type " + textureOverride + " in Section " + Block.Key + " in File " + FileName);
@@ -179,16 +204,9 @@ namespace Plugin
 								}
 							}
 
-							if (Block.GetValue(AnimatedKey.RefreshRate, out double refreshRate))
+							if (Block.GetValue(AnimatedKey.RefreshRate, out double refreshRate, NumberRange.NonNegative))
 							{
-								if (refreshRate < 0)
-								{
-									currentHost.AddMessage(MessageType.Error, false, "RefreshRate is expected to be non-negative in Section " + Block.Key + " in File " + FileName);
-								}
-								else
-								{
-									Result.Objects[ObjectCount].RefreshRate = refreshRate;
-								}
+								Result.Objects[ObjectCount].RefreshRate = refreshRate;
 							}
 
 							Result.Objects[ObjectCount].States = new ObjectState[stateFiles.Length];
@@ -202,10 +220,20 @@ namespace Plugin
 								Result.Objects[ObjectCount].States[k].Translation = Matrix4D.CreateTranslation(Position.X, Position.Y, -Position.Z);
 								if (stateFiles[k] != null)
 								{
-									currentHost.LoadObject(stateFiles[k], Encoding, out UnifiedObject currentObject);
+									if (!currentHost.LoadObject(stateFiles[k], Encoding, out UnifiedObject currentObject))
+									{
+										currentHost.AddMessage(MessageType.Warning, false, "Loading file "+ stateFiles[k] + " for state " + k + " failed. In the Section " + Block.Key + " in file " + FileName);
+										Result.Objects[ObjectCount].States[k].Prototype = new StaticObject(currentHost);
+										continue;
+									}
 									if (currentObject is StaticObject staticObject)
 									{
 										Result.Objects[ObjectCount].States[k].Prototype = staticObject;
+									}
+									else if (currentObject is KeyframeAnimatedObject keyframeObject)
+									{
+										currentHost.AddMessage(MessageType.Warning, false, "Using MSTS Shape " + stateFiles[k] + " as an AnimatedObject State- Contained animations may be lost. In the Section " + Block.Key + " in file " + FileName);
+										Result.Objects[ObjectCount].States[k].Prototype = keyframeObject;
 									}
 									else if (currentObject is AnimatedObjectCollection)
 									{
@@ -258,7 +286,7 @@ namespace Plugin
 								}
 								else
 								{
-									Result.Objects[ObjectCount].States[k].Prototype = null;
+									Result.Objects[ObjectCount].States[k].Prototype = new StaticObject(currentHost);
 								}
 							}
 						}
@@ -278,17 +306,12 @@ namespace Plugin
 						{
 							double pitch = 1.0, volume = 1.0, radius = 30;
 							Block.GetVector3(AnimatedKey.Position, ',', out Position);
-							Block.TryGetValue(AnimatedKey.Radius, ref radius);
+							Block.TryGetValue(AnimatedKey.Radius, ref radius, NumberRange.NonNegative);
 							Block.GetFunctionScript(new[] { AnimatedKey.Pitch, AnimatedKey.PitchFunction }, Folder, out AnimationScript pitchFunction);
-							Block.GetFunctionScript(new[] { AnimatedKey.Volume, AnimatedKey.VolumeFunction }, Folder, out AnimationScript volumeFunction);
-							Block.GetFunctionScript(new[] { AnimatedKey.TranslateXFunction, AnimatedKey.TranslateXFunctionRPN, AnimatedKey.TranslateXScript }, Folder, out Result.Objects[ObjectCount].TranslateXFunction);
-							Block.GetFunctionScript(new[] { AnimatedKey.TranslateYFunction, AnimatedKey.TranslateYFunctionRPN, AnimatedKey.TranslateYScript }, Folder, out Result.Objects[ObjectCount].TranslateYFunction);
-							Block.GetFunctionScript(new[] { AnimatedKey.TranslateZFunction, AnimatedKey.TranslateZFunctionRPN, AnimatedKey.TranslateZScript }, Folder, out Result.Objects[ObjectCount].TranslateZFunction);
-							Block.TryGetVector3(AnimatedKey.TranslateXDirection, ',', ref Result.Objects[ObjectCount].TranslateXDirection);
-							Block.TryGetVector3(AnimatedKey.TranslateYDirection, ',', ref Result.Objects[ObjectCount].TranslateYDirection);
-							Block.TryGetVector3(AnimatedKey.TranslateZDirection, ',', ref Result.Objects[ObjectCount].TranslateZDirection);
-							Block.GetFunctionScript(new[] { AnimatedKey.TranslateZFunction, AnimatedKey.TranslateZFunctionRPN, AnimatedKey.TranslateZScript }, Folder, out AnimationScript trackFollowerFunction);
-
+							Block.TryGetValue(AnimatedKey.Pitch, ref pitch, NumberRange.NonNegative);
+							Block.GetFunctionScript(new[] { AnimatedKey.VolumeFunction }, Folder, out AnimationScript volumeFunction);
+							Block.TryGetValue(AnimatedKey.Volume, ref volume, NumberRange.NonNegative);
+							Block.GetFunctionScript(new[] { AnimatedKey.TrackFollowerFunction }, Folder, out AnimationScript trackFollowerFunction);
 							currentHost.RegisterSound(soundPath, radius, out SoundHandle currentSound);
 							WorldSound snd = new WorldSound(currentHost, currentSound)
 							{
@@ -302,7 +325,6 @@ namespace Plugin
 							Result.Sounds[SoundCount] = snd;
 							SoundCount++;
 						}
-
 						break;
 					case AnimatedSection.StateChangeSound:
 						if (Result.Sounds.Length == SoundCount)
@@ -310,13 +332,14 @@ namespace Plugin
 							Array.Resize(ref Result.Objects, Result.Sounds.Length << 1);
 						}
 						string[] fileNames = new string[1]; // hack to allow both
-						if (Block.GetPath(AnimatedKey.FileName, Folder, out fileNames[0]) || Block.GetPathArray(AnimatedKey.FileNames, ',', Folder, ref fileNames))
+						bool singleBuffer = Block.GetPath(AnimatedKey.FileName, Folder, out fileNames[0]);
+						if (singleBuffer || Block.GetPathArray(AnimatedKey.FileNames, ',', Folder, ref fileNames))
 						{
 							double pitch = 1.0, volume = 1.0, radius = 30;
 							Block.GetVector3(AnimatedKey.Position, ',', out Position);
-							Block.TryGetValue(AnimatedKey.Pitch, ref pitch);
-							Block.TryGetValue(AnimatedKey.Volume, ref volume);
-							Block.TryGetValue(AnimatedKey.Radius, ref radius);
+							Block.TryGetValue(AnimatedKey.Pitch, ref pitch, NumberRange.NonNegative);
+							Block.TryGetValue(AnimatedKey.Volume, ref volume, NumberRange.NonNegative);
+							Block.TryGetValue(AnimatedKey.Radius, ref radius, NumberRange.NonNegative);
 							bool playOnShow = true, playOnHide = true;
 							Block.TryGetValue(AnimatedKey.PlayOnShow, ref playOnShow);
 							Block.TryGetValue(AnimatedKey.PlayOnHide, ref playOnHide);
@@ -336,12 +359,13 @@ namespace Plugin
 									}
 								}
 
-								snd.currentPitch = pitch;
-								snd.currentVolume = volume;
+								snd.CurrentPitch = pitch;
+								snd.CurrentVolume = volume;
 								snd.SoundPosition = Position;
 								snd.SingleBuffer = fileNames.Length != 1;
 								snd.PlayOnShow = playOnShow;
 								snd.PlayOnHide = playOnHide;
+								snd.SingleBuffer = singleBuffer;
 								Result.Sounds[SoundCount] = snd;
 								SoundCount++;
 								Result.Objects[ObjectCount - 1] = null;
@@ -351,6 +375,7 @@ namespace Plugin
 
 						break;
 				}
+				Block.ReportErrors();
 			}
 
 			Array.Resize(ref Result.Objects, ObjectCount);

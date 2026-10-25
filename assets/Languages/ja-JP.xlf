@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="UTF-8"?>
+﻿<?xml version="1.0" encoding="UTF-8"?>
 <xliff xmlns="urn:oasis:names:tc:xliff:document:1.2" version="1.2" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="urn:oasis:names:tc:xliff:document:1.2 xliff-core-1.2.xsd">
 	<file datatype="plaintext" original="en-US.xlf" source-language="en-US" target-language="ja-JP">
 		<body>
@@ -176,6 +176,9 @@
 					</trans-unit>
 				</group>
 				<group id="errors">
+					<trans-unit id="critical_loading">
+						<source>A critical error occured: \n\n [error] \n\n Please inspect the error log file for further information.</source>
+					</trans-unit>
 					<trans-unit id="critical_file">
 						<source>A critical error occured whilst parsing the [file] file</source>
 						<target>[file] ファイル読み込み中に致命的なエラーが発生しました。</target>
@@ -1366,6 +1369,12 @@
 						<source>Enabled</source>
 						<target>オン</target>
 					</trans-unit>
+					<trans-unit id="display_fpslimit">
+						<source>FPS Limit:</source>
+					</trans-unit>
+					<trans-unit id="display_fpslimit_unlimited">
+						<source>Unlimited</source>
+					</trans-unit>
 					<trans-unit id="display_window">
 						<source>Window mode</source>
 						<target>ウィンドウ表示</target>
@@ -1461,6 +1470,22 @@
 					<trans-unit id="quality_distance_viewingdistance_meters">
 						<source>m</source>
 						<target>m</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip">
+						<source>Near clip:</source>
+						<target>Near clip:</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_scenery">
+						<source>Near clip (scenery):</source>
+						<target>Near clip (scenery):</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_cab">
+						<source>Near clip (cab):</source>
+						<target>Near clip (cab):</target>
+					</trans-unit>
+					<trans-unit id="quality_distance_nearclip_base">
+						<source>Near clip (base):</source>
+						<target>Near clip (base):</target>
 					</trans-unit>
 					<trans-unit id="quality_distance_motionblur">
 						<source>Motion blur:</source>
@@ -1574,9 +1599,6 @@
 						<source>Load in advance</source>
 						<target>全テクスチャを前もって読み込む</target>
 					</trans-unit>
-					<trans-unit id="advanced_is_use_new_renderer">
-						<source>Enable the new renderer</source>
-					</trans-unit>
 					<trans-unit id="advanced_disable_displaylists">
 						<source>Disable OpenGL display lists</source>
 						<target>OpenGL display lists(描画高速化)を無効</target>
@@ -1632,6 +1654,9 @@
 					<trans-unit id="package_other_directory">
 						<source>Other items installation directory:</source>
 						<target>その他のアイテムのインストール場所:</target>
+					</trans-unit>
+					<trans-unit id="package_msts_directory">
+						<source>MSTS installation directory:</source>
 					</trans-unit>
 					<trans-unit id="package_compression">
 						<source>Package compression format:</source>
@@ -2867,6 +2892,9 @@
 					<trans-unit id="blowers">
 						<source>Activates or deactivates the blowers</source>
 						<target>通風器(ブロワー)の使用及び停止の切り替え</target>
+					</trans-unit>
+					<trans-unit id="cylinder_cocks">
+						<source>Activates or deactivates the cylinder cocks</source>
 					</trans-unit>
 					<trans-unit id="engine_start">
 						<source>Starts the engine</source>
@@ -5867,6 +5895,22 @@
 						<source>Min must be less than the Max.</source>
 						<target>MinはMax未満でなければなりません。</target>
 					</trans-unit>
+					<trans-unit id="file_not_exist">
+						<source>The specified file does not exist.</source>
+						<target>指定されたファイルは存在しません。</target>
+					</trans-unit>
+					<trans-unit id="folder_not_exist">
+						<source>The specified folder does not exist.</source>
+						<target>指定されたフォルダは存在しません。</target>
+					</trans-unit>
+					<trans-unit id="filename_invalid_chars">
+						<source>The file name contains invalid characters.</source>
+						<target>ファイル名に使用できない文字が使われています。</target>
+					</trans-unit>
+					<trans-unit id="select_train_folder">
+						<source>Select the train folder...</source>
+						<target>車両フォルダを指定してください。</target>
+					</trans-unit>
 				</group>
 				<group id="items">
 					<trans-unit id="filename">
@@ -5939,3 +5983,4 @@
 		</body>
 	</file>
 </xliff>
+

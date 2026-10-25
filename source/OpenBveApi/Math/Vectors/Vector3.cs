@@ -1,4 +1,3 @@
-﻿using System;
 using System.Globalization;
 using OpenBveApi.World;
 // ReSharper disable UnusedMember.Global
@@ -44,7 +43,7 @@ namespace OpenBveApi.Math {
 		/// <param name="stringToParse">The string to parse</param>
 		/// <param name="separator">The separator character</param>
 		/// <param name="v">The out Vector</param>
-		/// <returns>True if parsing succeded with no errors, false otherwise</returns>
+		/// <returns>True if parsing succeeded with no errors, false otherwise</returns>
 		/// <remarks>This will always return a Vector3.
 		/// If any part fails parsing, it will be set to zero</remarks>
 		public static bool TryParse(string stringToParse, char separator, out Vector3 v)
@@ -58,19 +57,19 @@ namespace OpenBveApi.Math {
 				switch (i)
 				{
 					case 0:
-						if (!double.TryParse(splitString[i], out v.X))
+						if (!double.TryParse(splitString[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v.X))
 						{
 							success = false;
 						}
 						break;
 					case 1:
-						if (!double.TryParse(splitString[i], out v.Y))
+						if (!double.TryParse(splitString[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v.Y))
 						{
 							success = false;
 						}
 						break;
 					case 2:
-						if (!double.TryParse(splitString[i], out v.Z))
+						if (!double.TryParse(splitString[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v.Z))
 						{
 							success = false;
 						}
@@ -88,7 +87,7 @@ namespace OpenBveApi.Math {
 		/// <summary>Parses a Vector3 from a list of strings</summary>
 		/// <param name="arguments">The list of strings</param>
 		/// <param name="v">The out Vector</param>
-		/// <returns>True if parsing succeded with no errors, false otherwise</returns>
+		/// <returns>True if parsing succeeded with no errors, false otherwise</returns>
 		/// <remarks>This will always return a Vector3.
 		/// If any part fails parsing, it will be set to zero</remarks>
 		public static bool TryParse(string[] arguments, out Vector3 v)
@@ -100,19 +99,19 @@ namespace OpenBveApi.Math {
 				switch (i)
 				{
 					case 0:
-						if (!double.TryParse(arguments[i], out v.X))
+						if (!double.TryParse(arguments[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v.X))
 						{
 							success = false;
 						}
 						break;
 					case 1:
-						if (!double.TryParse(arguments[i], out v.Y))
+						if (!double.TryParse(arguments[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v.Y))
 						{
 							success = false;
 						}
 						break;
 					case 2:
-						if (!double.TryParse(arguments[i], out v.Z))
+						if (!double.TryParse(arguments[i], NumberStyles.Float, CultureInfo.InvariantCulture, out v.Z))
 						{
 							success = false;
 						}
@@ -272,12 +271,11 @@ namespace OpenBveApi.Math {
 		/// <summary>Divides two vectors.</summary>
 		/// <param name="a">The first vector.</param>
 		/// <param name="b">The second vector.</param>
-		/// <returns>The quotient of the two vectors.</returns>
-		/// <exception cref="System.DivideByZeroException">Raised when any member of the second vector is zero.</exception>
+		/// <returns>The quotient of the two vectors, or Vector3.Zero if any member of the second vector is zero.</returns>
 		public static Vector3 operator /(Vector3 a, Vector3 b)
 		{
 			if (b.X == 0.0 | b.Y == 0.0 | b.Z == 0.0) {
-				throw new DivideByZeroException();
+				return Vector3.Zero;
 			}
 
 			a.X /= b.X;
@@ -289,11 +287,10 @@ namespace OpenBveApi.Math {
 		/// <summary>Divides a vector by a scalar.</summary>
 		/// <param name="a">The vector.</param>
 		/// <param name="b">The scalar.</param>
-		/// <returns>The quotient of the vector and the scalar.</returns>
-		/// <exception cref="System.DivideByZeroException">Raised when the scalar is zero.</exception>
+		/// <returns>The quotient of the vector and the scalar, or Vector3.Zero if the scalar is zero.</returns>
 		public static Vector3 operator /(Vector3 a, double b) {
 			if (b == 0.0) {
-				throw new DivideByZeroException();
+				return Vector3.Zero;
 			}
 			double factor = 1.0 / b;
 			a.X *= factor;
@@ -305,12 +302,11 @@ namespace OpenBveApi.Math {
 		/// <summary>Divides a scalar by a vector.</summary>
 		/// <param name="a">The scalar.</param>
 		/// <param name="b">The vector.</param>
-		/// <returns>The quotient of the scalar and the vector.</returns>
-		/// <exception cref="DivideByZeroException">Raised when any member of the vector is zero.</exception>
+		/// <returns>The quotient of the scalar and the vector, or Vector3.Zero if any member of the vector is zero.</returns>
 		public static Vector3 operator /(double a, Vector3 b)
 		{
 			if (b.X == 0.0 | b.Y == 0.0 | b.Z == 0.0) {
-				throw new DivideByZeroException();
+				return Vector3.Zero;
 			}
 
 			b.X /= a;
@@ -319,9 +315,18 @@ namespace OpenBveApi.Math {
 			return b;
 		}
 
-		
+		/// <summary>Multiplies a Vector3 by a transformation</summary>
+		/// <param name="t">The transformation</param>
+		/// <param name="v">The vector</param>
+		/// <returns>The multiplied vector</returns>
+		public static Vector3 operator *(Vector3 v, Transformation t)
+		{
+			v = t.X * v.X + t.Y * v.Y + t.Z * v.Z;
+			return v;
+		}
+
 		// --- comparisons ---
-		
+
 		/// <summary>Checks whether the two specified vectors are equal.</summary>
 		/// <param name="a">The first vector.</param>
 		/// <param name="b">The second vector.</param>
@@ -518,6 +523,13 @@ namespace OpenBveApi.Math {
 			if (this.Z > tolerance) return false;
 			return true;
 		}
+
+		/// <summary>Gets the magnitude of the vector</summary>
+		/// <returns>The magnitude</returns>
+		public double Magnitude()
+		{
+			return 1.0 / Norm();
+		}
 		
 		/// <summary>Gets the euclidean norm.</summary>
 		/// <returns>The euclidean norm.</returns>
@@ -552,16 +564,15 @@ namespace OpenBveApi.Math {
 		
 		/// <summary>Normalizes a vector.</summary>
 		/// <param name="vector">The vector.</param>
-		/// <returns>The normalized vector.</returns>
-		/// <exception cref="System.DivideByZeroException">Raised when the vector is a null vector.</exception>
+		/// <returns>The normalized vector, or Vector3.Zero if the input is a null vector.</returns>
 		public static Vector3 Normalize(Vector3 vector) {
 			double norm = vector.X * vector.X + vector.Y * vector.Y + vector.Z * vector.Z;
 			if (norm == 0.0) {
-				throw new DivideByZeroException();
-			} else {
-				double factor = 1.0 / System.Math.Sqrt(norm);
-				return new Vector3(vector.X * factor, vector.Y * factor, vector.Z * factor);
+				return Vector3.Zero;
 			}
+
+			double factor = 1.0 / System.Math.Sqrt(norm);
+			return new Vector3(vector.X * factor, vector.Y * factor, vector.Z * factor);
 		}
 		
 		/// <summary>Translates a vector by a specified offset.</summary>
@@ -630,25 +641,25 @@ namespace OpenBveApi.Math {
 		/// <param name="b">The second spatial coordinate.</param>
 		/// <param name="c">The third spatial coordinate.</param>
 		/// <param name="normal">On success, receives the vector perpendicular to the described plane. On failure, receives Vector3.Up.</param>
-		/// <returns>The success of the operation. This operation fails if the specified three vectors are colinear.</returns>
+		/// <returns>The success of the operation. This operation fails if the specified three vectors are collinear.</returns>
 		public static bool CreateNormal(Vector3 a, Vector3 b, Vector3 c, out Vector3 normal) {
 			normal = Vector3.Cross(b - a, c - a);
 			double norm = normal.X * normal.X + normal.Y * normal.Y + normal.Z * normal.Z;
 			if (norm != 0.0) {
 				normal *= 1.0 / System.Math.Sqrt(norm);
 				return true;
-			} else {
-				normal = Vector3.Up;
-				return false;
 			}
+
+			normal = Vector3.Up;
+			return false;
 		}
 		
-		/// <summary>Checks whether three spatial coordinates are colinear.</summary>
+		/// <summary>Checks whether three spatial coordinates are collinear.</summary>
 		/// <param name="a">The first spatial coordinate.</param>
 		/// <param name="b">The second spatial coordinate.</param>
 		/// <param name="c">The third spatial coordinate.</param>
-		/// <returns>A boolean indicating whether the three spatial coordinates are colinear.</returns>
-		public static bool AreColinear(Vector3 a, Vector3 b, Vector3 c) {
+		/// <returns>A boolean indicating whether the three spatial coordinates are collinear.</returns>
+		public static bool AreCollinear(Vector3 a, Vector3 b, Vector3 c) {
 			Vector3 normal = Vector3.Cross(b - a, c - a);
 			return IsNullVector(normal);
 		}
@@ -704,9 +715,9 @@ namespace OpenBveApi.Math {
 				 * Some implementations appear to expect a constant W value to be added to the vector,
 				 * whereas others ignore it
 				 */
-				x += (1 * transformMatrix.Row3.X);
-				y += (1 * transformMatrix.Row3.Y);
-				z += (1 * transformMatrix.Row3.Z);
+				x += transformMatrix.Row3.X;
+				y += transformMatrix.Row3.Y;
+				z += transformMatrix.Row3.Z;
 			}
 			X = x;
 			Y = y;

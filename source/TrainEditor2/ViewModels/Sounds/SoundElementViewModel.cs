@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using Formats.OpenBve;
 using Reactive.Bindings;
 using Reactive.Bindings.Extensions;
 using TrainEditor2.Extensions;
@@ -70,13 +71,12 @@ namespace TrainEditor2.ViewModels.Sounds
 				.ToReactivePropertyAsSynchronized(
 					x => x.PositionX,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
-					Utilities.TryParse(x, NumberRange.Any, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.Any, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -85,13 +85,12 @@ namespace TrainEditor2.ViewModels.Sounds
 				.ToReactivePropertyAsSynchronized(
 					x => x.PositionY,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
-					Utilities.TryParse(x, NumberRange.Any, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.Any, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -100,13 +99,12 @@ namespace TrainEditor2.ViewModels.Sounds
 				.ToReactivePropertyAsSynchronized(
 					x => x.PositionZ,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
-					Utilities.TryParse(x, NumberRange.Any, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.Any, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -119,13 +117,12 @@ namespace TrainEditor2.ViewModels.Sounds
 				.ToReactivePropertyAsSynchronized(
 					x => x.Radius,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
-					Utilities.TryParse(x, NumberRange.Any, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.Any, out string message);
 					return message;
 				})
 				.AddTo(disposable);

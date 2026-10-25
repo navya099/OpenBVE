@@ -5,29 +5,33 @@
 		<Hash>FBF4399E04B769BDD416CEB6CC3D3C5EC4803E158997D5D75A76C423B6DA45ED</Hash>
 		<FileName>Arrive Night.csv</FileName>
 		<Derailments>false</Derailments>
+		<CylinderHack>true</CylinderHack>
 	</Patch>
 	<Patch>
 		<Hash>49630A77BE1AB513BD58962795DC38846451A3E44C4E6770DF78EE71C5EF226E</Hash>
 		<FileName>Arrive.csv</FileName>
 		<Derailments>false</Derailments>
+		<CylinderHack>true</CylinderHack>
 	</Patch>
 	<!-- Iiyama 2060 -->
 	<Patch>
 		<Hash>471C1CC06E55D1B40E7B992028FA25200E480A37778E51B1B0F36BE475B250AF</Hash>
 		<FileName>9001.csv</FileName>
-		<XParser>new</XParser>
+		<XParser>NewXParser</XParser>
 	</Patch>
 	<Patch>
 		<Hash>5E976BA173F3267271746FB161730FFC205FAC85A38DB369BDC2FB25297B05E1</Hash>
 		<FileName>spaceroute1.csv</FileName>
 		<Toppling>false</Toppling>
 		<Derailments>false</Derailments>
+		<AdhesionHack>true</AdhesionHack>
 	</Patch>
 	<Patch>
 		<Hash>EDB673ED7BC2B4B5F80F48AE11ED75A604E92C6BFCDF3C177B19DB4791C6A9B4</Hash>
 		<FileName>montserrat.rw</FileName>
 		<AccurateObjectDisposal>true</AccurateObjectDisposal>
 		<ReducedColorTransparency>true</ReducedColorTransparency>
+		<RailEndedObject>true</RailEndedObject>
 	</Patch>
 	<!-- Some Sanford Mace demo stuff -->
 	<Patch>
@@ -221,6 +225,107 @@
 		<FileName>Outbound Tram.csv</FileName>
 		<AccurateObjectDisposal>true</AccurateObjectDisposal>
 		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<!-- NE Tram -->
+	<!-- NOTE: This route uses the block animation trick for some people on the track.	-->
+	<!-- 	   However remove this, as otherwise we've got a *lot* of glitchy scenery.-->
+	<Patch>
+		<Hash>75D8D828DE031D4977C841DB95D9A7D4B23B45120E9C426713C83AADE326E227</Hash>
+		<FileName>NETram-Day(Car).rw</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+		<Expression Number="637"></Expression>
+	</Patch>
+	<Patch>
+		<Hash>C1E320D90149F2DFEABAAA792B9CCE059956E6C3EAFE9DE49E9E24435A4824F5</Hash>
+		<FileName>NETram-Day.rw</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+		<Expression Number="637"></Expression>
+	</Patch>
+	<Patch>
+		<Hash>82D6D4DFA10648CA3D8789A7FC534224D7FF25775F47B745ED10C7C2F944A34F</Hash>
+		<FileName>NETram-EarlyMorning.rw</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+		<Expression Number="637"></Expression>
+	</Patch>
+	<Patch>
+		<Hash>6CC3DD85EC7B8C4328C912A7EA264823AEEBAD0BC5B5004B273BAC5FEBD112C4</Hash>
+		<FileName>NETram-Evening.rw</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+		<Expression Number="638"></Expression>
+	</Patch>
+	<!-- Lartigue Monorail -->
+	<!-- Another Sanford Mace little demo thing -->
+	<Patch>
+		<Hash>3855027ADA4E116C9A58983E17285E5B800DE3494F2D319EE95E53E73EFB4D5D</Hash>
+		<FileName>1 TODAY 1-TURNBABLE 2.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>0C923F5FD308292F147953EFCCAB80EC688765B6AD6B7EB987EC5F3A52573B68</Hash>
+		<FileName>2 TURNTABLE 2 - REVERSE 3.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>F576A1346CCA34A49773CBB12163266FAEE8AB1245E0FF31C81F612161294547</Hash>
+		<FileName>3 TODAY 3 - TURNTABLE 1.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>DACF7658EB38673D54F0DE71A6A327E37F35316019631F7346A0ABAE8B4931E6</Hash>
+		<FileName>4 TODAY TURNTABLE 1 - REVERSE 2.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>90CB94DF66EACC9856FAD8EE353C831336239FAE3EC1C28DDC724FB55B678E0A</Hash>
+		<FileName>5 TODAY 1 - TRAIN SHED.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+		<Patch>
+		<Hash>9769BBB646422C9104BE7DCE89B6AB47B95DEC28F13FC1B93B3900070E0B536F</Hash>
+		<FileName>OLD 1-2.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>EE3E2766DAEC9BD7D7CF0DEAC5EBBE7E805D0B053C89A00902D184C1284194A7</Hash>
+		<FileName>OLD 2-1.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>545B254A1F39684F9AE926B0EB9533DE408A3121CA12F4EB65C27B9CE8A76D9C</Hash>
+		<FileName>1 TO 3.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<Patch>
+		<Hash>19F006E106C6688CB8FAB15CD87D6306F480458F72799054C5D0B10BFC315030</Hash>
+		<FileName>3 TO 2.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+	</Patch>
+	<!-- Mars route-->
+	<Patch>
+		<Hash>0A7808AE6C6CB7602B7113DE31046808D32EE9554FA602E64DD71AD3E9200E2A</Hash>
+		<FileName>mars3.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
+		<ReducedColorTransparency>true</ReducedColorTransparency>
+		<CylinderHack>true</CylinderHack>
+	</Patch>
+	<!-- Maglev -->
+	<Patch>
+		<Hash>70A845ECCF96A73A329E04A1DCDB79AD4FF6EB920AFCE731E2CC85EA31AA49FB</Hash>
+		<FileName>maglev.csv</FileName>
+		<AccurateObjectDisposal>true</AccurateObjectDisposal>
 	</Patch>
   </RoutePatches>
 </openBVE>

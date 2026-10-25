@@ -11,6 +11,7 @@ using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
 using RouteManager2;
+using System.Diagnostics;
 using Control = OpenBveApi.Interface.Control;
 
 namespace OpenBve {
@@ -44,9 +45,6 @@ namespace OpenBve {
 		
 		/// <summary>If the program is to be restarted, this contains the command-line arguments that should be passed to the process, or a null reference otherwise.</summary>
 		internal static string RestartArguments;
-
-		/// <summary>The random number generator used by this program.</summary>
-		internal static readonly Random RandomNumberGenerator = new Random();
 
 		internal static JoystickManager Joysticks;
 
@@ -103,9 +101,26 @@ namespace OpenBve {
 			//Determine the current CPU architecture-
 			//ARM will generally only support OpenGL-ES
 			typeof(object).Module.GetPEKind(out PortableExecutableKinds _, out CurrentCPUArchitecture);
+
+			// --- check the command-line arguments for route and train ---
+			LaunchParameters result = CommandLine.ParseArguments(args);
 			
-			Application.EnableVisualStyles();
-			Application.SetCompatibleTextRenderingDefault(false);
+			try
+			{
+				Application.EnableVisualStyles();
+				Application.SetCompatibleTextRenderingDefault(false);
+			}
+			catch(Exception ex)
+			{
+				if (ex is TypeInitializationException)
+				{
+					// WinForms library is broken or not available
+					// so try the GL menu instead (Debian Forky)
+					result.ExperimentalGLMenu = true;	
+				}
+			}
+			
+			
 			
 			if (IntPtr.Size == 4)
 			{
@@ -127,7 +142,7 @@ namespace OpenBve {
 				FileSystem = FileSystem.FromCommandLineArgs(args, CurrentHost);
 				FileSystem.CreateFileSystem();
 			} catch (Exception ex) {
-				MessageBox.Show(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","filesystem_invalid"}) + Environment.NewLine + Environment.NewLine + ex.Message, Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Hand);
+				Program.ShowMessageBox(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","filesystem_invalid"}) + Environment.NewLine + Environment.NewLine + ex.Message, Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}));
 				return;
 			}
 
@@ -139,9 +154,9 @@ namespace OpenBve {
 			// --- Check if we're running as root, and prompt not to ---
 			if ((CurrentHost.Platform == HostPlatform.GNULinux || CurrentHost.Platform == HostPlatform.FreeBSD) && (getuid() == 0 || geteuid() == 0))
 			{
-				MessageBox.Show(
+				Program.ShowMessageBox(
 					@"You are currently running as the root user, or via the sudo command." + Environment.NewLine +
-					@"This is a bad idea, please dont!", Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Hand);
+					@"This is a bad idea, please dont!", Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}));
 			}
 
 
@@ -160,11 +175,9 @@ namespace OpenBve {
 			string file = Path.CombineFile(folder, "Default keyboard assignment.controls");
 			Interface.LoadControls(file, out Control[] controls);
 			Interface.AddControls(ref Interface.CurrentControls, controls);
-			
 			InputDevicePlugin.LoadPlugins(Program.FileSystem);
 			
-			// --- check the command-line arguments for route and train ---
-			LaunchParameters result = CommandLine.ParseArguments(args);
+			
 			// --- check whether route and train exist ---
 			if (result.RouteFile != null) {
 				if (!System.IO.File.Exists(result.RouteFile))
@@ -182,7 +195,7 @@ namespace OpenBve {
 			{
 				if (!CurrentHost.LoadPlugins(FileSystem, Interface.CurrentOptions, out string error, TrainManager, Renderer))
 				{
-					MessageBox.Show(error, Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Error);
+					Program.ShowMessageBox(error, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "program", "title" }));
 					throw new Exception("Unable to load the required plugins- Please reinstall OpenBVE");
 				}
 				Game.Reset(false);
@@ -204,7 +217,7 @@ namespace OpenBve {
 
 				if (!CurrentHost.UnloadPlugins(out error))
 				{
-					MessageBox.Show(error, Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Error);
+					Program.ShowMessageBox(error, Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "program", "title" }));
 				}
 				if (!loaded)
 				{
@@ -303,7 +316,7 @@ namespace OpenBve {
 							if (TrainManager.Trains[i] != null && TrainManager.Trains[i].Plugin != null) {
 								if (TrainManager.Trains[i].Plugin.LastException != null) {
 									CrashHandler.LoadingCrash(ex.Message, true);
-									MessageBox.Show(@"The train plugin " + TrainManager.Trains[i].Plugin.PluginTitle + @" caused a runtime exception: " + TrainManager.Trains[i].Plugin.LastException.Message, Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Hand);
+									Program.ShowMessageBox(@"The train plugin " + TrainManager.Trains[i].Plugin.PluginTitle + @" caused a runtime exception: " + TrainManager.Trains[i].Plugin.LastException.Message, Application.ProductName);
 									found = true;
 									RestartArguments = "";
 									break;
@@ -318,10 +331,18 @@ namespace OpenBve {
 								switch (ex.Message)
 								{
 									case "libopenal.so.1":
-										MessageBox.Show(@"openAL was not found on this system. \n Please install libopenal1 via your distribtion's package management system.", Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Hand);
+										Program.ShowMessageBox(@"openAL was not found on this system. \n Please install libopenal1 via your distribution's package management system.", Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "program", "title" }));
+										break;
+									case "openal32.dll assembly:<unknown assembly> type:<unknown type> member:(null)":
+										if (CurrentHost.Platform != HostPlatform.MicrosoftWindows)
+										{
+											// if building from scratch, the compilation process has failed to copy this file correctly-
+											// place in the application root directory (JetBrains Rider)
+											Program.ShowMessageBox(@"This installation of OpenBVE is corrupt (OpenTk.dll.config could not be found). \n Please reinstall OpenBVE.", Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "program", "title" }));
+										}
 										break;
 									default:
-										MessageBox.Show(@"The required system library " + ex.Message + @" was not found on this system.", Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Hand);
+										Program.ShowMessageBox(@"The required system library " + ex.Message + @" was not found on this system.", Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "program", "title" }));
 										break;
 								}
 							}
@@ -345,14 +366,14 @@ namespace OpenBve {
 					arguments = FileSystem.RestartArguments + RestartArguments;
 				}
 				try {
-					System.Diagnostics.Process.Start(System.IO.File.Exists(FileSystem.RestartProcess) ? FileSystem.RestartProcess : Application.ExecutablePath, arguments);
+					Process.Start(System.IO.File.Exists(FileSystem.RestartProcess) ? FileSystem.RestartProcess : Application.ExecutablePath, arguments);
 					if (CurrentHost.MonoRuntime)
 					{
 						// Forcefully terminate the original process once the new one has triggered, otherwise we hang around...
 						Environment.Exit(0);
 					}
 				} catch (Exception ex) {
-					MessageBox.Show(ex.Message + @"\n\nProcess = " + FileSystem.RestartProcess + @"\nArguments = " + arguments, Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Error);
+					ShowMessageBox(ex.Message + @"\n\nProcess = " + FileSystem.RestartProcess + @"\nArguments = " + arguments, Application.ProductName);
 				}
 			}
 			else
@@ -367,7 +388,7 @@ namespace OpenBve {
 		private static bool Initialize()
 		{
 			if (!CurrentHost.LoadPlugins(FileSystem, Interface.CurrentOptions, out string error, TrainManager, Renderer)) {
-				MessageBox.Show(error, @"OpenBVE", MessageBoxButtons.OK, MessageBoxIcon.Error);
+				Program.ShowMessageBox(error, @"OpenBVE");
 				return false;
 			}
 			
@@ -392,6 +413,32 @@ namespace OpenBve {
 			Program.CurrentHost.UnloadPlugins(out _);
 			Sounds.DeInitialize();
 			Renderer.DeInitialize();
+		}
+
+		internal static void ShowMessageBox(string messageText, string captionText)
+		{
+			if (CurrentHost.Platform == HostPlatform.AppleOSX && IntPtr.Size != 4)
+			{
+				// MessageBox.Show does not work on OS-X 64-bit, so let's bodge the System Events dialog
+				var proc = new Process
+				{
+					StartInfo = new ProcessStartInfo
+					{
+						FileName = "/usr/bin/osascript",
+						Arguments = $"-e 'tell app \"System Events\" to display dialog \"{messageText}\"'",
+						UseShellExecute = false,
+						RedirectStandardOutput = true,
+						CreateNoWindow = true
+					}
+				};
+
+				proc.Start();
+				proc.WaitForExit();
+			}
+			else
+			{
+				MessageBox.Show(messageText, captionText, MessageBoxButtons.OK, MessageBoxIcon.Hand);
+			}
 		}
 
 	}

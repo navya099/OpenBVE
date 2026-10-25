@@ -163,11 +163,11 @@ namespace Train.OpenBve
 						block.GetPath(SoundCfgKey.Release, trainFolder, out string release);
 						for (int c = 0; c < train.Cars.Length; c++)
 						{
-							if (train.Cars[c].CarBrake.brakeType == BrakeType.Main)
+							if (train.Cars[c].CarBrake is AirBrake airBrake && airBrake.BrakeType == BrakeType.Main)
 							{
-								train.Cars[c].CarBrake.airCompressor.StartSound = new CarSound(Plugin.CurrentHost, attack, SoundCfgParser.mediumRadius, center);
-								train.Cars[c].CarBrake.airCompressor.LoopSound = new CarSound(Plugin.CurrentHost, loop, SoundCfgParser.mediumRadius, center);
-								train.Cars[c].CarBrake.airCompressor.EndSound = new CarSound(Plugin.CurrentHost, release, SoundCfgParser.mediumRadius, center);
+								airBrake.Compressor.StartSound = new CarSound(Plugin.CurrentHost, attack, SoundCfgParser.mediumRadius, center);
+								airBrake.Compressor.LoopSound = new CarSound(Plugin.CurrentHost, loop, SoundCfgParser.mediumRadius, center);
+								airBrake.Compressor.EndSound = new CarSound(Plugin.CurrentHost, release, SoundCfgParser.mediumRadius, center);
 							}
 						}
 						break;
@@ -324,7 +324,7 @@ namespace Train.OpenBve
 						train.SafetySystems.PassAlarm.Sound = new CarSound(Plugin.CurrentHost, halt, SoundCfgParser.tinyRadius, panel);
 						for (int c = 0; c < train.Cars.Length; c++)
 						{
-							if (train.Cars[c].Specs.IsMotorCar | c == train.DriverCar)
+							if (train.Cars[c].TractionModel.ProvidesPower | c == train.DriverCar)
 							{
 								train.Cars[c].Sounds.Loop = new CarSound(Plugin.CurrentHost, noise, SoundCfgParser.mediumRadius, center);
 							}
@@ -371,38 +371,36 @@ namespace Train.OpenBve
 						train.Cars[train.DriverCar].Windscreen.Wipers.SwitchSound = new CarSound(Plugin.CurrentHost, wiperSwitch, SoundCfgParser.tinyRadius, panel);
 						break;
 				}
+				block.ReportErrors();
 			}
 			
 			// Assign motor sounds to appropriate cars
 			for (int c = 0; c < train.Cars.Length; c++)
 			{
-				if (train.Cars[c].Specs.IsMotorCar)
+				if (train.Cars[c].TractionModel.MotorSounds == null)
 				{
-					if (train.Cars[c].Sounds.Motor == null)
+					BVEMotorSound motorSound = new BVEMotorSound(train.Cars[c], 18.0, Plugin.MotorSoundTables);
+					motorSound.Position = center;
+					for (int i = 0; i < motorSound.Tables.Length; i++)
 					{
-						BVEMotorSound motorSound = new BVEMotorSound(train.Cars[c], 18.0, Plugin.MotorSoundTables);
-						motorSound.Position = center;
-						for (int i = 0; i < motorSound.Tables.Length; i++)
+						motorSound.Tables[i].Buffer = null;
+						motorSound.Tables[i].Source = null;
+						for (int j = 0; j < motorSound.Tables[i].Entries.Length; j++)
 						{
-							motorSound.Tables[i].Buffer = null;
-							motorSound.Tables[i].Source = null;
-							for (int j = 0; j < motorSound.Tables[i].Entries.Length; j++)
+							int index = motorSound.Tables[i].Entries[j].SoundIndex;
+							if (motorFiles.ContainsKey(index) && !string.IsNullOrEmpty(motorFiles[index]))
 							{
-								int index = motorSound.Tables[i].Entries[j].SoundIndex;
-								if (motorFiles.ContainsKey(index) && !string.IsNullOrEmpty(motorFiles[index]))
-								{
-									Plugin.CurrentHost.RegisterSound(motorFiles[index], SoundCfgParser.mediumRadius, out var mS);
-									motorSound.Tables[i].Entries[j].Buffer = mS as SoundBuffer;
-								}
+								Plugin.CurrentHost.RegisterSound(motorFiles[index], SoundCfgParser.mediumRadius, out var mS);
+								motorSound.Tables[i].Entries[j].Buffer = mS as SoundBuffer;
 							}
 						}
+					}
 
-						train.Cars[c].Sounds.Motor = motorSound;
-					}
-					else
-					{
-						Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Unexpected motor sound model found in car " + c);
-					}
+					train.Cars[c].TractionModel.MotorSounds = motorSound;
+				}
+				else
+				{
+					Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Unexpected motor sound model found in car " + c);
 				}
 			}
 		}

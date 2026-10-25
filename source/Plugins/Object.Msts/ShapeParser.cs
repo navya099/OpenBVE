@@ -22,7 +22,9 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+using System;
 using OpenBve.Formats.MsTs;
+using OpenBveApi;
 using OpenBveApi.Colors;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
@@ -30,9 +32,9 @@ using OpenBveApi.Objects;
 using OpenBveApi.Textures;
 using SharpCompress.Compressors;
 using SharpCompress.Compressors.Deflate;
-using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Text;
 
 
@@ -45,51 +47,16 @@ using System.Text;
 // ReSharper disable RedundantAssignment
 // ReSharper disable UnusedVariable
 // ReSharper disable InconsistentNaming
-#pragma warning disable 0219
+#pragma warning disable 0219, IDE0059
 namespace Plugin
 {
-	partial class MsTsShapeParser
+	internal partial class MsTsShapeParser
 	{
-		class Texture
-		{
-			internal readonly string fileName;
-			internal int filterMode;
-			internal int mipmapLODBias;
-			internal Color32 borderColor;
-
-			internal Texture(string file)
-			{
-				fileName = file;
-			}
-		}
-
-		class PrimitiveState
-		{
-			internal readonly string Name;
-			internal UInt32 Flags;
-			internal int Shader;
-			internal int[] Textures;
-			/*
-			 * Unlikely to be able to support these at present
-			 * However, read and see if we can hack common ones
-			 */
-			internal float ZBias;
-			internal int vertexStates;
-			internal int alphaTestMode;
-			internal int lightCfgIdx;
-			internal int zBufferMode;
-
-			internal PrimitiveState(string name)
-			{
-				Name = name;
-			}
-		}
-
-		class VertexStates
+		private class VertexStates
 		{
 			internal uint flags; //Describes specular and some other stuff, unlikely to be supported
 			/// <summary>The hierarchy ID of the top-level transform matrix</summary>
-			/// <remarks>Remmeber that matricies transform down a chain</remarks>
+			/// <remarks>Remember that matrices transform down a chain</remarks>
 			internal readonly int hierarchyID;
 			internal int lightingMatrixID;
 			internal int lightingConfigIdx;
@@ -102,11 +69,11 @@ namespace Plugin
 			}
 		}
 
-		class VertexSet
+		private class VertexSet
 		{
 			internal readonly int hierarchyIndex;
 			internal int startVertex;
-			internal int numVerticies;
+			internal int numVertices;
 
 			internal VertexSet(int hierarchy)
 			{
@@ -115,7 +82,7 @@ namespace Plugin
 		}
 
 
-		struct Animation
+		private struct Animation
 		{
 			internal int FrameCount;
 			internal Dictionary<string, KeyframeAnimation> Nodes;
@@ -127,22 +94,21 @@ namespace Plugin
 			internal double FrameRate;
 		}
 
-		
-		class Vertex
+		private class Vertex
 		{
 			internal Vector3 Coordinates;
-			internal Vector3 Normal;
+			internal readonly Vector3 Normal;
 			internal Vector2 TextureCoordinates;
 			internal int[] matrixChain;
 
 			public Vertex(Vector3 c, Vector3 n)
 			{
-				this.Coordinates = new Vector3(c.X, c.Y, c.Z);
-				this.Normal = new Vector3(n.X, n.Y, n.Z);
+				Coordinates = new Vector3(c.X, c.Y, c.Z);
+				Normal = new Vector3(n.X, n.Y, n.Z);
 			}
 		}
 
-		private struct Face
+		private readonly struct Face
 		{
 			internal readonly int[] Vertices;
 			internal readonly int Material;
@@ -150,15 +116,7 @@ namespace Plugin
 			internal Face(int[] vertices, int material)
 			{
 				Vertices = vertices;
-				if (material == -1)
-				{
-					Material = 0;
-				}
-				else
-				{
-					Material = material;
-				}
-
+				Material = material == -1 ? 0 : material;
 			}
 		}
 
@@ -175,10 +133,11 @@ namespace Plugin
 				vtx_states = new List<VertexStates>();
 				LODs = new List<LOD>();
 				Animations = new List<Animation>();
-				AnimatedMatricies = new Dictionary<int, int>();
-				Matricies = new List<KeyframeMatrix>();
-				MatrixParents = new Dictionary<string, string>();
+				AnimatedMatrices = new Dictionary<int, int>();
+				Matrices = new List<KeyframeMatrix>();
+				MatrixParents = new Dictionary<int, int>();
 				ShaderNames = new List<ShaderNames>();
+				colors = new List<Color32>();
 			}
 
 			// Global variables used by all LODs
@@ -194,6 +153,8 @@ namespace Plugin
 			/// <summary>The textures used, with associated parameters</summary>
 			/// <remarks>Allows the alpha testing mode to be set etc. so that the same image file can be reused</remarks>
 			internal readonly List<Texture> textures;
+			/// <summary>The list of colors available to be applied to vertices</summary>
+			internal readonly List<Color32> colors;
 			/// <summary>Contains the shader, texture etc. used by the primitive</summary>
 			/// <remarks>Largely unsupported other than the texture name at the minute</remarks>
 			internal readonly List<PrimitiveState> prim_states;
@@ -201,13 +162,13 @@ namespace Plugin
 			internal readonly List<VertexStates> vtx_states;
 
 			internal readonly List<Animation> Animations;
-			/// <summary>Dictionary of animated matricies mapped to the final model</summary>
-			/// <remarks>Most matricies aren't animated, so don't send excessive numbers to the shader each frame</remarks>
-			internal readonly Dictionary<int, int> AnimatedMatricies;
-			/// <summary>The matricies within the shape</summary>
-			internal readonly List<KeyframeMatrix> Matricies;
+			/// <summary>Dictionary of animated matrices mapped to the final model</summary>
+			/// <remarks>Most matrices aren't animated, so don't send excessive numbers to the shader each frame</remarks>
+			internal readonly Dictionary<int, int> AnimatedMatrices;
+			/// <summary>The matrices within the shape</summary>
+			internal readonly List<KeyframeMatrix> Matrices;
 
-			internal readonly Dictionary<string, string> MatrixParents;
+			internal readonly Dictionary<int, int> MatrixParents;
 
 			internal readonly List<ShaderNames> ShaderNames;
 
@@ -228,12 +189,12 @@ namespace Plugin
 			/// <param name="distance">The maximum viewing distance for this LOD</param>
 			internal LOD(double distance)
 			{
-				this.viewingDistance = distance;
-				this.subObjects = new List<SubObject>();
+				viewingDistance = distance;
+				subObjects = new List<SubObject>();
 			}
 
 			internal readonly double viewingDistance;
-			internal List<SubObject> subObjects;
+			internal readonly List<SubObject> subObjects;
 			internal int[] hierarchy;
 		}
 
@@ -241,32 +202,32 @@ namespace Plugin
 		{
 			internal SubObject()
 			{
-				this.verticies = new List<Vertex>();
-				this.vertexSets = new List<VertexSet>();
-				this.faces = new List<Face>();
-				this.materials = new List<Material>();
-				this.hierarchy = new List<int>();
+				vertices = new List<Vertex>();
+				vertexSets = new List<VertexSet>();
+				faces = new List<Face>();
+				materials = new List<MeshMaterial>();
+				hierarchy = new List<int>();
 			}
 
-			internal void TransformVerticies(MsTsShape shape)
+			internal void TransformVertices(MsTsShape shape)
 			{
-				transformedVertices = new List<Vertex>(verticies);
+				transformedVertices = new List<Vertex>(vertices);
 				
 				
-				for (int i = 0; i < verticies.Count; i++)
+				for (int i = 0; i < vertices.Count; i++)
 				{
-					transformedVertices[i] = new Vertex(verticies[i].Coordinates, verticies[i].Normal);
+					transformedVertices[i] = new Vertex(vertices[i].Coordinates, vertices[i].Normal);
 					for (int j = 0; j < vertexSets.Count; j++)
 					{
-						if (vertexSets[j].startVertex <= i && vertexSets[j].startVertex + vertexSets[j].numVerticies > i)
+						if (vertexSets[j].startVertex <= i && vertexSets[j].startVertex + vertexSets[j].numVertices > i)
 						{
 							List<int> matrixChain = new List<int>();
 							bool staticTransform = true;
 							int hi = vertexSets[j].hierarchyIndex;
-							if (hi != -1 && hi < shape.Matricies.Count)
+							if (hi != -1 && hi < shape.Matrices.Count)
 							{
 								matrixChain.Add(hi);
-								if (IsAnimated(shape.Matricies[hi].Name))
+								if (IsAnimated(shape.Matrices[hi].Name))
 								{
 									staticTransform = false;
 								}
@@ -279,12 +240,12 @@ namespace Plugin
 										break;
 									}
 									
-									if (hi == matrixChain[0])
+									if (hi == matrixChain[matrixChain.Count - 1])
 									{
 										continue;
 									}
-									matrixChain.Insert(0, hi);
-									if (IsAnimated(shape.Matricies[hi].Name))
+									matrixChain.Add(hi);
+									if (IsAnimated(shape.Matrices[hi].Name))
 									{
 										staticTransform = false;
 									}
@@ -293,58 +254,55 @@ namespace Plugin
 							else
 							{
 								//Unsure of the cause of this, matrix appears to be invalid
-								i = vertexSets[j].startVertex + vertexSets[j].numVerticies;
+								i = vertexSets[j].startVertex + vertexSets[j].numVertices;
 								matrixChain.Clear();
 							}
 
-							if (staticTransform)
+							if (staticTransform && string.IsNullOrEmpty(wagonFileDirectory)) // if part of a MSTS train, we may need to operate on contained matrices when merging shapes
 							{
-								for (int k = 0; k < matrixChain.Count; k++)
+								for (int k = 0;k < matrixChain.Count; k++)
 								{
-									transformedVertices[i].Coordinates.Transform(shape.Matricies[matrixChain[k]].Matrix, false);
+									transformedVertices[i].Coordinates.Transform(shape.Matrices[matrixChain[k]].Matrix, false);
 								}
 							}
 							else
 							{
 								// find and store matrix parents for use by the animation function
-								for (int k = 0; k < matrixChain.Count - 1; k++)
+								for (int k = matrixChain.Count - 1; k > 0; k--)
 								{
-									if (!shape.MatrixParents.ContainsKey(shape.Matricies[matrixChain[k + 1]].Name))
+									if (!shape.MatrixParents.ContainsKey(matrixChain[k - 1]))
 									{
-										shape.MatrixParents[shape.Matricies[matrixChain[k + 1]].Name] = shape.Matricies[matrixChain[k]].Name;
+										shape.MatrixParents[matrixChain[k - 1]] = matrixChain[k];
 									}
 								}
 								/*
-								 * Check if our matricies are in the shape, and copy them there if not
+								 * Check if our matrices are in the shape, and copy them there if not
 								 *
 								 * Note:
 								 * ----
-								 * This is trading off a slightly slower load time for not copying large numbers of matricies to the shader each time,
+								 * This is trading off a slightly slower load time for not copying large numbers of matrices to the shader each time,
 								 * so better FPS whilst running the thing
 								 */
 								for (int k = 0; k < matrixChain.Count; k++)
 								{
-									if (shape.AnimatedMatricies.ContainsKey(matrixChain[k]))
+									if (shape.AnimatedMatrices.ContainsKey(matrixChain[k]))
 									{
 										// replace with the actual index in the shape matrix array
-										matrixChain[k] = shape.AnimatedMatricies[matrixChain[k]];
+										matrixChain[k] = shape.AnimatedMatrices[matrixChain[k]];
 									}
 									else
 									{
 										// copy matrix to shape and add to our dict
-										int matrixIndex = newResult.Matricies.Length;
-										Array.Resize(ref newResult.Matricies, matrixIndex + 1);
-										newResult.Matricies[matrixIndex] = shape.Matricies[matrixChain[k]];
-										shape.AnimatedMatricies.Add(matrixChain[k], matrixIndex);
+										int matrixIndex = newResult.Matrices.Length;
+										Array.Resize(ref newResult.Matrices, matrixIndex + 1);
+										newResult.Matrices[matrixIndex] = shape.Matrices[matrixChain[k]];
+										shape.AnimatedMatrices.Add(matrixChain[k], matrixIndex);
 										matrixChain[k] = matrixIndex;
 									}
 								}
-
-								// Note: transforming verticies must be done in reverse if the model is in motion
-								matrixChain.Reverse();
 								
-								// used to pack 4 x matrix indicies into a int
-								int[] transformChain = { 255, 255, 255, 255};
+								// used to pack matrix indices into a int
+								int[] transformChain = { 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255 };
 								matrixChain.CopyTo(transformChain);
 								transformedVertices[i].matrixChain = transformChain;
 							}
@@ -354,118 +312,83 @@ namespace Plugin
 				}
 			}
 
-			internal void Apply(out StaticObject Object, bool useTransformedVertics)
+			internal void Apply(out StaticObject Object, bool useTransformedVertices)
 			{
-				Object = new StaticObject(Plugin.CurrentHost)
+				Object = new StaticObject(Plugin.CurrentHost);
+				if (faces.Count == 0)
 				{
-					Mesh =
-					{
-						Faces = new MeshFace[] { },
-						Materials = new MeshMaterial[] { },
-						Vertices = new VertexTemplate[] { }
-					}
-				};
-				if (faces.Count != 0)
-				{
-					int mf = Object.Mesh.Faces.Length;
-					int mm = Object.Mesh.Materials.Length;
-					int mv = Object.Mesh.Vertices.Length;
-					Array.Resize(ref Object.Mesh.Faces, mf + faces.Count);
-					Array.Resize(ref Object.Mesh.Materials, mm + materials.Count);
-					Array.Resize(ref Object.Mesh.Vertices, mv + verticies.Count);
-					for (int i = 0; i < verticies.Count; i++)
-					{
-						if (useTransformedVertics)
-						{
-							//Use transformed vertices if we are not animated as will be faster
-							if (transformedVertices[i].matrixChain != null)
-							{
-								Object.Mesh.Vertices[mv + i] = new AnimatedVertex(transformedVertices[i].Coordinates, verticies[i].TextureCoordinates, transformedVertices[i].matrixChain);
-							}
-							else
-							{
-								Object.Mesh.Vertices[mv + i] = new OpenBveApi.Objects.Vertex(transformedVertices[i].Coordinates, verticies[i].TextureCoordinates);
-							}
-							
-						}
-						else
-						{
-							Object.Mesh.Vertices[mv + i] = new OpenBveApi.Objects.Vertex(verticies[i].Coordinates, verticies[i].TextureCoordinates);
-						}
-
-					}
-
-					int usedFaces = 0;
-					for (int i = 0; i < faces.Count; i++)
-					{
-						bool canSquashFace = false;
-						if (i > 0)
-						{
-							if (verticies[faces[i].Vertices[0]].matrixChain == verticies[faces[i - 1].Vertices[0]].matrixChain && faces[i].Material == faces[i -1].Material)
-							{
-								// check the matrix chain of the first vertex of each face, and te 
-								canSquashFace = true;
-							}
-						}
-
-						if (canSquashFace)
-						{
-							int squashID = mf + usedFaces - 1;
-							int oldLength = Object.Mesh.Faces[squashID].Vertices.Length;
-							Object.Mesh.Faces[squashID].AppendVerticies(faces[i].Vertices);
-							for (int k = 0; k < faces[i].Vertices.Length; k++)
-							{
-								Object.Mesh.Faces[squashID].Vertices[k + oldLength].Normal = verticies[faces[i].Vertices[k]].Normal;
-								Object.Mesh.Faces[squashID].Vertices[k + oldLength].Index += (ushort)mv;
-							}
-						}
-						else
-						{
-							Object.Mesh.Faces[mf + usedFaces] = new MeshFace(faces[i].Vertices, (ushort)faces[i].Material, FaceFlags.Triangles);
-							for (int k = 0; k < faces[i].Vertices.Length; k++)
-							{
-								Object.Mesh.Faces[mf + usedFaces].Vertices[k].Normal = verticies[faces[i].Vertices[k]].Normal;
-								Object.Mesh.Faces[mf + usedFaces].Vertices[k].Index += (ushort)mv;
-							}
-							
-							Object.Mesh.Faces[mf + usedFaces].Material += (ushort)mm;
-							usedFaces++;
-						}
-						
-					}
-
-					
-
-					Array.Resize(ref Object.Mesh.Faces, mf + usedFaces);
-
-					for (int i = 0; i < materials.Count; i++)
-					{
-						Object.Mesh.Materials[mm + i].Flags = materials[i].Flags;
-						Object.Mesh.Materials[mm + i].Color = materials[i].Color;
-						Object.Mesh.Materials[mm + i].TransparentColor = Color24.Black;
-						Object.Mesh.Materials[mm + i].BlendMode = MeshMaterialBlendMode.Normal;
-						if (materials[i].DaytimeTexture != null)
-						{
-							Plugin.CurrentHost.RegisterTexture(materials[i].DaytimeTexture, new TextureParameters(null, null), out OpenBveApi.Textures.Texture tday);
-							Object.Mesh.Materials[mm + i].DaytimeTexture = tday;
-						}
-						else
-						{
-							Object.Mesh.Materials[mm + i].DaytimeTexture = null;
-						}
-
-						Object.Mesh.Materials[mm + i].EmissiveColor = materials[i].EmissiveColor;
-						Object.Mesh.Materials[mm + i].NighttimeTexture = null;
-						Object.Mesh.Materials[mm + i].GlowAttenuationData = materials[i].GlowAttenuationData;
-						Object.Mesh.Materials[mm + i].WrapMode = materials[i].WrapMode;
-					}
+					return;
 				}
+
+				Array.Resize(ref Object.Mesh.Faces, faces.Count);
+				Array.Resize(ref Object.Mesh.Materials, materials.Count);
+				Array.Resize(ref Object.Mesh.Vertices, vertices.Count);
+				for (int i = 0; i < vertices.Count; i++)
+				{
+					if (useTransformedVertices)
+					{
+						//Use transformed vertices if we are not animated as will be faster
+						if (transformedVertices[i].matrixChain != null)
+						{
+							Object.Mesh.Vertices[i] = new AnimatedVertex(transformedVertices[i].Coordinates, vertices[i].TextureCoordinates, transformedVertices[i].matrixChain);
+						}
+						else
+						{
+							Object.Mesh.Vertices[i] = new OpenBveApi.Objects.Vertex(transformedVertices[i].Coordinates, vertices[i].TextureCoordinates);
+						}
+
+					}
+					else
+					{
+						Object.Mesh.Vertices[i] = new OpenBveApi.Objects.Vertex(vertices[i].Coordinates, vertices[i].TextureCoordinates);
+					}
+
+				}
+
+				int usedFaces = 0;
+				for (int i = 0; i < faces.Count; i++)
+				{
+					bool canSquashFace = false;
+					if (i > 0)
+					{
+						if (vertices[faces[i].Vertices[0]].matrixChain == vertices[faces[i - 1].Vertices[0]].matrixChain && faces[i].Material == faces[i - 1].Material)
+						{
+							// check the matrix chain of the first vertex of each face, and te 
+							canSquashFace = true;
+						}
+					}
+
+					if (canSquashFace)
+					{
+						int squashID = usedFaces - 1;
+						int oldLength = Object.Mesh.Faces[squashID].Vertices.Length;
+						Object.Mesh.Faces[squashID].AppendVertices(faces[i].Vertices);
+						for (int k = 0; k < faces[i].Vertices.Length; k++)
+						{
+							Object.Mesh.Faces[squashID].Vertices[k + oldLength].Normal = vertices[faces[i].Vertices[k]].Normal;
+						}
+					}
+					else
+					{
+						Object.Mesh.Faces[usedFaces] = new MeshFace(faces[i].Vertices, (ushort)faces[i].Material, FaceFlags.Triangles);
+						for (int k = 0; k < faces[i].Vertices.Length; k++)
+						{
+							Object.Mesh.Faces[usedFaces].Vertices[k].Normal = vertices[faces[i].Vertices[k]].Normal;
+						}
+						usedFaces++;
+					}
+
+				}
+
+				Array.Resize(ref Object.Mesh.Faces, usedFaces);
+				Object.Mesh.Materials = materials.ToArray();
+				Object.Mesh.FinalizeMesh();
 			}
 
-			internal readonly List<Vertex> verticies;
+			internal readonly List<Vertex> vertices;
 			internal readonly List<VertexSet> vertexSets;
 			internal readonly List<Face> faces;
-			internal readonly List<Material> materials;
+			internal readonly List<MeshMaterial> materials;
 			internal List<int> hierarchy;
 			internal List<Vertex> transformedVertices;
 		}
@@ -473,10 +396,23 @@ namespace Plugin
 		private static string currentFolder;
 
 		private static KeyframeAnimatedObject newResult;
+		internal static string wagonFileDirectory;
+
+		private static readonly string[] wheelsLinkedNodes = { "CON_ROD", "DRIVER_CONROD", "ECCENTRIC_ROD", "PISTON_ROD", "EXPANSION_LINK", "XHEAD_LINK", "COMBINATION_LEVER", "RADIUS_ARM", "EXPANSION_LINK", "W1_ECC", "W2_ECC", "W3_ECC", "W4_ECC" };
 
 		private static bool IsAnimated(string matrixName)
 		{
-			if (matrixName.StartsWith("WHEELS") || matrixName.StartsWith("ROD") || matrixName.StartsWith("BOGIE") || matrixName.StartsWith("PISTON"))
+			if (matrixName.StartsWithAny(new[] { "WHEELS", "ROD", "PISTON", "PANTOGRAPH", "JOINT" }) || wheelsLinkedNodes.Contains(matrixName, StringComparer.InvariantCultureIgnoreCase) || (matrixName[0] == 'A' && char.IsDigit(matrixName[1])))
+			{
+				return true;
+			}
+
+			return false;
+		}
+
+		private static bool IsWheelLinked(string matrixName)
+		{
+			if (matrixName.StartsWithAny(new [] {"WHEEL", "ROD", "PISTON", "JOINT"}, StringComparison.InvariantCultureIgnoreCase) || (matrixName[0] == 'A' && char.IsDigit(matrixName[1]) || wheelsLinkedNodes.Contains(matrixName, StringComparer.InvariantCultureIgnoreCase)))
 			{
 				return true;
 			}
@@ -489,7 +425,7 @@ namespace Plugin
 			MsTsShape shape = new MsTsShape();
 			newResult = new KeyframeAnimatedObject(Plugin.CurrentHost);
 
-			currentFolder = Path.GetDirectoryName(fileName);
+			currentFolder = OpenBveApi.Path.GetDirectoryName(fileName);
 			Stream fb = new FileStream(fileName, FileMode.Open, FileAccess.Read, FileShare.Read);
 
 			byte[] buffer = new byte[34];
@@ -539,18 +475,9 @@ namespace Plugin
 			}
 			if (subHeader[7] == 't')
 			{
-				using (BinaryReader reader = new BinaryReader(fb))
+				using (StreamReader reader = new StreamReader(fb, unicode ? Encoding.Unicode : Encoding.ASCII))
 				{
-					byte[] newBytes = reader.ReadBytes((int)(fb.Length - fb.Position));
-					string s;
-					if (unicode)
-					{
-						s = Encoding.Unicode.GetString(newBytes);
-					}
-					else
-					{
-						s = Encoding.ASCII.GetString(newBytes);
-					}
+					string s = reader.ReadToEnd();
 					TextualBlock block = new TextualBlock(s, KujuTokenID.shape);
 					ParseBlock(block, ref shape);
 				}
@@ -601,33 +528,33 @@ namespace Plugin
 
 			if (newResult.Animations.Count == 0)
 			{
-				// some objects have default wheels matricies defined but no animations e.g. default UK MK1 coaches
+				// some objects have default wheels matrices defined but no animations e.g. default UK MK1 coaches
 				// add them now, as MSTS animates these (yuck)
-				for (int i = 0; i < shape.Matricies.Count; i++)
+				for (int i = 0; i < shape.Matrices.Count; i++)
 				{
 
-					if (shape.Matricies[i].Name.StartsWith("WHEELS"))
+					if (shape.Matrices[i].Name.StartsWith("WHEELS"))
 					{
-						KeyframeAnimation newAnimation = new KeyframeAnimation(newResult, string.Empty, shape.Matricies[i].Name, 8, 60, shape.Matricies[i].Matrix);
+						KeyframeAnimation newAnimation = new KeyframeAnimation(newResult, -1, shape.Matrices[i].Name, 8, 60, shape.Matrices[i].Matrix, true);
 						newAnimation.AnimationControllers = new[]
 						{
-							new TcbKey(shape.Matricies[i].Name, defaultWheelRotationFrames)
+							new TcbKey(shape.Matrices[i].Name, defaultWheelRotationFrames)
 						};
-						newResult.Animations.Add(shape.Matricies[i].Name, newAnimation);
+						newResult.Animations.Add(i, newAnimation);
 					}
 				}
 			}
 			// extract pivots
-			for (int i = 0; i < shape.Matricies.Count; i++)
+			for (int i = 0; i < shape.Matrices.Count; i++)
 			{
-				string matrixName = shape.Matricies[i].Name;
+				string matrixName = shape.Matrices[i].Name;
 				if (matrixName.StartsWith("BOGIE"))
 				{
 					// yuck: we seem to ignore anything after an underscore when looking at matrix names to animate
 					// G84_ETR_521_1
-					if (shape.Matricies[i].Name.IndexOf('_') != -1)
+					if (shape.Matrices[i].Name.IndexOf('_') != -1)
 					{
-						matrixName = matrixName.Substring(0, shape.Matricies[i].Name.IndexOf('_'));
+						matrixName = matrixName.Substring(0, shape.Matrices[i].Name.IndexOf('_'));
 					}
 
 					int bogieIndex = 0;
@@ -637,34 +564,29 @@ namespace Plugin
 					}
 
 					double minWheel = 0, maxWheel = 0;
-					for (int j = 0; j < shape.Matricies.Count; j++)
+					for (int j = 0; j < shape.Matrices.Count; j++)
 					{
-						if (shape.Matricies[j].Name.Length == 8 && shape.Matricies[j].Name.StartsWith("WHEELS" + bogieIndex))
+						if (shape.Matrices[j].Name.Length == 8 && shape.Matrices[j].Name.StartsWith("WHEELS" + bogieIndex))
 						{
-							double z = shape.Matricies[j].Matrix.ExtractTranslation().Z;
-							minWheel = Math.Min(shape.Matricies[j].Matrix.ExtractTranslation().Z, minWheel);
-							maxWheel = Math.Max(shape.Matricies[j].Matrix.ExtractTranslation().Z, maxWheel);
+							double z = shape.Matrices[j].Matrix.ExtractTranslation().Z;
+							minWheel = Math.Min(z, minWheel);
+							maxWheel = Math.Max(z, maxWheel);
 						}
 					}
 
 					if (minWheel == 0 && maxWheel == 0)
 					{
 						// as wheel translation may not be specified
-						newResult.Pivots.Add(shape.Matricies[i].Name, new PivotPoint(shape.Matricies[i].Name, shape.Matricies[i].Matrix.ExtractTranslation().Z, -2, 2));
+						newResult.Pivots.Add(shape.Matrices[i].Name, new PivotPoint(shape.Matrices[i].Name, shape.Matrices[i].Matrix.ExtractTranslation().Z, -2, 2));
 					}
 					else
 					{
-						newResult.Pivots.Add(shape.Matricies[i].Name, new PivotPoint(shape.Matricies[i].Name, shape.Matricies[i].Matrix.ExtractTranslation().Z, minWheel, maxWheel));
+						newResult.Pivots.Add(shape.Matrices[i].Name, new PivotPoint(shape.Matrices[i].Name, shape.Matrices[i].Matrix.ExtractTranslation().Z, minWheel, maxWheel));
 					}
 						
 					
 				}
 			}
-
-
-
-
-			Matrix4D matrix = Matrix4D.Identity;
 			return newResult;
 		}
 
@@ -710,14 +632,14 @@ namespace Plugin
 
 		private static int currentFrame;
 
+		private static int currentAnimationNode;
+
 		private static void ParseBlock(Block block, ref MsTsShape shape, ref Vertex vertex, ref int[] intArray, ref KeyframeAnimation animationNode)
 		{
-			float x, y, z;
-			Vector3 point;
 			KujuTokenID currentToken = KujuTokenID.error;
 			Block newBlock;
 			uint flags;
-
+			
 			switch (block.Token)
 			{
 				case KujuTokenID.shape:
@@ -756,7 +678,7 @@ namespace Plugin
 					newBlock = block.ReadSubBlock(KujuTokenID.lod_controls);
 					ParseBlock(newBlock, ref shape);
 
-					if (block.Length() - block.Position() > 0)
+					if ((block is BinaryBlock && block.Length() - block.Position() > 0) || (block is TextualBlock && block.Length() - block.Position() > 3))
 					{
 						try
 						{
@@ -773,11 +695,22 @@ namespace Plugin
 				case KujuTokenID.volumes:
 				case KujuTokenID.texture_filter_names:
 				case KujuTokenID.sort_vectors:
-				case KujuTokenID.colours:
 				case KujuTokenID.light_materials:
 				case KujuTokenID.light_model_cfgs:
 					//Unsupported stuff, so just read to the end at the minute
 					block.Skip((int)block.Length());
+					break;
+				case KujuTokenID.colours:
+					int numColors = block.ReadInt32();
+					while (numColors > 0)
+					{
+						block.ReadSubBlock(KujuTokenID.colour);
+						numColors--;
+					}
+					break;
+				case KujuTokenID.colour:
+					// NOTE: ARGB
+					shape.colors.Add(block.ReadColorArgb());
 					break;
 				case KujuTokenID.shader_names:
 					int numShaders = block.ReadInt32();
@@ -798,7 +731,7 @@ namespace Plugin
 					int lightStateCfgIdx = block.ReadInt32();
 					uint lightFlags = block.ReadUInt32();
 					int matrix2 = -1;
-					if ((block is BinaryBlock && block.Length() - block.Position() > 1) || (!(block is BinaryBlock) && block.Length() - block.Position() > 2))
+					if ((block is BinaryBlock && block.Length() - block.Position() > 1) || (block is TextualBlock && block.Length() - block.Position() > 2))
 					{
 						matrix2 = block.ReadInt32();
 					}
@@ -886,12 +819,12 @@ namespace Plugin
 						borderColor = block.ReadUInt32();
 					}
 
-					//Unpack border color
-					float r, g, b, a;
-					r = borderColor % 256;
-					g = (borderColor / 256) % 256;
-					b = (borderColor / 256 / 256) % 256;
-					a = (borderColor / 256 / 256 / 256) % 256;
+					// Unpack border color
+					// NOTE: RGBA
+					float r = borderColor % 256;
+					float g = (borderColor / 256) % 256;
+					float b = (borderColor / 256 / 256) % 256;
+					float a = (borderColor / 256 / 256 / 256) % 256;
 					t.filterMode = filterMode;
 					t.mipmapLODBias = (int)mipmapLODBias;
 					t.borderColor = new Color32((byte)r, (byte)g, (byte)b, (byte)a);
@@ -936,14 +869,14 @@ namespace Plugin
 				case KujuTokenID.geometry_info:
 					int faceNormals = block.ReadInt32();
 					int txLightCommands = block.ReadInt32();
-					int nodeXTrilistIdxs = block.ReadInt32();
-					int trilistIdxs = block.ReadInt32();
+					int nodeXTriListIdxs = block.ReadInt32();
+					int triListIdxs = block.ReadInt32();
 					int lineListIdxs = block.ReadInt32();
-					nodeXTrilistIdxs = block.ReadInt32(); //Duped, or is the first one actually something else?
-					int trilists = block.ReadInt32();
+					nodeXTriListIdxs = block.ReadInt32(); //Duped, or is the first one actually something else?
+					int triLists = block.ReadInt32();
 					int lineLists = block.ReadInt32();
 					int pointLists = block.ReadInt32();
-					int nodeXTrilists = block.ReadInt32();
+					int nodeXTriLists = block.ReadInt32();
 					newBlock = block.ReadSubBlock(KujuTokenID.geometry_nodes);
 					ParseBlock(newBlock, ref shape);
 					newBlock = block.ReadSubBlock(KujuTokenID.geometry_node_map);
@@ -960,7 +893,7 @@ namespace Plugin
 				case KujuTokenID.geometry_node:
 					int n_txLightCommands = block.ReadInt32();
 					int n_nodeXTxLightCmds = block.ReadInt32();
-					int n_trilists = block.ReadInt32();
+					int n_triLists = block.ReadInt32();
 					int n_lineLists = block.ReadInt32();
 					int n_pointLists = block.ReadInt32();
 					newBlock = block.ReadSubBlock(KujuTokenID.cullable_prims);
@@ -981,18 +914,10 @@ namespace Plugin
 
 					break;
 				case KujuTokenID.point:
-					x = block.ReadSingle();
-					y = block.ReadSingle();
-					z = block.ReadSingle();
-					point = new Vector3(x, y, z);
-					shape.points.Add(point);
+					shape.points.Add(block.ReadVector3());
 					break;
 				case KujuTokenID.vector:
-					x = block.ReadSingle();
-					y = block.ReadSingle();
-					z = block.ReadSingle();
-					point = new Vector3(x, y, z);
-					shape.normals.Add(point);
+					shape.normals.Add(block.ReadVector3());
 					break;
 				case KujuTokenID.points:
 					int pointCount = block.ReadUInt16();
@@ -1009,10 +934,7 @@ namespace Plugin
 
 					break;
 				case KujuTokenID.uv_point:
-					x = block.ReadSingle();
-					y = block.ReadSingle();
-					var uv_point = new Vector2(x, y);
-					shape.uv_points.Add(uv_point);
+					shape.uv_points.Add(block.ReadVector2());
 					break;
 				case KujuTokenID.uv_points:
 					int uvPointCount = block.ReadUInt16();
@@ -1049,7 +971,7 @@ namespace Plugin
 						Row2 = new Vector4(block.ReadSingle(), block.ReadSingle(), block.ReadSingle(), 0),
 						Row3 = new Vector4(block.ReadSingle(), block.ReadSingle(), block.ReadSingle(), 0)
 					};
-					shape.Matricies.Add(new KeyframeMatrix(newResult, block.Label, currentMatrix));
+					shape.Matrices.Add(new KeyframeMatrix(newResult, shape.Matrices.Count, block.Label, currentMatrix));
 					break;
 				case KujuTokenID.normals:
 					int normalCount = block.ReadUInt16();
@@ -1138,11 +1060,20 @@ namespace Plugin
 								string txF = null;
 								try
 								{
-									txF = OpenBveApi.Path.CombineFile(currentFolder, shape.textures[shape.prim_states[shape.currentPrimitiveState].Textures[0]].fileName);
-									if (!File.Exists(txF))
+									if (shape.prim_states[shape.currentPrimitiveState].Textures.Length > 0)
 									{
-										Plugin.CurrentHost.AddMessage(MessageType.Warning, true, "Texture file " + shape.textures[shape.prim_states[shape.currentPrimitiveState].Textures[0]].fileName + " was not found.");
-										txF = null;
+										txF = OpenBveApi.Path.CombineFile(currentFolder, shape.textures[shape.prim_states[shape.currentPrimitiveState].Textures[0]].fileName);
+										if (!File.Exists(txF) && !string.IsNullOrEmpty(wagonFileDirectory))
+										{
+											// yuck: MSTS texture paths resolve relative to the WAG / ENG file if part of a train, even if the S file is not in the same directory
+											//		Only try this if we can't find the texture file by a simple relative combine
+											txF = OpenBveApi.Path.CombineFile(wagonFileDirectory, shape.textures[shape.prim_states[shape.currentPrimitiveState].Textures[0]].fileName);
+										}
+										if (!File.Exists(txF))
+										{
+											Plugin.CurrentHost.AddMessage(MessageType.Warning, true, "Texture file " + shape.textures[shape.prim_states[shape.currentPrimitiveState].Textures[0]].fileName + " was not found.");
+											txF = null;
+										}
 									}
 								}
 								catch
@@ -1150,7 +1081,14 @@ namespace Plugin
 									Plugin.CurrentHost.AddMessage(MessageType.Warning, true, "Texture file path " + shape.textures[shape.prim_states[shape.currentPrimitiveState].Textures[0]].fileName + " was invalid.");
 								}
 
-								Material mat = new Material(txF);
+								MeshMaterial mat = new MeshMaterial();
+								if (txF != null)
+								{
+									Plugin.CurrentHost.RegisterTexture(txF, TextureParameters.NoChange, out OpenBveApi.Textures.Texture tDay);
+									mat.DaytimeTexture = tDay;
+								}
+								mat.Color = Color32.White;
+								
 								switch (shape.ShaderNames[shape.prim_states[shape.currentPrimitiveState].Shader])
 								{
 									case ShaderNames.Tex:
@@ -1287,12 +1225,16 @@ namespace Plugin
 					int myNormal = block.ReadInt32(); //Index to normals array
 
 					Vertex v = new Vertex(shape.points[myPoint], shape.normals[myNormal]);
-
+					/*
+					 * colors used in lighting (integer representation of color)
+					 * Color1 fades to Color2 with distance
+					 * TODO: not yet implemented
+					 */
 					uint Color1 = block.ReadUInt32();
 					uint Color2 = block.ReadUInt32();
 					newBlock = block.ReadSubBlock(KujuTokenID.vertex_uvs);
 					ParseBlock(newBlock, ref shape, ref v);
-					currentLOD.subObjects[currentLOD.subObjects.Count - 1].verticies.Add(v);
+					currentLOD.subObjects[currentLOD.subObjects.Count - 1].vertices.Add(v);
 					break;
 				case KujuTokenID.vertex_idxs:
 					int remainingVertex = block.ReadInt32() / 3;
@@ -1309,11 +1251,11 @@ namespace Plugin
 					break;
 				case KujuTokenID.vertex_set:
 					int vertexStateIndex = block.ReadInt32(); //Index to the vtx_states member
-					VertexSet vts = new VertexSet(shape.vtx_states[vertexStateIndex].hierarchyID); //Now pull the hierachy ID out
+					VertexSet vts = new VertexSet(shape.vtx_states[vertexStateIndex].hierarchyID); //Now pull the hierarchy ID out
 					int setStartVertexIndex = block.ReadInt32(); //First vertex
 					int setVertexCount = block.ReadInt32(); //Total number of vert
 					vts.startVertex = setStartVertexIndex;
-					vts.numVerticies = setVertexCount;
+					vts.numVertices = setVertexCount;
 					currentLOD.subObjects[currentLOD.subObjects.Count - 1].vertexSets.Add(vts);
 					break;
 				case KujuTokenID.vertex_sets:
@@ -1329,8 +1271,8 @@ namespace Plugin
 						vertexSetCount--;
 					}
 
-					//We now need to transform our verticies
-					currentLOD.subObjects[currentLOD.subObjects.Count - 1].TransformVerticies(shape);
+					//We now need to transform our vertices
+					currentLOD.subObjects[currentLOD.subObjects.Count - 1].TransformVertices(shape);
 					break;
 				case KujuTokenID.vertex_uvs:
 					int[] vertex_uvs = new int[block.ReadInt32()];
@@ -1339,8 +1281,11 @@ namespace Plugin
 						vertex_uvs[i] = block.ReadInt32();
 					}
 
-					//Looks as if vertex_uvs should always be of length 1, thus:
-					vertex.TextureCoordinates = shape.uv_points[vertex_uvs[0]];
+					if (vertex_uvs.Length > 0 && vertex_uvs[0] <= shape.uv_points.Count)
+					{
+						//Looks as if vertex_uvs should always be of length 1, thus:
+						vertex.TextureCoordinates = shape.uv_points[vertex_uvs[0]];
+					}
 					break;
 
 				/*
@@ -1370,74 +1315,94 @@ namespace Plugin
 					int numNodes = block.ReadInt32();
 					for (int i = 0; i < numNodes; i++)
 					{
+						// index for currentAnimationNode maps to the main shape matrices
+						currentAnimationNode = i;
 						newBlock = block.ReadSubBlock(KujuTokenID.anim_node);
 						ParseBlock(newBlock, ref shape);
 					}
 					break;
 				case KujuTokenID.anim_node:
-					Matrix4D matrix = Matrix4D.Identity;
-					for (int i = 0; i < shape.Matricies.Count; i++)
-					{
-						if (shape.Matricies[i].Name == block.Label)
-						{
-							matrix = shape.Matricies[i].Matrix;
-							break;
-						}
-					}
+					Matrix4D matrix = shape.Matrices[currentAnimationNode].Matrix;
 
-					string parentAnimation = string.Empty;
-					if (shape.MatrixParents.ContainsKey(block.Label))
+					int parentAnimation = -1;
+					if (shape.MatrixParents.ContainsKey(currentAnimationNode))
 					{
-						parentAnimation = shape.MatrixParents[block.Label];
+						if (block.Label.StartsWith("WHEEL", StringComparison.InvariantCultureIgnoreCase))
+						{
+							// WHEELS cannot have a parent animation
+							parentAnimation = -1;
+						}
+						else
+						{
+							parentAnimation = shape.MatrixParents[currentAnimationNode];
+						}
 					}
 					else
 					{
 						if (block.Label != "MAIN")
 						{
-							if (block.Label.StartsWith("ROD") || block.Label.StartsWith("PISTON"))
+							if (block.Label.StartsWith("ROD", StringComparison.InvariantCultureIgnoreCase) || block.Label.StartsWith("PISTON", StringComparison.InvariantCultureIgnoreCase) || wheelsLinkedNodes.Contains(block.Label, StringComparer.InvariantCultureIgnoreCase))
 							{
 								// Undocumented 'feature': rod and piston, if not linked to a parent in the shape
 								// file seem to link to WHEELS1 to determine animation key
-								parentAnimation = "WHEELS1";
+								// see also the list in wheelsLinkedNodes (OR + MSTSBin)
+								for (int i = 0; i < shape.Matrices.Count; i++)
+								{
+									if (shape.Matrices[i].Name.Equals("WHEELS1", StringComparison.InvariantCultureIgnoreCase))
+									{
+										parentAnimation = i;
+										break;
+									}
+								}
 							}
 							else
 							{
-								parentAnimation = "MAIN";
+								parentAnimation = 0;
 							}
 							
 						}
 					}
-					KeyframeAnimation currentNode = new KeyframeAnimation(newResult, parentAnimation, block.Label, shape.Animations[shape.Animations.Count - 1].FrameCount, shape.Animations[shape.Animations.Count - 1].FrameRate, matrix);
+					KeyframeAnimation currentNode = new KeyframeAnimation(newResult, parentAnimation, block.Label, shape.Animations[shape.Animations.Count - 1].FrameCount, shape.Animations[shape.Animations.Count - 1].FrameRate, matrix, IsWheelLinked(block.Label));
 					newBlock = block.ReadSubBlock(KujuTokenID.controllers);
 					ParseBlock(newBlock, ref shape, ref currentNode);
 					if (currentNode.AnimationControllers.Length != 0)
 					{
-						newResult.Animations.Add(block.Label, currentNode);
+						if (!newResult.Animations.ContainsKey(currentAnimationNode))
+						{
+							newResult.Animations.Add(currentAnimationNode, currentNode);
+						}
+						else
+						{
+							// Duplicate 'real' animation frame encountered- see note about single identity quaternion below
+							Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Duplicate animation key " + block.Label + " encountered in MSTS Object file.");
+						}
 					}
 					else
 					{
-						if (currentNode.Name.StartsWith("WHEELS"))
+						if (currentNode.Name.StartsWith("WHEELS", StringComparison.InvariantCultureIgnoreCase))
 						{
 							// some objects, e.g. the default Class 50 provide a wheel animation with no controllers
-							// add a default 8 frame animation
+							// re-create and add a default 8 frame animation (as in some with this 'issue' the frame count / rate is also wrong...)
+							currentNode = new KeyframeAnimation(newResult, parentAnimation, block.Label, 8, 60, matrix, true);
 							currentNode.AnimationControllers = new AbstractAnimation[]
 							{
 								new TcbKey(currentNode.Name, defaultWheelRotationFrames)
 							};
-
-							newResult.Animations.Add(block.Label, currentNode);
+							
+							newResult.Animations.Add(currentAnimationNode, currentNode);
 						}
 					}
 					break;
 				case KujuTokenID.controllers:
 					int numControllers = block.ReadInt32();
 					animationNode.AnimationControllers = new AbstractAnimation[numControllers];
+					controllerIndex = 0;
 					for (int i = 0; i < numControllers; i++)
 					{
-						controllerIndex = i;
 						newBlock = block.ReadSubBlock(new[] { KujuTokenID.tcb_rot, KujuTokenID.linear_pos });
 						ParseBlock(newBlock, ref shape, ref animationNode);
 					}
+					Array.Resize(ref animationNode.AnimationControllers, controllerIndex);
 					break;
 				case KujuTokenID.tcb_rot:
 					NumFrames = block.ReadInt32();
@@ -1459,15 +1424,24 @@ namespace Plugin
 					}
 					else
 					{
+						if (quaternionFrames.Length == 1 && quaternionFrames[0].Quaternion == Quaternion.DirectXIdentity)
+						{
+							// If we contain a single frame containing the Identity quaternion, this isn't actually an animation
+							// but is just a frame allowing sub-parts of the object to be grouped
+							// Don't add it to the list of animations in this case
+							// Found in BR_9f_92150.s stated to be built with TSM / Polymaster
+							break;
+						}
 						animationNode.AnimationControllers[controllerIndex] = new TcbKey(animationNode.Name, quaternionFrames);
 					}
+
+					controllerIndex++;
 					break;
 				case KujuTokenID.tcb_key:
 					// Frame index
 					int frameIndex = block.ReadInt32();
-					// n.b. we need to negate the Z and W components to get to GL format as opposed to DX
-					Quaternion q = new Quaternion(block.ReadSingle(), block.ReadSingle(), -block.ReadSingle(), -block.ReadSingle());
-					quaternionFrames[currentFrame] = new QuaternionFrame(frameIndex, q);
+					// n.b. we need to negate the W components to get to GL format as opposed to DX
+					quaternionFrames[currentFrame] = new QuaternionFrame(frameIndex, block.ReadQuaternion());
 					/* 4 more floats:
 					 * TENSION
 					 * CONTINUITY
@@ -1478,8 +1452,7 @@ namespace Plugin
 				case KujuTokenID.slerp_rot:
 					// Frame index
 					frameIndex = block.ReadInt32();
-					q = new Quaternion(block.ReadSingle(), block.ReadSingle(), -block.ReadSingle(), -block.ReadSingle());
-					quaternionFrames[currentFrame] = new QuaternionFrame(frameIndex, q);
+					quaternionFrames[currentFrame] = new QuaternionFrame(frameIndex, block.ReadQuaternion());
 					break;
 				case KujuTokenID.linear_pos:
 					NumFrames = block.ReadInt32();
@@ -1490,12 +1463,12 @@ namespace Plugin
 						ParseBlock(newBlock, ref shape, ref animationNode);
 					}
 					animationNode.AnimationControllers[controllerIndex] = new LinearKey(animationNode.Name, vectorFrames);
+					controllerIndex++;
 					break;
 				case KujuTokenID.linear_key:
 					// Frame index
 					frameIndex = block.ReadInt32();
-					Vector3 translation = new Vector3(block.ReadSingle(), block.ReadSingle(), block.ReadSingle());
-					vectorFrames[currentFrame] = new VectorFrame(frameIndex, translation);
+					vectorFrames[currentFrame] = new VectorFrame(frameIndex, block.ReadVector3());
 					break;
 			}
 		}

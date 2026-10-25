@@ -4,7 +4,7 @@ using OpenBveApi.Runtime;
 namespace OpenBveApi.Interface {
 	public static partial class Translations
 	{
-		/// <summary>Defines the available commands which may be callled by a player during a simulation session</summary>
+		/// <summary>Defines the available commands which may be called by a player during a simulation session</summary>
 		public enum Command
 		{
 			//Basic controls
@@ -32,7 +32,7 @@ namespace OpenBveApi.Interface {
 			SinglePower,
 			/// <summary>Moves the handle towards neutral on a train with a combined power and brake handle (Will not apply brakes)</summary>
 			SingleNeutral,
-			/// <summary>Returns the handle towards the maxium brake notch on a train with a combined power and brake handle</summary>
+			/// <summary>Returns the handle towards the maximum brake notch on a train with a combined power and brake handle</summary>
 			SingleBrake,
 			/// <summary>Applies full emergency brake on a train with a combined power and brake handle</summary>
 			SingleEmergency,
@@ -78,6 +78,10 @@ namespace OpenBveApi.Interface {
 			CameraInteriorNoPanel,
 			/// <summary>Change to the exterior (Attached to train) camera mode</summary>
 			CameraExterior,
+			/// <summary>Change to the head out (left) camera mode</summary>
+			CameraHeadOutLeft,
+			/// <summary>Change to the head out (right) camera mode</summary>
+			CameraHeadOutRight,
 			/// <summary>Change to the track based camera mode</summary>
 			CameraTrack,
 			/// <summary>Change to fly-by camera mode</summary>
@@ -168,7 +172,7 @@ namespace OpenBveApi.Interface {
 			DebugNormals,
 			/// <summary>Shows or hides debug information on the brake-system performance</summary>
 			DebugBrakeSystems,
-			/// <summary>Shows or hides the ATS (plugin) debugn screen</summary>
+			/// <summary>Shows or hides the ATS (plugin) debug screen</summary>
 			DebugATS,
 			/// <summary>Shows or hides the touch range</summary>
 			DebugTouchMode,
@@ -272,6 +276,8 @@ namespace OpenBveApi.Interface {
 			DecreaseCutoff,
 			/// <summary>The blowers</summary>
 			Blowers,
+			/// <summary>The cylinder cocks</summary>
+			CylinderCocks,
 			//Diesel Locomotive
 			/// <summary>Start the engine</summary>
 			EngineStart,
@@ -301,8 +307,13 @@ namespace OpenBveApi.Interface {
 			AccessibilityCurrentSpeed,
 			/// <summary>Triggers a screen reader message with the distance and aspect to the next signal</summary>
 			AccessibilityNextSignal,
-			/// <summary>Triggers a screen reader message with the distance and aspect to the next station</summary>
+			/// <summary>Triggers a screen reader message with the distance to the next station</summary>
 			AccessibilityNextStation,
+			/*
+			 * Added in 1.11.2.8
+			 */
+			/// <summary>Triggers a screen reader message with the current limit, next limit and distance</summary>
+			AccessibilityNextLimit,
 			/// <summary>Shows the change switch menu</summary>
 			SwitchMenu,
 			/*
@@ -315,10 +326,15 @@ namespace OpenBveApi.Interface {
 			/// <summary>Uncouples the rear coupling of a car</summary>
 			UncoupleRear,
 			/// <summary>Controls the DSD</summary>
-			DriverSupervisionDevice,
+			DriverSupervision,
 			// Added in 1.11.2.0
 			/// <summary>Press to request permission from the signaller to access a permissive section</summary>
-			AccessPermissiveSection
+			AccessPermissiveSection,
+			// Added in 1.14.0.3
+			/// <summary>Opens the firebox door</summary>
+			FireboxDoorOpen,
+			/// <summary>Closes the firebox door</summary>
+			FireboxDoorClose
 		}
 
 		/// <summary>Defines the possible command types</summary>
@@ -331,22 +347,20 @@ namespace OpenBveApi.Interface {
 			/// <summary>A full analog joystick or gamepad axis</summary>
 			AnalogFull
 		}
-
 		
-
 		/// <summary>Converts the specified security command to a virtual key.</summary>
 		/// <returns>Virtual key for plugins.</returns>
-		/// <param name="cmd">The security command. If this isn't a recognized security command, ArgumentException will be thrown.</param>
-		public static VirtualKeys SecurityToVirtualKey(Command cmd)
+		/// <param name="cmd">The security command</param>
+		/// <param name="key">The returned key</param>
+		public static bool SecurityToVirtualKey(Command cmd, out VirtualKeys key)
 		{
 			string cmdname = Enum.GetName(typeof(Command), cmd);
-			if (cmdname == null) throw new ArgumentNullException("cmd");
+			if (cmdname == null) throw new ArgumentNullException(nameof(cmd));
 			if (cmdname.StartsWith("Security", StringComparison.Ordinal))
 				cmdname = cmdname.Substring(8).ToUpperInvariant();
-			if (!Enum.TryParse(cmdname, out VirtualKeys key))
-				throw new ArgumentException(@"VirtualKeys does not contain the following key: " +
-					cmdname, "cmd");
-			return key;
+			if (!Enum.TryParse(cmdname, out key))
+				return false;
+			return true;
 		}
 	}
 }

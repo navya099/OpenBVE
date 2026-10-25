@@ -1,9 +1,10 @@
-﻿namespace OpenBveApi.Hosts
+﻿// ReSharper disable InconsistentNaming
+namespace OpenBveApi.Hosts
 {
 	/// <summary>The host platform</summary>
 	public enum HostPlatform
 	{
-		/// <summary>Microsoft Windows and compatabiles</summary>
+		/// <summary>Microsoft Windows and compatibles</summary>
 		MicrosoftWindows = 0,
 		/// <summary>Linux</summary>
 		GNULinux = 1,

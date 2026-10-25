@@ -6,7 +6,9 @@
 // ╚═════════════════════════════════════════════════════════════╝
 
 using System;
-using System.Linq;
+using System.Diagnostics;
+using System.Runtime;
+using System.Runtime.ExceptionServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -50,115 +52,95 @@ namespace RouteViewer {
 		private static string CurrentRouteFile;
 		private static Encoding CurrentRouteEncoding;
 
-		internal static bool JobAvailable;
+		/// <summary>Time taken to parse the route file, in milliseconds.</summary>
+		internal static long RouteParseTime;
+		/// <summary>Time taken to set up the route after parsing, in milliseconds.</summary>
+		internal static long PostParseTime;
+		/// <summary>Time spent parsing route data (ms)</summary>
+		internal static long ParserParseTime;
+		/// <summary>Time spent applying route data (ms)</summary>
+		internal static long ParserApplyTime;
 
 		// load
-		internal static void Load(string RouteFile, Encoding RouteEncoding, byte[] textureBytes)
+		internal static void Load(string routeFile, Encoding routeEncoding, byte[] textureBytes)
 		{
 			Program.Renderer.GameWindow.TargetRenderFrequency = 0;
+			// Switching to a different route must fully release the previous route:
+			// object caches, decoded textures and sound buffers. Same-file reload
+			// keeps the partial reset so unchanged textures stay resident.
+			bool routeSwitch = CurrentRouteFile != null && !CurrentRouteFile.Equals(routeFile, StringComparison.OrdinalIgnoreCase);
 			// reset
 			Game.Reset();
+			if (routeSwitch)
+			{
+				// Ordered, synchronous teardown of the previous route before the
+				// new one starts loading: sounds stopped above, so drain queued
+				// loads, release buffers, caches and pixel bytes, then collect
+				// (compacting LOH, twice across finalizers) so RAM actually drops.
+				LogSwitchMemory("before", CurrentRouteFile, routeFile);
+				Program.CurrentHost.ClearObjectCaches();
+				Program.Renderer.TextureManager.UnloadAllTextures(false, releaseBytes: true);
+				Program.Sounds.CancelPendingLoads();
+				Program.Sounds.UnloadAllBuffers();
+				GCSettings.LargeObjectHeapCompactionMode = GCLargeObjectHeapCompactionMode.CompactOnce;
+				GC.Collect();
+				GC.WaitForPendingFinalizers();
+				GC.Collect();
+				LogSwitchMemory("after", CurrentRouteFile, routeFile);
+			}
 			Program.Renderer.Loading.InitLoading(Program.FileSystem.GetDataFolder("In-game"), typeof(NewRenderer).Assembly.GetName().Version.ToString(), Interface.CurrentOptions.LoadingLogo, Interface.CurrentOptions.LoadingProgressBar);
 			if (textureBytes != null && textureBytes.Length > 0)
 			{
-				Texture t = new Texture(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, PixelFormat.RGBAlpha, textureBytes, null);
+				Texture t = new Texture(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, PixelFormat.RGBAlpha, textureBytes, (OpenBveApi.Colors.Color24[])null);
 				Program.Renderer.Loading.SetLoadingBkg(t);
 			}
 			// members
 			Cancel = false;
 			Complete = false;
-			CurrentRouteFile = RouteFile;
-			CurrentRouteEncoding = RouteEncoding;
+			CurrentRouteFile = routeFile;
+			CurrentRouteEncoding = routeEncoding;
 			// thread
-			Loading.LoadAsynchronously(CurrentRouteFile, CurrentRouteEncoding);
+			LoadAsynchronously(CurrentRouteFile, CurrentRouteEncoding);
 			RouteViewer.LoadingScreenLoop();
 		}
-
-		/// <summary>Gets the absolute Railway folder for a given route file</summary>
-		/// <returns>The absolute on-disk path of the railway folder</returns>
-		internal static string GetRailwayFolder(string RouteFile) {
+		
+		// load threaded
+		private static void LogSwitchMemory(string stage, string oldFile, string newFile)
+		{
 			try
 			{
-				string Folder = Path.GetDirectoryName(RouteFile);
-
-				while (true)
-				{
-					string Subfolder = Path.CombineDirectory(Folder, "Railway");
-					if (System.IO.Directory.Exists(Subfolder))
-					{
-						if (System.IO.Directory.EnumerateDirectories(Subfolder).Any() || System.IO.Directory.EnumerateFiles(Subfolder).Any())
-						{
-							//HACK: Ignore completely empty directories
-							//Doesn't handle wrong directories, or those with stuff missing, TODO.....
-							return Subfolder;
-						}
-					}
-
-					if (Folder == null) continue;
-					System.IO.DirectoryInfo Info = System.IO.Directory.GetParent(Folder);
-					if (Info == null) break;
-					Folder = Info.FullName;
-				}
+				long managed = GC.GetTotalMemory(false);
+				Program.FileSystem.AppendToLogFile(
+					"Route switch " + stage + ": " + oldFile + " -> " + newFile +
+					" managed=" + (managed / 1048576) + "MB" +
+					" staticCache=" + Program.CurrentHost.StaticObjectCache.Count +
+					" animatedCache=" + Program.CurrentHost.AnimatedObjectCollectionCache.Count +
+					" textures=" + Program.Renderer.TextureManager.RegisteredTexturesCount);
 			}
 			catch
 			{
-				//ignored
+				// Diagnostics must never break loading.
 			}
-			
-			//If the Route, Object and Sound folders exist, but are not in a railway folder.....
-			try
-			{
-				string Folder = Path.GetDirectoryName(RouteFile);
-				if (Folder == null)
-				{
-					// Unlikely to work, but attempt to make the best of it
-					return Application.StartupPath;
-				}
-				string candidate = null;
-				while (true)
-				{
-					string RouteFolder = Path.CombineDirectory(Folder, "Route");
-					string ObjectFolder = Path.CombineDirectory(Folder, "Object");
-					string SoundFolder = Path.CombineDirectory(Folder, "Sound");
-					if (System.IO.Directory.Exists(RouteFolder) && System.IO.Directory.Exists(ObjectFolder) && System.IO.Directory.Exists(SoundFolder))
-					{
-						return Folder;
-					}
-
-					if (System.IO.Directory.Exists(RouteFolder) && System.IO.Directory.Exists(ObjectFolder))
-					{
-						candidate = Folder;
-					}
-
-					System.IO.DirectoryInfo Info = System.IO.Directory.GetParent(Folder);
-					if (Info == null)
-					{
-						if (candidate != null)
-						{
-							return candidate;
-						}
-						break;
-					}
-					Folder = Info.FullName;
-				}
-			}
-			catch
-			{
-				//ignored
-			}
-			return Application.StartupPath;
 		}
 
-		// load threaded
-		private static async Task LoadThreaded()
-		{
+		private static async Task LoadThreaded()		{
 			try
 			{
 				await Task.Run(() => LoadEverythingThreaded());
 			}
 			catch (Exception ex)
 			{
-				MessageBox.Show("The route loader encountered the following critical error: " + ex.Message, @"OpenBVE", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+				try
+				{
+					// The dialog only fits a summary; the full trace (with OpenBVE
+					// frames, not just the rethrow location) goes to the log file.
+					Program.FileSystem.AppendToLogFile("CRITICAL route load error: " + ex);
+				}
+				catch
+				{
+					// Diagnostics must never break loading.
+				}
+				MessageBox.Show("The route loader encountered the following critical error (" + ex.GetType().Name + "): " + ex.Message, @"OpenBVE", MessageBoxButtons.OK, MessageBoxIcon.Hand);
 				Cancel = true;
 			}
 		}
@@ -180,11 +162,12 @@ namespace RouteViewer {
 		}
 
 		private static void LoadEverythingThreaded() {
-			string RailwayFolder = GetRailwayFolder(CurrentRouteFile);
+			string RailwayFolder = Program.FileSystem.GetRailwayFolder(CurrentRouteFile, Application.StartupPath);
 			string ObjectFolder = Path.CombineDirectory(RailwayFolder, "Object");
 			string SoundFolder = Path.CombineDirectory(RailwayFolder, "Sound");
 			Program.Renderer.Camera.CurrentMode = CameraViewMode.Track;
 			// load route
+			Stopwatch parseTimer = Stopwatch.StartNew();
 			bool loaded = false;
 			for (int i = 0; i < Program.CurrentHost.Plugins.Length; i++)
 			{
@@ -198,14 +181,26 @@ namespace RouteViewer {
 						loaded = true;
 						break;
 					}
-					throw Program.CurrentHost.Plugins[i].Route.LastException;
+					// Preserve the original stack trace (plain 'throw' would reset it
+				// to this rethrow location and hide where the load failed).
+				Exception routeException = Program.CurrentHost.Plugins[i].Route.LastException;
+				if (routeException != null)
+				{
+					ExceptionDispatchInfo.Capture(routeException).Throw();
+				}
+				throw new Exception("The route plugin failed to load " + CurrentRouteFile + " without reporting an error.");
 				}
 			}
+			parseTimer.Stop();
+			RouteParseTime = parseTimer.ElapsedMilliseconds;
+			ParserParseTime = Program.CurrentHost.PluginParseTime;
+			ParserApplyTime = Program.CurrentHost.PluginApplyTime;
 
 			if (!loaded)
 			{
 				throw new Exception("No plugins capable of loading routefile " + CurrentRouteFile + " were found.");
 			}
+			Stopwatch postTimer = Stopwatch.StartNew();
 			Program.Renderer.CameraTrackFollower = new TrackFollower(Program.CurrentHost);
 			System.Threading.Thread.Sleep(1); if (Cancel) return;
 			Program.CurrentRoute.Atmosphere.CalculateSeaLevelConstants();
@@ -244,6 +239,8 @@ namespace RouteViewer {
 			Program.Renderer.CameraTrackFollower.UpdateAbsolute(FirstStationPosition, true, false);
 			Program.Renderer.Camera.Alignment = new CameraAlignment(new Vector3(0.0, 2.5, 0.0), 0.0, 0.0, 0.0, FirstStationPosition, 1.0);
 			World.UpdateAbsoluteCamera(0.0);
+			postTimer.Stop();
+			PostParseTime = postTimer.ElapsedMilliseconds;
 			Complete = true;
 		}
 

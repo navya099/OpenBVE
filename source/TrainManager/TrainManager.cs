@@ -20,14 +20,13 @@ namespace TrainManager
 		internal static FileSystem FileSystem;
 		public static bool Toppling;
 		public static bool Derailments;
-		internal static Random RandomNumberGenerator = new Random();
 
 		/// <summary>The list of trains available in the simulation.</summary>
 		public List<TrainBase> Trains = new List<TrainBase>();
 		/// <summary>A reference to the train of the Trains element that corresponds to the player's train.</summary>
 		public static TrainBase PlayerTrain = null;
 		/// <summary>The list of TrackFollowingObject available on other tracks in the simulation.</summary>
-		public AbstractTrain[] TFOs = { };
+		public List<AbstractTrain> TFOs = new List<AbstractTrain>();
 		/// <summary>Stores a reference to the current options</summary>
 		internal static BaseOptions CurrentOptions;
 		/// <summary>Stores the plugin error message string, or a null reference if no error encountered</summary>
@@ -60,7 +59,7 @@ namespace TrainManager
 			{
 				Train.Cars[i].Specs.RollDueToTopplingAngle = 0.0;
 				Train.Cars[i].Derailed = false;
-				if (Train.Cars[i].Specs.IsMotorCar && Train.Cars[i].Sounds.Loop != null)
+				if (Train.Cars[i].TractionModel.ProvidesPower && Train.Cars[i].Sounds.Loop != null)
 				{
 					Train.Cars[i].Sounds.Loop.Play(Train.Cars[i], true);
 				}

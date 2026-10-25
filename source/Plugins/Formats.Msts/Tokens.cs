@@ -24,6 +24,7 @@
 
 // ReSharper disable UnusedMember.Global
 // ReSharper disable InconsistentNaming
+// ReSharper disable IdentifierTypo
 
 namespace OpenBve.Formats.MsTs
 {
@@ -1351,14 +1352,89 @@ namespace OpenBve.Formats.MsTs
 		Engine,
 
 		// ORTS specific
-		ORTSListName, // ORTS specific for multi-carspawnerlists
+		ORTSUnknown, // Not actually a 'real' token, just used to allow us to handle unknown ORTS tokens gracefully
+		ORTSListName, // ORTS specific for multi-car spawner lists
 		ORTSSoundFileName, // ORTS specific for individual level crossing sounds
 		ORTSPantographToggle3,
 		ORTSPantographToggle4,
+		ORTSFreightAnims,
+		MSTSFreightAnimEnabled,
+		ORTSDriveWheelWeight,
+		ORTSTrainControlSystem,
+		ORTSTrainControlSystemSound,
+		ORTSTrainControlSystemParameters,
+		ORTSTrainBrakeController,
+		ORTSPowerOnDelay,
+		ORTSAuxPowerOnDelay,
+		ORTSCircuitBreaker,
+		ORTSCircuitBreakerClosingDelay,
+		ORTSPantograps, // typo (?)
+		ORTSAdhesion,
+		ORTSDavis_A,
+		ORTSDavis_B,
+		ORTSDavis_C,
+		ORTSBearingType,
+		ORTSFont,
+		SubType, // in some ORTS stuff
+
+		/*
+		 * Stuff not listed in MSTS editor header files, also includes incorrect spellings
+		 * It's not clear where some of these come from, possibly MSTSBin or simply 'working' but not in the actual MSTS header file
+		 *
+		 */
+		EngineBrakesControllerMaxPressureReduction, // TGV_507
+		TrainBrakesControllerMaxPressureReduction, // TGV_507
+		Overspeed, // TGV_507
+		ShutsDownEngine, // TGV_507
+		PantographsToggle_3, // Assumed
+		PantographsToggle_4, // TGV_507
+		CABToggle, // TGV_507
+		BrakeCyl_Inc_Past, // TGV_507
+		BrakeCyl_Dec_Past, // Assumed
+		BrakeCylControlled, // TGV_507
+		Exhaust3, // UK_Diesel_BR_Class50_D400
+		Exhaust4, // UK_Diesel_BR_Class50_D400
+		TrainBrakesControllerHasProportionalBrake, // SL_D6517
+		TrainBrakesProportionalBrakeLag, // SL_D6517
+		Injector1WaterValveVarience, // SL_BR_E2
+		Injector2WaterValveVarience, // SL_BR_E2
+		TrainBrakesControllerMaxApplyRate, // SL_BR_E2
+		TrainBrakesControllerMaxAplicationRate, // MT_DD_WD_90433
+		RunUpTimeToMaxPower, // UK_Electric_VT_Class390
+		NumberOfSteamHeatingPressureSteps, // MT_DD_WD_90433
+		BrakeCutsPowerAtBrakeCylinderPrssure, // NWC_08814
+		MonitoringDeviceAppliesSutsDownEngine, // EB_421_NSE
+		GrateArea,
+		AuxilaryResCapacity, // BR_Green_57XX_4683
+		AuxilaryResMaxPressure, // BR_Green_57XX_4683
+		
+		DoesWhistleTriggerBell, // GWRKingV
+		BrakePipeVolume, // LU StdTrailer2
+		TrainBrakeControllerMinContinuousService, // BR_HW_5217
+		TrainBrakesPipeLeakRate, // FDB_L1_67708
+		InitialTrigger, // HWH-Manor-Int-80a-01
+		RegulatorPilotValveInitialOpening, // Adams B4, UKTS2910
+		RegulatorPilotValveFullOpening, // Adams B4, UKTS2910
+		
+		// NEED TO KEEP DUPLICATE FIXES ETC. AT THE END OF THE LIST
+
+		AirBrakeHasLowPressureTest = AirBrakesHasLowPressureTest, // MT Class 86
+		TrainBrakesControllerMaxPressureDropInNormalAppication = TrainBrakesControllerMaxPressureDropInNormalApplication, // MT Class 86
+		
+		RegulatorPilotValveInitialOpenning = RegulatorPilotValveInitialOpening, // typo for above
+		
+		SSpring = Spring, // Typo
+		Vigilence = Vigilance,  // Typo
+		r_SMS = Tr_SMS, // Typo
+
 		//needed for our block parser, so let's deliberately use values ORTS will not touch
-		Comment = uint.MinValue + 1,
+		Comment = comment,
 		// skip is found in SMS files, identical purpose to comment
-		Skip = Comment,
-		Train = uint.MinValue, 
-    }
+		Skip = comment,
+		Ccomment = comment, // typo
+		_FCalc = Comment, // ENG files edited with FCalc
+		Train = uint.MinValue,
+
+
+	}
 }

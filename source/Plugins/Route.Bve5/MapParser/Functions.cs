@@ -32,7 +32,7 @@ using OpenBveApi.World;
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
 		/// <summary>Parses a BVE5 format time into OpenBVE's internal time representation</summary>
 		/// <param name="Expression">The time to parse</param>
@@ -81,7 +81,7 @@ namespace Route.Bve5
 			return x0 == x1 ? y0 : y0 + (y1 - y0) * (x - x0) / (x1 - x0);
 		}
 
-		private static void SineHalfWavelengthDiminishingTangentCurve(double Length, double TargetRadius, double TargetCant, double CurrentPosition, out double CurrentRadius, out double CurrentCant)
+		private static void SineHalfWavelengthDiminishingTangentCurve(double Length, double StartRadius, double StartCant, double TargetRadius, double TargetCant, double CurrentPosition, out double CurrentRadius, out double CurrentCant)
 		{
 			// Sine Half-Wavelength Diminishing Tangent Curve
 			// https://knowledge.autodesk.com/support/autocad-civil-3d/learn-explore/caas/CloudHelp/cloudhelp/2018/ENU/Civil3D-UserGuide/files/GUID-DD7C0EA1-8465-45BA-9A39-FC05106FD822-htm.html
@@ -106,7 +106,12 @@ namespace Route.Bve5
 
 			// https://web.archive.org/web/20060222112024/http://www1.odn.ne.jp/~aaa81350/kaisetu/tenpuku/tenpuku.htm
 
-			if (TargetRadius != 0.0)
+			if (StartRadius == TargetRadius)
+			{
+				// Impossible to calculate a transition between two identical values (just returns nonsense values)
+				CurrentRadius = StartRadius;
+			}
+			else if (TargetRadius != 0.0)
 			{
 				double Curvature = 1.0 / (2.0 * TargetRadius) * (1.0 - Math.Cos(Math.PI / X * CurrentPosition));
 
@@ -124,29 +129,37 @@ namespace Route.Bve5
 				CurrentRadius = 0.0;
 			}
 
-			CurrentCant = (1.0 * TargetCant) / 2.0 * (1.0 - Math.Cos(Math.PI / X * CurrentPosition));
+			if (StartCant == TargetCant)
+			{
+				// Impossible to calculate a transition between two identical values (just returns nonsense values)
+				CurrentCant = StartCant;
+			}
+			else
+			{
+				CurrentCant = (1.0 * TargetCant) / 2.0 * (1.0 - Math.Cos(Math.PI / X * CurrentPosition));
+			}
 		}
 
 		private static void CalcCurveTransition(double StartDistance, double StartRadius, double StartCant, double EndDistance, double EndRadius, double EndCant, double CurrentDistance, out double CurrentRadius, out double CurrentCant)
 		{
 			if (StartRadius == 0.0 && StartCant == 0.0)
 			{
-				SineHalfWavelengthDiminishingTangentCurve(EndDistance - StartDistance, EndRadius, EndCant, CurrentDistance - StartDistance, out CurrentRadius, out CurrentCant);
+				SineHalfWavelengthDiminishingTangentCurve(EndDistance - StartDistance, StartRadius, StartCant, EndRadius, EndCant, CurrentDistance - StartDistance, out CurrentRadius, out CurrentCant);
 			}
 			else if (EndRadius == 0.0 && EndCant == 0.0)
 			{
-				SineHalfWavelengthDiminishingTangentCurve(EndDistance - StartDistance, StartRadius, StartCant, EndDistance - CurrentDistance, out CurrentRadius, out CurrentCant);
+				SineHalfWavelengthDiminishingTangentCurve(EndDistance - StartDistance, EndRadius, EndCant, StartRadius, StartCant, EndDistance - CurrentDistance, out CurrentRadius, out CurrentCant);
 			}
 			else
 			{
 				double Midpoint = (StartDistance + EndDistance) / 2.0;
 				if (CurrentDistance < Midpoint)
 				{
-					SineHalfWavelengthDiminishingTangentCurve(Midpoint - StartDistance, StartRadius, StartCant, Midpoint - CurrentDistance, out CurrentRadius, out CurrentCant);
+					SineHalfWavelengthDiminishingTangentCurve(Midpoint - StartDistance, EndRadius, EndCant, StartRadius, StartCant, Midpoint - CurrentDistance, out CurrentRadius, out CurrentCant);
 				}
 				else
 				{
-					SineHalfWavelengthDiminishingTangentCurve(EndDistance - Midpoint, EndRadius, EndCant, CurrentDistance - Midpoint, out CurrentRadius, out CurrentCant);
+					SineHalfWavelengthDiminishingTangentCurve(EndDistance - Midpoint, StartRadius, StartCant, EndRadius, EndCant, CurrentDistance - Midpoint, out CurrentRadius, out CurrentCant);
 				}
 			}
 		}
@@ -179,6 +192,11 @@ namespace Route.Bve5
 
 		private static double GetTrackCoordinate(double distance0, double xy0, double distance1, double xy1, double radius, double distance)
 		{
+			if (distance0 == 0)
+			{
+				// first block, no interpolation possible
+				return xy0;
+			}
 			Vector2 center = GetCenterOfCircle(distance0, xy0, distance1, xy1, radius);
 			double squaring = Math.Pow(radius, 2.0) - Math.Pow(distance - center.X, 2.0);
 			if (squaring >= 0.0)
@@ -216,47 +234,47 @@ namespace Route.Bve5
 			a = 0.0;
 			c = BlockInterval;
 			h = 0.0;
-			if (CurveRadius != 0.0 & Pitch != 0.0)
+			if (CurveRadius != 0.0 && Pitch != 0.0)
 			{
-				double d = BlockInterval;
-				double p = Pitch;
-				double r = CurveRadius;
-				double s = d / Math.Sqrt(1.0 + p * p);
-				h = s * p;
-				double b = s / Math.Abs(r);
-				//c = Math.Sqrt(2.0 * r * r * (1.0 - Math.Cos(b)));
-				c = 2.0 * Math.Abs(r) * Math.Sin(b / 2.0);
-				a = 0.5 * Math.Sign(r) * b;
+				double s = BlockInterval / Math.Sqrt(1.0 + Pitch * Pitch);
+				h = s * Pitch;
+				double b = s / Math.Abs(CurveRadius);
+				c = 2.0 * Math.Abs(CurveRadius) * Math.Sin(b / 2.0);
+				a = 0.5 * Math.Sign(CurveRadius) * b;
 				Direction.Rotate(-a);
 			}
 			else if (CurveRadius != 0.0)
 			{
-				double d = BlockInterval;
-				double r = CurveRadius;
-				double b = d / Math.Abs(r);
-				//c = Math.Sqrt(2.0 * r * r * (1.0 - Math.Cos(b)));
-				c = 2.0 * Math.Abs(r) * Math.Sin(b / 2.0);
-				a = 0.5 * Math.Sign(r) * b;
+				double b = BlockInterval / Math.Abs(CurveRadius);
+				c = 2.0 * Math.Abs(CurveRadius) * Math.Sin(b / 2.0);
+				a = 0.5 * Math.Sign(CurveRadius) * b;
 				Direction.Rotate(-a);
 			}
 			else if (Pitch != 0.0)
 			{
-				double p = Pitch;
-				double d = BlockInterval;
-				c = d / Math.Sqrt(1.0 + p * p);
-				h = c * p;
+				c = BlockInterval / Math.Sqrt(1.0 + Pitch * Pitch);
+				h = c * Pitch;
 			}
 		}
 
 		/// <summary>Gets the transformation for an object on the primary rail</summary>
-		private static void GetPrimaryRailTransformation(Vector3 StartingPosition, IList<Block> Blocks, int StartingBlock, AbstractStructure Structure, Vector2 Direction, out Vector3 ObjectPosition, out Transformation Transformation)
+		private static bool GetRailTransformation(string RailKey, Vector3 StartingPosition, IList<Block> Blocks, int StartingBlock, AbstractStructure Structure, Vector2 Direction, out Vector3 ObjectPosition, out Transformation Transformation)
 		{
-			Direction.Rotate(-Math.Atan(Blocks[StartingBlock].Turn));
-
 			ObjectPosition = StartingPosition;
 			Transformation = new Transformation();
 			if (Structure.Span == 0)
 			{
+				Direction.Rotate(-Math.Atan(Blocks[StartingBlock].Turn));
+
+				if (RailKey != "0")
+				{
+					int nextBlock = StartingBlock < Blocks.Count - 1 ? StartingBlock + 1 : StartingBlock;
+					double InterpolateX = GetTrackCoordinate(Blocks[StartingBlock].StartingDistance, Blocks[StartingBlock].Rails[RailKey].Position.X, Blocks[nextBlock].StartingDistance, Blocks[nextBlock].Rails[RailKey].Position.X, Blocks[StartingBlock].Rails[RailKey].RadiusH, Structure.TrackPosition);
+					double InterpolateY = GetTrackCoordinate(Blocks[StartingBlock].StartingDistance, Blocks[StartingBlock].Rails[RailKey].Position.Y, Blocks[nextBlock].StartingDistance, Blocks[nextBlock].Rails[RailKey].Position.Y, Blocks[StartingBlock].Rails[RailKey].RadiusV, Structure.TrackPosition);
+					Vector3 Offset = new Vector3(Direction.Y * InterpolateX, InterpolateY, -Direction.X * InterpolateX);
+					ObjectPosition += Offset;
+				}
+
 				double radius = Blocks[StartingBlock].CurrentTrackState.CurveRadius;
 				double pitch = Blocks[StartingBlock].Pitch;
 				double cant = Blocks[StartingBlock].CurrentTrackState.CurveCant;
@@ -286,69 +304,105 @@ namespace Route.Bve5
 						Transformation = new Transformation(TrackYaw, 0.0, 0.0);
 						break;
 					default:
-						throw new NotSupportedException("Unknown transform type.");
+						return false;
 				}
 			}
 			else
 			{
-				int nextBlock = StartingBlock < Blocks.Count - 1 ? StartingBlock + 1 : StartingBlock;
-				GetTransformation(StartingPosition, Blocks[StartingBlock], Blocks[nextBlock], "0", Blocks[StartingBlock].Pitch, Structure.TrackPosition, Structure.Type, Structure.Span, Direction, out ObjectPosition, out Transformation);
+				GetTransformation(StartingPosition, Blocks, StartingBlock, RailKey, Structure.TrackPosition, Structure.Type, Structure.Span, Direction, out ObjectPosition, out Transformation);
 			}
 			
-			
+			return true;
 		}
 
-		/// <summary>Gets the transformation for an object on a secondary rail</summary>
-		private static void GetSecondaryRailTransformation(Vector3 StartingPosition, Vector2 StartingDirection, IList<Block> Blocks, int StartingBlock, string RailKey, AbstractStructure Structure, out Vector3 pos, out Transformation t)
+		/// <summary>
+		/// Walks the player track forwards from the start of a block to a track position, stepping off
+		/// to the requested rail on the way.
+		/// </summary>
+		/// <remarks>
+		/// A structure with a span (an overhead line, a platform roof, a length of ballast) covers several
+		/// blocks, and both the alignment of the track and the lateral offset of the rail can change
+		/// underneath it. Reading those out of the block the structure happens to start in leaves its far
+		/// end off the rail, which is most visible where consecutive segments should meet: the catenary
+		/// wires at Chiba used to stop ~0.35m short of each other at the 260m pole.
+		/// Walking the track is the same work ApplyRouteData does to lay the track out in the first place,
+		/// so both ends of the chord land exactly on the rail.
+		/// </remarks>
+		private static Vector3 GetRailPosition(Vector3 StartingPosition, IList<Block> Blocks, int StartingBlock, string RailKey, Vector2 Direction, double TargetDistance)
 		{
-			int nextBlock = StartingBlock < Blocks.Count - 1 ? StartingBlock + 1 : StartingBlock;
-			GetTransformation(StartingPosition, Blocks[StartingBlock], Blocks[nextBlock], RailKey, Blocks[StartingBlock].Pitch, Structure.TrackPosition, Structure.Type, Structure.Span, StartingDirection, out pos, out t);
+			Vector3 position = StartingPosition;
+			Vector2 direction = Direction;
+			direction.Rotate(-Math.Atan(Blocks[StartingBlock].Turn));
+
+			// position always follows the player track, so the rail offset gets recalculated for every block rather than added on top of the previous one
+			Vector3 offset = Vector3.Zero;
+			double distance = Blocks[StartingBlock].StartingDistance;
+
+			for (int i = StartingBlock; i < Blocks.Count; i++)
+			{
+				Block block = Blocks[i];
+				bool HasNextBlock = i < Blocks.Count - 1;
+				double blockEnd = HasNextBlock ? Blocks[i + 1].StartingDistance : distance + InterpolateInterval;
+				double step = Math.Min(TargetDistance, blockEnd) - distance;
+
+				offset = Vector3.Zero;
+
+				if (RailKey != "0" && block.Rails.TryGetValue(RailKey, out Rail rail))
+				{
+					// Interpolating within this block only keeps us from dragging one block's offset slope across the whole span
+					bool NextBlockHasRail = HasNextBlock && Blocks[i + 1].Rails.ContainsKey(RailKey);
+					double InterpolateX = GetTrackCoordinate(block.StartingDistance, rail.Position.X, blockEnd, NextBlockHasRail ? Blocks[i + 1].Rails[RailKey].Position.X : rail.Position.X, rail.RadiusH, distance);
+					double InterpolateY = GetTrackCoordinate(block.StartingDistance, rail.Position.Y, blockEnd, NextBlockHasRail ? Blocks[i + 1].Rails[RailKey].Position.Y : rail.Position.Y, rail.RadiusV, distance);
+					offset = new Vector3(direction.Y * InterpolateX, InterpolateY, -direction.X * InterpolateX);
+				}
+
+				if (step <= 0.0)
+				{
+					// We've arrived, and the offset we just worked out is the one which applies here
+					break;
+				}
+
+				CalcTransformation(block.CurrentTrackState.CurveRadius, block.Pitch, step, ref direction, out double a, out double c, out double h);
+
+				position.X += direction.X * c;
+				position.Y += h;
+				position.Z += direction.Y * c;
+				direction.Rotate(-a);
+
+				distance = blockEnd;
+
+				if (HasNextBlock)
+				{
+					direction.Rotate(-Math.Atan(Blocks[i + 1].Turn));
+				}
+			}
+
+			return position + offset;
 		}
 
-		/// <summary>Gets the transformation between two blocks</summary>
-		private static void GetTransformation(Vector3 StartingPosition, Block FirstBlock, Block SecondBlock, string RailKey, double Pitch, double TrackDistance, ObjectTransformType Type, double Span, Vector2 Direction, out Vector3 ObjectPosition, out Transformation Transformation)
+		/// <summary>Gets the transformation for a structure which spans a chord of the rail, e.g. an overhead line</summary>
+		/// <remarks>
+		/// The structure is rigid, so it is placed along the straight line between the two ends of its
+		/// span rather than being bent to follow the curve. Where the track genuinely curves over the span
+		/// that chord is very slightly shorter than the track it covers, which is expected.
+		/// </remarks>
+		private static void GetTransformation(Vector3 StartingPosition, IList<Block> Blocks, int StartingBlock, string RailKey, double TrackDistance, ObjectTransformType Type, double Span, Vector2 Direction, out Vector3 ObjectPosition, out Transformation Transformation)
 		{
 			Transformation = new Transformation();
-			Direction.Rotate(-Math.Atan(FirstBlock.Turn));
 
-			Vector3 Position = StartingPosition;
-
-			CalcTransformation(FirstBlock.CurrentTrackState.CurveRadius, Pitch, TrackDistance - FirstBlock.StartingDistance, ref Direction, out double a, out double c, out double h);
-
-			Position.X += Direction.X * c;
-			Position.Y += h;
-			Position.Z += Direction.Y * c;
-			Direction.Rotate(-a);
-
-			CalcTransformation(FirstBlock.CurrentTrackState.CurveRadius, Pitch, Span, ref Direction, out a, out c, out h);
-
-			double InterpolateX = GetTrackCoordinate(FirstBlock.StartingDistance, FirstBlock.Rails[RailKey].Position.X, SecondBlock.StartingDistance,SecondBlock.Rails[RailKey].Position.X, FirstBlock.Rails[RailKey].RadiusH, TrackDistance);
-			double InterpolateY = GetTrackCoordinate(FirstBlock.StartingDistance, FirstBlock.Rails[RailKey].Position.Y, SecondBlock.StartingDistance, SecondBlock.Rails[RailKey].Position.Y, FirstBlock.Rails[RailKey].RadiusV, TrackDistance);
-
-			Vector3 Offset = new Vector3(Direction.Y * InterpolateX, InterpolateY, -Direction.X * InterpolateX);
-			ObjectPosition = Position + Offset;
-
-			Position.X += Direction.X * c;
-			Position.Y += h;
-			Position.Z += Direction.Y * c;
-			Direction.Rotate(-a);
-
-			CalcTransformation(FirstBlock.CurrentTrackState.CurveRadius, Pitch, Span, ref Direction, out _, out _, out _);
-
-			double InterpolateX2 = GetTrackCoordinate(FirstBlock.StartingDistance, FirstBlock.Rails[RailKey].Position.X, SecondBlock.StartingDistance, SecondBlock.Rails[RailKey].Position.X, FirstBlock.Rails[RailKey].RadiusH, TrackDistance + Span);
-			double InterpolateY2 = GetTrackCoordinate(FirstBlock.StartingDistance, FirstBlock.Rails[RailKey].Position.Y, SecondBlock.StartingDistance, SecondBlock.Rails[RailKey].Position.Y, FirstBlock.Rails[RailKey].RadiusV, TrackDistance + Span);
-
-			Vector3 Offset2 = new Vector3(Direction.Y * InterpolateX2, InterpolateY2, -Direction.X * InterpolateX2);
-			Vector3 ObjectPosition2 = Position + Offset2;
+			// Point the structure along the chord between the two ends of its span
+			ObjectPosition = GetRailPosition(StartingPosition, Blocks, StartingBlock, RailKey, Direction, TrackDistance);
+			Vector3 SpanEnd = GetRailPosition(StartingPosition, Blocks, StartingBlock, RailKey, Direction, TrackDistance + Span);
 
 			Vector3 r;
 			if (Type == ObjectTransformType.FollowsGradient || Type == ObjectTransformType.FollowsGradientAndCant)
 			{
-				r = new Vector3(ObjectPosition2.X - ObjectPosition.X, ObjectPosition2.Y - ObjectPosition.Y, ObjectPosition2.Z - ObjectPosition.Z);
+				r = new Vector3(SpanEnd.X - ObjectPosition.X, SpanEnd.Y - ObjectPosition.Y, SpanEnd.Z - ObjectPosition.Z);
 			}
 			else
 			{
-				r = new Vector3(ObjectPosition2.X - ObjectPosition.X, 0.0, ObjectPosition2.Z - ObjectPosition.Z);
+				// These transform types don't follow the gradient, so the span stays level
+				r = new Vector3(SpanEnd.X - ObjectPosition.X, 0.0, SpanEnd.Z - ObjectPosition.Z);
 			}
 			r.Normalize();
 			Transformation.Z = r;
@@ -357,7 +411,7 @@ namespace Route.Bve5
 			Transformation.Y = Vector3.Cross(Transformation.Z, Transformation.X);
 			if (Type == ObjectTransformType.FollowsCant || Type == ObjectTransformType.FollowsGradientAndCant)
 			{
-				Transformation = new Transformation(Transformation, 0.0, 0.0, Math.Atan(FirstBlock.CurrentTrackState.CurveCant));
+				Transformation = new Transformation(Transformation, 0.0, 0.0, Math.Atan(Blocks[StartingBlock].CurrentTrackState.CurveCant));
 			}
 		}
 		private static void Normalize(ref double x, ref double y)

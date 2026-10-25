@@ -1,4 +1,4 @@
-﻿//Simplified BSD License (BSD-2-Clause)
+//Simplified BSD License (BSD-2-Clause)
 //
 //Copyright (c) 2024, Maurizo M. Gavioli, The OpenBVE Project
 //
@@ -28,6 +28,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using OpenBveApi.Graphics;
+using OpenBveApi.Interface;
 
 namespace LibRender2.Menu
 {
@@ -69,6 +70,9 @@ namespace LibRender2.Menu
 					}
 
 					break;
+				case OptionType.AutoReloadObjects:
+					CurrentlySelectedOption = BaseMenu.CurrentOptions.AutoReloadObjects ? 0 : 1;
+					return;
 				case OptionType.FullScreen:
 					CurrentlySelectedOption = BaseMenu.CurrentOptions.FullscreenMode ? 0 : 1;
 					return;
@@ -145,6 +149,29 @@ namespace LibRender2.Menu
 							break;
 					}
 					return;
+				case OptionType.ShadowQuality:
+					switch (BaseMenu.CurrentOptions.ShadowResolution)
+					{
+						case ShadowMapResolution.Off:
+							CurrentlySelectedOption = 0;
+							break;
+						case ShadowMapResolution.Low:
+							CurrentlySelectedOption = 1;
+							break;
+						case ShadowMapResolution.Medium:
+							CurrentlySelectedOption = 2;
+							break;
+						case ShadowMapResolution.High:
+							CurrentlySelectedOption = 3;
+							break;
+						case ShadowMapResolution.Ultra:
+							CurrentlySelectedOption = 4;
+							break;
+					}
+					return;
+				case OptionType.ShadowFilterCascades:
+					CurrentlySelectedOption = BaseMenu.CurrentOptions.ShadowFilterCascades ? 0 : 1;
+					return;
 			}
 			CurrentlySelectedOption = 0;
 		}
@@ -169,15 +196,15 @@ namespace LibRender2.Menu
 					{
 						return;
 					}
-					BaseMenu.Renderer.SetWindowSize((int)(res.Width * BaseRenderer.ScaleFactor.X), (int)(res.Height * BaseRenderer.ScaleFactor.Y));
+					BaseMenu.Renderer.SetWindowSize((int)(res.Width * BaseMenu.Renderer.ScaleFactor.X), (int)(res.Height * BaseMenu.Renderer.ScaleFactor.Y));
 					if (BaseMenu.CurrentOptions.FullscreenMode)
 					{
 						IList<DisplayResolution> resolutions = DisplayDevice.Default.AvailableResolutions;
 						foreach (DisplayResolution currentResolution in resolutions)
 						{
 							//Test resolution
-							if (currentResolution.Width == BaseMenu.Renderer.Screen.Width / BaseRenderer.ScaleFactor.X &&
-								currentResolution.Height == BaseMenu.Renderer.Screen.Height / BaseRenderer.ScaleFactor.Y)
+							if (currentResolution.Width == BaseMenu.Renderer.Screen.Width / BaseMenu.Renderer.ScaleFactor.X &&
+								currentResolution.Height == BaseMenu.Renderer.Screen.Height / BaseMenu.Renderer.ScaleFactor.Y)
 							{
 								try
 								{
@@ -185,7 +212,7 @@ namespace LibRender2.Menu
 									DisplayDevice.Default.RestoreResolution();
 									DisplayDevice.Default.ChangeResolution(currentResolution);
 									BaseMenu.Renderer.SetWindowState(WindowState.Fullscreen);
-									BaseMenu.Renderer.SetWindowSize((int)(currentResolution.Width * BaseRenderer.ScaleFactor.X), (int)(currentResolution.Height * BaseRenderer.ScaleFactor.Y));
+									BaseMenu.Renderer.SetWindowSize((int)(currentResolution.Width * BaseMenu.Renderer.ScaleFactor.X), (int)(currentResolution.Height * BaseMenu.Renderer.ScaleFactor.Y));
 									BaseMenu.CurrentOptions.FullscreenWidth = currentResolution.Width;
 									BaseMenu.CurrentOptions.FullscreenHeight = currentResolution.Height;
 									return;
@@ -217,8 +244,8 @@ namespace LibRender2.Menu
 						foreach (DisplayResolution currentResolution in resolutions)
 						{
 							//Test resolution
-							if (currentResolution.Width == BaseMenu.Renderer.Screen.Width / BaseRenderer.ScaleFactor.X &&
-								currentResolution.Height == BaseMenu.Renderer.Screen.Height / BaseRenderer.ScaleFactor.Y)
+							if (currentResolution.Width == BaseMenu.Renderer.Screen.Width / BaseMenu.Renderer.ScaleFactor.X &&
+								currentResolution.Height == BaseMenu.Renderer.Screen.Height / BaseMenu.Renderer.ScaleFactor.Y)
 							{
 								try
 								{
@@ -226,7 +253,7 @@ namespace LibRender2.Menu
 									DisplayDevice.Default.RestoreResolution();
 									DisplayDevice.Default.ChangeResolution(currentResolution);
 									BaseMenu.Renderer.SetWindowState(WindowState.Fullscreen);
-									BaseMenu.Renderer.SetWindowSize((int)(currentResolution.Width * BaseRenderer.ScaleFactor.X), (int)(currentResolution.Height * BaseRenderer.ScaleFactor.Y));
+									BaseMenu.Renderer.SetWindowSize((int)(currentResolution.Width * BaseMenu.Renderer.ScaleFactor.X), (int)(currentResolution.Height * BaseMenu.Renderer.ScaleFactor.Y));
 									return;
 								}
 								catch
@@ -240,6 +267,9 @@ namespace LibRender2.Menu
 					break;
 				case OptionType.Interpolation:
 					BaseMenu.CurrentOptions.Interpolation = (InterpolationMode)CurrentlySelectedOption;
+					break;
+				case OptionType.AutoReloadObjects:
+					BaseMenu.CurrentOptions.AutoReloadObjects = !BaseMenu.CurrentOptions.AutoReloadObjects;
 					break;
 				//HACK: We can't store plain ints due to to boxing, so store strings and parse instead
 				case OptionType.AnisotropicLevel:
@@ -258,6 +288,39 @@ namespace LibRender2.Menu
 					break;
 				case OptionType.NumberOfSounds:
 					BaseMenu.CurrentOptions.SoundNumber = int.Parse((string)CurrentOption, NumberStyles.Integer);
+					break;
+				case OptionType.ShadowQuality:
+					// if finer control is wanted, edit the options file (GL menu options are hacky at best)
+					switch (CurrentlySelectedOption)
+					{
+						case 0:
+							BaseMenu.CurrentOptions.ShadowResolution = ShadowMapResolution.Off;
+							break;
+						case 1:
+							BaseMenu.CurrentOptions.ShadowResolution = ShadowMapResolution.Low;
+							BaseMenu.CurrentOptions.ShadowDrawDistance = ShadowDistance.Medium;
+							BaseMenu.CurrentOptions.ShadowCascades = ShadowCascadeCount.Two;
+							break;
+						case 2:
+							BaseMenu.CurrentOptions.ShadowResolution = ShadowMapResolution.Medium;
+							BaseMenu.CurrentOptions.ShadowDrawDistance = ShadowDistance.Far;
+							BaseMenu.CurrentOptions.ShadowCascades = ShadowCascadeCount.Three;
+							break;
+						case 3:
+							BaseMenu.CurrentOptions.ShadowResolution = ShadowMapResolution.High;
+							BaseMenu.CurrentOptions.ShadowDrawDistance = ShadowDistance.VeryFar;
+							BaseMenu.CurrentOptions.ShadowCascades = ShadowCascadeCount.Four;
+							break;
+						case 4:
+							BaseMenu.CurrentOptions.ShadowResolution = ShadowMapResolution.Ultra;
+							BaseMenu.CurrentOptions.ShadowDrawDistance = ShadowDistance.ViewingDistance;
+							BaseMenu.CurrentOptions.ShadowCascades = ShadowCascadeCount.Four;
+							break;
+					}
+					BaseMenu.Renderer.InitializeShadows();
+					break;
+				case OptionType.ShadowFilterCascades:
+					BaseMenu.CurrentOptions.ShadowFilterCascades = !BaseMenu.CurrentOptions.ShadowFilterCascades;
 					break;
 
 			}

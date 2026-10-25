@@ -1,4 +1,5 @@
 using System.Linq;
+using OpenBveApi.Colors;
 using OpenBveApi.FunctionScripting;
 using OpenBveApi.Graphics;
 using OpenBveApi.Hosts;
@@ -108,6 +109,10 @@ namespace OpenBveApi.Objects
 		/// <summary>The signalling section the object refers to</summary>
 		/// <remarks>This only applies to objects placed using the Track.Sig command</remarks>
 		public int SectionIndex;
+		/// <summary>Function used to change the colors of an object</summary>
+		public AnimationScript ColorFunction;
+		/// <summary>Array of colors for ColorFunction</summary>
+		public Color24[] Colors;
 
 		/// <summary>Creates a new animated object</summary>
 		public AnimatedObject(HostInterface host, string fileName = "")
@@ -215,7 +220,7 @@ namespace OpenBveApi.Objects
 		{
 			currentHost.HideObject(internalObject);
 			int t = StateIndex;
-			if (t >= 0 && States[t].Prototype != null)
+			if (t >= 0)
 			{
 				internalObject.Prototype = States[t].Prototype;
 			}
@@ -714,6 +719,7 @@ namespace OpenBveApi.Objects
 				double dz = -Camera.Alignment.Position.Z;
 				Vector3 add = Camera.AbsolutePosition + dx * Camera.AbsoluteSide + dy * Camera.AbsoluteUp + dz * Camera.AbsoluteDirection;
 				internalObject.Translation = Matrix4D.CreateTranslation(add.X, add.Y, -add.Z);
+				internalObject.WorldPosition = add;
 			}
 			else
 			{
@@ -722,8 +728,18 @@ namespace OpenBveApi.Objects
 
 				// translate
 				internalObject.Translation = Matrix4D.CreateTranslation(Position.X, Position.Y, -Position.Z);
+				internalObject.WorldPosition = Position;
 			}
 
+			if (ColorFunction != null && Colors != null)
+			{
+				int color = (int)ColorFunction.LastResult;
+				if (UpdateFunctions)
+				{
+					color = (int)ColorFunction.ExecuteScript(Train, CarIndex, Position, TrackPosition, SectionIndex, IsPartOfTrain, TimeElapsed, CurrentState);
+				}
+				internalObject.Prototype.Mesh.Materials[0].Color = Colors[color];
+			}
 			// visibility changed
 			// TouchElement is handled by another function.
 			if (!IsTouch)
@@ -745,8 +761,7 @@ namespace OpenBveApi.Objects
 		/// <param name="LocalTransformation">The local transformation to apply in order to rotate the model</param>
 		/// <param name="sectionIndex">The index of the section if placed using a SigF command</param>
 		/// <param name="TrackPosition">The absolute track position</param>
-		/// <param name="Brightness">The brightness value at the track position</param>
-		public void CreateObject(Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation, int sectionIndex, double TrackPosition, double Brightness)
+		public void CreateObject(Vector3 Position, Transformation WorldTransformation, Transformation LocalTransformation, int sectionIndex, double TrackPosition)
 		{
 
 			int a = currentHost.AnimatedWorldObjectsUsed;
@@ -755,7 +770,7 @@ namespace OpenBveApi.Objects
 			//Place track followers if required
 			if (TrackFollowerFunction != null)
 			{
-				var o = this.Clone();
+				AnimatedObject o = this.Clone();
 				currentHost.CreateDynamicObject(ref o.internalObject);
 				TrackFollowingObject currentObject = new TrackFollowingObject(currentHost)
 				{
@@ -781,7 +796,6 @@ namespace OpenBveApi.Objects
 					}
 				}
 
-				currentObject.Object.internalObject.Brightness = Brightness;
 
 				double r = 0.0;
 				for (int i = 0; i < currentObject.Object.States.Length; i++)
@@ -800,7 +814,7 @@ namespace OpenBveApi.Objects
 			}
 			else
 			{
-				var o = this.Clone();
+				AnimatedObject o = this.Clone();
 				currentHost.CreateDynamicObject(ref o.internalObject);
 				o.SectionIndex = sectionIndex;
 				AnimatedWorldObject currentObject = new AnimatedWorldObject(currentHost)
@@ -811,7 +825,7 @@ namespace OpenBveApi.Objects
 					Side = FinalTransformation.X,
 					Object = o,
 					SectionIndex = sectionIndex,
-					TrackPosition = TrackPosition,
+					TrackPosition = TrackPosition
 				};
 				for (int i = 0; i < currentObject.Object.States.Length; i++)
 				{
@@ -821,7 +835,6 @@ namespace OpenBveApi.Objects
 					}
 				}
 
-				currentObject.Object.internalObject.Brightness = Brightness;
 
 				double r = 0.0;
 				for (int i = 0; i < currentObject.Object.States.Length; i++)
@@ -874,6 +887,63 @@ namespace OpenBveApi.Objects
 				RotateYDirection.Z *= -1.0;
 				RotateZDirection.X *= -1.0;
 				RotateZDirection.Z *= -1.0;
+			}
+		}
+
+		/// <summary>Corrects the car indices in any function scripts in use</summary>
+		public void CorrectCarIndices(int offset)
+		{
+			if (RotateXFunction is FunctionScript rx)
+			{
+				rx.CorrectCarIndices(offset);
+			}
+			if (RotateYFunction is FunctionScript ry)
+			{
+				ry.CorrectCarIndices(offset);
+			}
+			if (RotateZFunction is FunctionScript rz)
+			{
+				rz.CorrectCarIndices(offset);
+			}
+			if (TranslateXFunction is FunctionScript tx)
+			{
+				tx.CorrectCarIndices(offset);
+			}
+			if (TranslateYFunction is FunctionScript ty)
+			{
+				ty.CorrectCarIndices(offset);
+			}
+			if (TranslateZFunction is FunctionScript tz)
+			{
+				tz.CorrectCarIndices(offset);
+			}
+			if (ScaleXFunction is FunctionScript sx)
+			{
+				sx.CorrectCarIndices(offset);
+			}
+			if (ScaleYFunction is FunctionScript sy)
+			{
+				sy.CorrectCarIndices(offset);
+			}
+			if (ScaleZFunction is FunctionScript sz)
+			{
+				sz.CorrectCarIndices(offset);
+			}
+			if (TextureShiftXFunction is FunctionScript tsx)
+			{
+				tsx.CorrectCarIndices(offset);
+			}
+			if (TextureShiftYFunction is FunctionScript tsy)
+			{
+				tsy.CorrectCarIndices(offset);
+			}
+			if (StateFunction is FunctionScript s)
+			{
+				s.CorrectCarIndices(offset);
+			}
+			if (ColorFunction is FunctionScript c)
+			{
+				c.CorrectCarIndices(offset);
 			}
 		}
 

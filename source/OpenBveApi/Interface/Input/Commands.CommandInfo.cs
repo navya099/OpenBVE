@@ -188,7 +188,8 @@ namespace OpenBveApi.Interface
 			{ Command.SecurityO, new CommandInfo(Command.SecurityO, CommandType.Digital, "SECURITY_O") },
 			{ Command.SecurityP, new CommandInfo(Command.SecurityP, CommandType.Digital, "SECURITY_P") },
 #pragma warning restore 618			
-			
+			{ Command.DriverSupervision, new CommandInfo(Command.DriverSupervision, CommandType.Digital, "DRIVER_SUPERVISION") },
+
 			//Common Keys
 			{ Command.WiperSpeedUp, new CommandInfo(Command.WiperSpeedUp, CommandType.Digital, "WIPER_SPEED_UP") },
 			{ Command.WiperSpeedDown, new CommandInfo(Command.WiperSpeedDown, CommandType.Digital, "WIPER_SPEED_DOWN") },
@@ -200,6 +201,9 @@ namespace OpenBveApi.Interface
 			{ Command.IncreaseCutoff, new CommandInfo(Command.IncreaseCutoff, CommandType.Digital, "INCREASE_CUTOFF") },
 			{ Command.DecreaseCutoff, new CommandInfo(Command.DecreaseCutoff, CommandType.Digital, "DECREASE_CUTOFF") },
 			{ Command.Blowers, new CommandInfo(Command.Blowers, CommandType.Digital, "BLOWERS") },
+			{ Command.CylinderCocks, new CommandInfo(Command.CylinderCocks, CommandType.Digital, "CYLINDER_COCKS") },
+			{ Command.FireboxDoorOpen, new CommandInfo(Command.FireboxDoorOpen, CommandType.Digital, "FIREBOX_DOOR_OPEN") },
+			{ Command.FireboxDoorClose, new CommandInfo(Command.FireboxDoorClose, CommandType.Digital, "FIREBOX_DOOR_CLOSE") },
 			//Diesel Locomotive
 			{ Command.EngineStart, new CommandInfo(Command.EngineStart, CommandType.Digital, "ENGINE_START") },
 			{ Command.EngineStop, new CommandInfo(Command.EngineStop, CommandType.Digital, "ENGINE_STOP") },
@@ -215,6 +219,8 @@ namespace OpenBveApi.Interface
 			{ Command.CameraInterior, new CommandInfo(Command.CameraInterior, CommandType.Digital, "CAMERA_INTERIOR") },
 			{ Command.CameraInteriorNoPanel, new CommandInfo(Command.CameraInteriorNoPanel,CommandType.Digital,"CAMERA_INTERIOR_NOPANEL") }, 
 			{ Command.CameraExterior, new CommandInfo(Command.CameraExterior, CommandType.Digital, "CAMERA_EXTERIOR") },
+			{ Command.CameraHeadOutLeft, new CommandInfo(Command.CameraInterior, CommandType.Digital, "CAMERA_HEADOUT_LEFT") },
+			{ Command.CameraHeadOutRight, new CommandInfo(Command.CameraInterior, CommandType.Digital, "CAMERA_HEADOUT_RIGHT") },
 			{ Command.CameraTrack, new CommandInfo(Command.CameraTrack, CommandType.Digital, "CAMERA_TRACK") },
 			{ Command.CameraFlyBy, new CommandInfo(Command.CameraFlyBy, CommandType.Digital, "CAMERA_FLYBY") },
 			{ Command.CameraMoveForward, new CommandInfo(Command.CameraMoveForward, CommandType.AnalogHalf, "CAMERA_MOVE_FORWARD") },
@@ -270,6 +276,7 @@ namespace OpenBveApi.Interface
 			{ Command.AccessibilityCurrentSpeed, new CommandInfo(Command.AccessibilityCurrentSpeed, CommandType.Digital, "ACCESSIBILITY_CURRENT_SPEED") },
 			{ Command.AccessibilityNextSignal, new CommandInfo(Command.AccessibilityNextSignal, CommandType.Digital, "ACCESSIBILITY_NEXT_SIGNAL") },
 			{ Command.AccessibilityNextStation, new CommandInfo(Command.AccessibilityNextStation, CommandType.Digital, "ACCESSIBILITY_NEXT_STATION") },
+			{ Command.AccessibilityNextLimit, new CommandInfo(Command.AccessibilityNextLimit, CommandType.Digital, "ACCESSIBILITY_NEXT_LIMIT") },
 			// Coupling
 			{ Command.UncoupleFront, new CommandInfo(Command.UncoupleFront, CommandType.Digital, "UNCOUPLE_FRONT") },
 			{ Command.UncoupleRear, new CommandInfo(Command.UncoupleRear, CommandType.Digital, "UNCOUPLE_REAR") },

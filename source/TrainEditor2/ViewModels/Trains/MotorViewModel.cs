@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Linq;
 using System.Reactive.Linq;
+using Formats.OpenBve;
 using Reactive.Bindings;
 using Reactive.Bindings.Extensions;
 using TrainEditor2.Extensions;
@@ -357,7 +358,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MinVelocity,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -368,7 +369,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MaxVelocity,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -379,7 +380,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MinPitch,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -390,7 +391,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MaxPitch,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -401,7 +402,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MinVolume,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -412,7 +413,7 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.MaxVolume,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.AddTo(disposable);
@@ -507,14 +508,13 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.Acceleration,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
 
-					Utilities.TryParse(x, NumberRange.NonNegative, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.NonNegative, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -523,14 +523,13 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.StartSpeed,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
 
-					Utilities.TryParse(x, NumberRange.NonNegative, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.NonNegative, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -539,14 +538,13 @@ namespace TrainEditor2.ViewModels.Trains
 				.ToReactivePropertyAsSynchronized(
 					x => x.EndSpeed,
 					x => x.ToString(culture),
-					x => double.Parse(x, NumberStyles.Float, culture),
+					x => x.Parse(),
 					ignoreValidationErrorValue: true
 				)
 				.SetValidateNotifyError(x =>
 				{
 
-					Utilities.TryParse(x, NumberRange.NonNegative, out double result, out string message);
-
+					Utilities.TryValidate(x, NumberRange.NonNegative, out string message);
 					return message;
 				})
 				.AddTo(disposable);
@@ -563,16 +561,15 @@ namespace TrainEditor2.ViewModels.Trains
 			DirectX = new ReactiveProperty<string>(0.0.ToString(culture))
 				.SetValidateNotifyError(x =>
 				{
-					double result;
 					string message;
 
 					switch (CurrentToolMode.Value)
 					{
 						case Motor.ToolMode.Move:
-							Utilities.TryParse(x, NumberRange.Any, out result, out message);
+							Utilities.TryValidate(x, NumberRange.Any, out message);
 							break;
 						case Motor.ToolMode.Dot:
-							Utilities.TryParse(x, NumberRange.NonNegative, out result, out message);
+							Utilities.TryValidate(x, NumberRange.NonNegative, out message);
 							break;
 						default:
 							message = null;
@@ -586,16 +583,15 @@ namespace TrainEditor2.ViewModels.Trains
 			DirectY = new ReactiveProperty<string>(0.0.ToString(culture))
 				.SetValidateNotifyError(x =>
 				{
-					double result;
 					string message;
 
 					switch (CurrentToolMode.Value)
 					{
 						case Motor.ToolMode.Move:
-							Utilities.TryParse(x, NumberRange.Any, out result, out message);
+							Utilities.TryValidate(x, NumberRange.Any, out message);
 							break;
 						case Motor.ToolMode.Dot:
-							Utilities.TryParse(x, NumberRange.NonNegative, out result, out message);
+							Utilities.TryValidate(x, NumberRange.NonNegative, out message);
 							break;
 						default:
 							message = null;
@@ -743,7 +739,7 @@ namespace TrainEditor2.ViewModels.Trains
 				}
 				.CombineLatestValuesAreAllTrue()
 				.ToReactiveCommand()
-				.WithSubscribe(() => motor.DirectDot(double.Parse(DirectX.Value), double.Parse(DirectY.Value)))
+				.WithSubscribe(() => motor.DirectDot(DirectX.Value.Parse(), DirectY.Value.Parse()))
 				.AddTo(disposable);
 
 			DirectMove = new[]
@@ -755,7 +751,7 @@ namespace TrainEditor2.ViewModels.Trains
 				}
 				.CombineLatestValuesAreAllTrue()
 				.ToReactiveCommand()
-				.WithSubscribe(() => motor.DirectMove(double.Parse(DirectX.Value), double.Parse(DirectY.Value)))
+				.WithSubscribe(() => motor.DirectMove(DirectX.Value.Parse(), DirectY.Value.Parse()))
 				.AddTo(disposable);
 
 			SwapSpeed = StoppedSim

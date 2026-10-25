@@ -297,7 +297,8 @@ namespace OpenBveApi.FunctionScripting
 								t.Append(" " + a[i] + " ^");
 							} return t.ToString();
 					}
-					// train
+				// train
+				case "brightness":
 				case "distance":
 				case "trackdistance":
 				case "curveradius":
@@ -320,6 +321,15 @@ namespace OpenBveApi.FunctionScripting
 				case "brakepipe":
 				case "brakecylinder":
 				case "straightairpipe":
+				case "enginerunning":
+				case "enginerpm":
+				case "enginepower":
+				case "fuellevel":
+				case "pantographstate":
+				case "cylindercocksstate":
+				case "blowersstate":
+				case "tenderwaterstate":
+				case "tracknumber":
 				// station index functions
 				case "distancestation":
 				case "stopsstation":
@@ -911,11 +921,11 @@ namespace OpenBveApi.FunctionScripting
 						} j++;
 					}
 					throw new System.IO.InvalidDataException("No closing parenthesis found in " + Expression);
-				} else {
-					i = Expression.IndexOf(')');
-					if (i >= 0) {
-						throw new System.IO.InvalidDataException("Unexpected closing parenthesis encountered in " + Expression);
-					}
+				}
+
+				i = Expression.IndexOf(')');
+				if (i >= 0) {
+					throw new System.IO.InvalidDataException("Unexpected closing parenthesis encountered in " + Expression);
 				}
 			}
 			// operators

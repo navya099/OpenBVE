@@ -1,20 +1,37 @@
-﻿using System;
+using System;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Windows.Forms;
 using OpenBveApi.Hosts;
+using Path = OpenBveApi.Path;
+
 // ReSharper disable LocalizableElement
 // Note: Crashes may occur before languages have been loaded, so this file cannot be localised
 namespace OpenBve
 {
     /// <summary>Provides functions for handling crashes, and producing an appropriate error log</summary>
-    class CrashHandler
+    internal class CrashHandler
     {
-        static readonly string CrashLog = OpenBveApi.Path.CombineFile(Program.FileSystem.SettingsFolder,"OpenBVE Crash- " + DateTime.Now.ToString("yyyy.M.dd[HH.mm]") + ".log");
+        private static string crashLog;
+        /// <summary>The path to the crash log file, computed on first access as the filesystem may not be initialised when a crash occurs</summary>
+        private static string CrashLog
+        {
+            get
+            {
+                if (crashLog == null)
+                {
+                    var settingsFolder = Program.FileSystem != null ? Program.FileSystem.SettingsFolder : null;
+                    crashLog = string.IsNullOrEmpty(settingsFolder)
+                        ? Path.Combine(System.IO.Path.GetTempPath(), "OpenBVE Crash- " + DateTime.Now.ToString("yyyy.M.dd[HH.mm]") + ".log")
+                        : Path.CombineFile(settingsFolder, "OpenBVE Crash- " + DateTime.Now.ToString("yyyy.M.dd[HH.mm]") + ".log");
+                }
+                return crashLog;
+            }
+        }
         /// <summary>Catches all unhandled exceptions within the current appdomain</summary>
-        internal static void CurrentDomain_UnhandledException(Object sender, UnhandledExceptionEventArgs e)
+        internal static void CurrentDomain_UnhandledException(object sender, UnhandledExceptionEventArgs e)
         {
 	        if (Program.CurrentHost.Platform == HostPlatform.AppleOSX && IntPtr.Size !=4)
 	        {
@@ -28,17 +45,17 @@ namespace OpenBve
                 Exception ex = (Exception)e.ExceptionObject;
                 if (ex is ArgumentOutOfRangeException && ex.Message == "Specified argument was out of the range of valid values.\r\nParameter name: button")
                 {
-                    //If a joystick with an excessive number of axis or buttons is connected, at the least show a nice error message, rather than simply dissapearing
-                    MessageBox.Show("An unsupported joystick is connected: \n \n Too many buttons. \n \n Please unplug all USB joysticks & gamepads and try again.");
+                    //If a joystick with an excessive number of axis or buttons is connected, at the least show a nice error message, rather than simply disappearing
+                    Program.ShowMessageBox("An unsupported joystick is connected: \n \n Too many buttons. \n \n Please unplug all USB joysticks & gamepads and try again.", Application.ProductName);
                     Environment.Exit(0);
                 }
                 if (ex is ArgumentOutOfRangeException && ex.Message == "Specified argument was out of the range of valid values.\r\nParameter name: axis")
                 {
-                    //If a joystick with an excessive number of axis or buttons is connected, at the least show a nice error message, rather than simply dissapearing
+                    //If a joystick with an excessive number of axis or buttons is connected, at the least show a nice error message, rather than simply disappearing
                     MessageBox.Show("An unsupported joystick is connected: \n \n Too many axis. \n \n Please unplug all USB joysticks & gamepads and try again.");
                     Environment.Exit(0);
                 }
-                MessageBox.Show("Unhandled exception:\n\n" + ex.Message, "OpenBVE", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+                Program.ShowMessageBox("Unhandled exception:\n\n" + ex.Message, Application.ProductName);
                 LogCrash(ex + Environment.StackTrace);
 
             }
@@ -46,8 +63,8 @@ namespace OpenBve
             {
                 try
                 {
-                    MessageBox.Show("A fatal exception occured inside the UnhandledExceptionHandler:" + Environment.NewLine + Environment.NewLine
-                        + exc.Message, "", MessageBoxButtons.OK, MessageBoxIcon.Stop);
+                    Program.ShowMessageBox("A fatal exception occured inside the UnhandledExceptionHandler:" + Environment.NewLine + Environment.NewLine
+                        + exc.Message, Application.ProductName);
                         LogCrash(exc + Environment.StackTrace);
                 }
                 finally
@@ -88,9 +105,9 @@ namespace OpenBve
         }
 
         /// <summary>This function logs an unhandled crash to disk</summary>
-        internal static void LogCrash(string ExceptionText)
+        internal static void LogCrash(string exceptionText)
         {
-			Program.FileSystem.AppendToLogFile("WARNING: Program crashing. Creating CrashLog file: " + CrashLog);
+			if (Program.FileSystem != null) Program.FileSystem.AppendToLogFile("WARNING: Program crashing. Creating CrashLog file: " + CrashLog);
 			using (StreamWriter outputFile = new StreamWriter(CrashLog))
             {
                 //Basic information
@@ -123,26 +140,42 @@ namespace OpenBve
                     outputFile.WriteLine("Current screen resolution is: Windowed " + Interface.CurrentOptions.WindowWidth + "px x " + Interface.CurrentOptions.WindowHeight + "px ");
                 }
                 //Route and train
-	            if (Program.CurrentRoute.Information.RouteFile != null)
-	            {
-		            outputFile.WriteLine("Current routefile is: " + Program.CurrentRoute.Information.RouteFile);
-	            }
-	            if (Program.CurrentRoute.Information.TrainFolder != null)
-	            {
-		            outputFile.WriteLine("Current train is: " + Program.CurrentRoute.Information.TrainFolder);
-	            }
-	            if (TrainManager.PlayerTrain != null && TrainManager.PlayerTrain.Plugin != null)
-	            {
-		            outputFile.WriteLine("Current train plugin is: " + TrainManager.PlayerTrain.Plugin.PluginTitle);
-	            }
-	            //Errors and Warnings
-                if (Program.CurrentRoute.Information.FilesNotFound != null)
+                //We need the try/ catch block as these may be mutated by other threads whilst we are crashing
+                try
                 {
-                    outputFile.WriteLine(Program.CurrentRoute.Information.FilesNotFound);
+	                if (Program.CurrentRoute != null && Program.CurrentRoute.Information != null)
+	                {
+		                if (Program.CurrentRoute.Information.RouteFile != null)
+		                {
+			                outputFile.WriteLine("Current routefile is: " + Program.CurrentRoute.Information.RouteFile);
+		                }
+		                if (Program.CurrentRoute.Information.TrainFolder != null)
+		                {
+			                outputFile.WriteLine("Current train is: " + Program.CurrentRoute.Information.TrainFolder);
+		                }
+	                }
+	                var playerTrain = TrainManager.PlayerTrain;
+	                if (playerTrain?.Plugin != null)
+	                {
+		                var pluginTitle = playerTrain.Plugin.PluginTitle;
+		                outputFile.WriteLine("Current train plugin is: " + (pluginTitle ?? "unknown"));
+	                }
+	                //Errors and Warnings
+	                if (Program.CurrentRoute != null && Program.CurrentRoute.Information != null)
+	                {
+		                if (Program.CurrentRoute.Information.FilesNotFound != null)
+		                {
+			                outputFile.WriteLine(Program.CurrentRoute.Information.FilesNotFound);
+		                }
+		                if (Program.CurrentRoute.Information.ErrorsAndWarnings != null)
+		                {
+			                outputFile.WriteLine(Program.CurrentRoute.Information.ErrorsAndWarnings);
+		                }
+	                }
                 }
-                if (Program.CurrentRoute.Information.ErrorsAndWarnings != null)
+                catch
                 {
-                    outputFile.WriteLine(Program.CurrentRoute.Information.ErrorsAndWarnings);
+	                //Most likely died before the route/ train init, or state was mutated by another thread whilst crashing
                 }
                 //Track position and viewing distance
                 try
@@ -156,7 +189,7 @@ namespace OpenBve
                 }
                 
                 outputFile.WriteLine("The exception caught was as follows: ");
-                outputFile.WriteLine(ExceptionText);
+                outputFile.WriteLine(exceptionText);
                 try
                 {
 	                double MemoryUsed;
@@ -181,9 +214,7 @@ namespace OpenBve
         /// <summary>This function logs an exception caught whilst loading a route/ train to disk</summary>
         internal static void LoadingCrash(string ExceptionText, bool Train)
         {
-			// Attempt to gracefully shutdown the renderer to terminate hanging threads etc.
-			Program.Renderer.DeInitialize();
-			Program.FileSystem.AppendToLogFile("WARNING: Program crashing. Creating CrashLog file: " + CrashLog);
+			if (Program.FileSystem != null) Program.FileSystem.AppendToLogFile("WARNING: Program crashing. Creating CrashLog file: " + CrashLog);
 			using (StreamWriter outputFile = new StreamWriter(CrashLog))
             {
                 //Basic information
@@ -257,7 +288,8 @@ namespace OpenBve
 	                outputFile.WriteLine("This may indicate a wider system issue.");
                 }
             }
-
-        }
+            // Attempt to gracefully shutdown the renderer to terminate hanging threads etc.
+            Loading.Cancel = true;
+		}
     }
 }

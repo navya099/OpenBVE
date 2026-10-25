@@ -32,7 +32,7 @@ namespace LibRender2.Primitives
 
 		/// <summary>The border width of the textbox </summary>
 		public readonly int Border;
-		/// <summary>The top line to be renderered</summary>
+		/// <summary>The top line to be rendered</summary>
 		private int topLine;
 		/// <summary>Whether the textbox can scroll</summary>
 		public bool CanScroll;
@@ -41,7 +41,6 @@ namespace LibRender2.Primitives
 
 		private List<string> WrappedLines(int width)
 		{
-			width = 200;
 			// string literal as well as escaped character as we may have loaded from language file
 			string[] firstSplit = Text.Split(new[] {"\r\n", "\n", @"\r\n"}, StringSplitOptions.None);
 			List<string> wrappedLines = new List<string>();
@@ -65,16 +64,14 @@ namespace LibRender2.Primitives
 							}
 							string lineToAdd = currentLine.Substring(0, currentLine.Length - moveback);
 							wrappedLines.Add(lineToAdd.TrimStart());
-							currentLine = string.Empty;
 						}
 						else
 						{
 							i--;
 							string lineToAdd = currentLine.Substring(0, currentLine.Length - 1);
 							wrappedLines.Add(lineToAdd.TrimStart());
-							currentLine = string.Empty;
 						}
-						
+						currentLine = string.Empty;
 					}
 				}
 				wrappedLines.Add(currentLine.TrimStart());

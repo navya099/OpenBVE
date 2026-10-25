@@ -5,6 +5,7 @@ using TrainManager;
 using TrainManager.BrakeSystems;
 using TrainManager.Car;
 using TrainManager.Handles;
+using TrainManager.Motor;
 using TrainManager.Trains;
 
 namespace ObjectViewer.Trains
@@ -45,14 +46,14 @@ namespace ObjectViewer.Trains
 		private static TrainBase CreateDummyTrain()
 		{
 			TrainBase train = new TrainBase(TrainState.Available, TrainType.LocalPlayerTrain);
-			train.Handles.Power = new PowerHandle(Specs.PowerNotches, Specs.PowerNotches, new double[] { }, new double[] { }, train);
+			train.Handles.Power = new PowerHandle(Specs.PowerNotches, train);
 			if (Specs.IsAirBrake)
 			{
 				train.Handles.Brake = new AirBrakeHandle(train);
 			}
 			else
 			{
-				train.Handles.Brake = new BrakeHandle(Specs.BrakeNotches, Specs.BrakeNotches, null, new double[] { }, new double[] { }, train);
+				train.Handles.Brake = new BrakeHandle(Specs.BrakeNotches, null, train);
 				train.Handles.HasHoldBrake = Specs.HasHoldBrake;
 			}
 			train.Handles.HoldBrake = new HoldBrakeHandle(train);
@@ -72,13 +73,14 @@ namespace ObjectViewer.Trains
 					train.Cars[i].CarBrake = new ElectromagneticStraightAirBrake(EletropneumaticBrakeType.None, train.Cars[i]);
 				}
 
-				train.Cars[i].Specs.IsMotorCar = true;
+				train.Cars[i].TractionModel = new BVEMotorCar(train.Cars[i], null);
 				//At the minute, Object Viewer uses dummy brake systems
-				train.Cars[i].CarBrake.mainReservoir = new MainReservoir(Status.MainReservoirPressure * 1000.0);
-				train.Cars[i].CarBrake.equalizingReservoir = new EqualizingReservoir(Status.EqualizingReservoirPressure * 1000.0);
-				train.Cars[i].CarBrake.brakePipe = new BrakePipe(Status.BrakePipePressure * 1000.0);
-				train.Cars[i].CarBrake.brakeCylinder = new BrakeCylinder(Status.BrakeCylinderPressure * 1000.0);
-				train.Cars[i].CarBrake.straightAirPipe = new StraightAirPipe(Status.StraightAirPipePressure * 1000.0);
+				train.Cars[i].CarBrake.MainReservoir = new MainReservoir(Status.MainReservoirPressure * 1000.0);
+				train.Cars[i].CarBrake.EqualizingReservoir = new EqualizingReservoir(Status.EqualizingReservoirPressure * 1000.0);
+				train.Cars[i].CarBrake.BrakePipe = new BrakePipe(Status.BrakePipePressure * 1000.0);
+				train.Cars[i].CarBrake.BrakeCylinder = new BrakeCylinder(Status.BrakeCylinderPressure * 1000.0);
+				AirBrake airBrake = train.Cars[i].CarBrake as AirBrake;
+				airBrake.StraightAirPipe = new StraightAirPipe(Status.StraightAirPipePressure * 1000.0);
 
 				train.Cars[i].Coupler = new Coupler(0.9 * 0.3, 1.1 * 0.3, train.Cars[i], i < train.Cars.Length - 1 ? train.Cars[i + 1] : null);
 
@@ -119,7 +121,7 @@ namespace ObjectViewer.Trains
 						IsAirBrake = train.Handles.Brake is AirBrakeHandle,
 						BrakeNotches = train.Handles.Brake.MaximumNotch,
 						HasHoldBrake = train.Handles.HasHoldBrake,
-						HasConstSpeed = train.Handles.HasHoldBrake,
+						HasConstSpeed = train.Handles.HasHoldBrake
 					};
 
 					if (train.Handles.HasLocoBrake)
@@ -195,7 +197,7 @@ namespace ObjectViewer.Trains
 					}
 
 					EnablePluginSimulation = false;
-					PluginManager.CurrentPlugin.Panel = new int[0];
+					PluginManager.CurrentPlugin.Panel = Array.Empty<int>();
 				}
 
 				RequiredApply = false;

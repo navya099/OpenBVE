@@ -5,10 +5,7 @@ using OpenBveApi.Interface;
 using OpenBveApi.Textures;
 using System;
 using System.IO;
-using OpenBveApi.Math;
 using Path = OpenBveApi.Path;
-using RouteViewer;
-using OpenBveApi.Packages;
 using System.ComponentModel;
 
 namespace RouteViewer
@@ -18,9 +15,9 @@ namespace RouteViewer
 		/// <summary>Provides implementation for a single menu of the menu stack.</summary>
 		/// <remarks>The class is private to Menu, but all its fields are public to allow 'quick-and-dirty'
 		/// access from Menu itself.</remarks>
-		private class SingleMenu : MenuBase
+		private sealed class SingleMenu : MenuBase
 		{
-			public SingleMenu(AbstractMenu menu, MenuType menuType, int data = 0, double MaxWidth = 0) : base(menuType)
+			public SingleMenu(AbstractMenu menu, MenuType menuType, int data = 0, double maxWidth = 0) : base(menuType)
 			{
 				//Vector2 size;
 				Align = TextAlignment.TopMiddle;
@@ -36,7 +33,7 @@ namespace RouteViewer
 							routeWorkerThread.DoWork += routeWorkerThread_doWork;
 							routeWorkerThread.RunWorkerCompleted += routeWorkerThread_completed;
 							//Load texture
-							Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\loading.png"), new TextureParameters(null, null), out routePictureBox.Texture);
+							Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\loading.png"), TextureParameters.NoChange, out routePictureBox.Texture);
 						}
 						Items = new MenuEntry[4];
 						Items[0] = new MenuCommand(menu, "Open Route File", MenuTag.RouteList, 0);
@@ -75,6 +72,8 @@ namespace RouteViewer
 								try
 								{
 									potentialFiles = Directory.GetFiles(SearchDirectory);
+									// n.b. sort order of returned files is not guaranteed, so case invariant sort
+									Array.Sort(potentialFiles, (x, y) => string.Compare(x, y, StringComparison.InvariantCultureIgnoreCase));
 									directoryList = Directory.GetDirectories(SearchDirectory);
 								}
 								catch
@@ -90,6 +89,8 @@ namespace RouteViewer
 								try
 								{
 									potentialFiles = Directory.GetFiles(SearchDirectory);
+									// n.b. sort order of returned files is not guaranteed, so case invariant sort
+									Array.Sort(potentialFiles, (x, y) => string.Compare(x, y, StringComparison.InvariantCultureIgnoreCase));
 									directoryList = Directory.GetDirectories(SearchDirectory);
 								}
 								catch
@@ -113,11 +114,11 @@ namespace RouteViewer
 							Items[totalEntries] = new MenuCommand(menu, directoryInfo.Name, MenuTag.Directory, 0);
 							if (drives)
 							{
-								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_disk.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_disk.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 							}
 							else
 							{
-								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_folder.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_folder.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 							}
 
 							totalEntries++;
@@ -133,7 +134,7 @@ namespace RouteViewer
 							if (fileName.ToLowerInvariant().EndsWith(".csv") || fileName.ToLowerInvariant().EndsWith(".rw"))
 							{
 								Items[totalEntries] = new MenuCommand(menu, fileName, MenuTag.RouteFile, 0);
-								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_route.png"), new TextureParameters(null, null), out Items[totalEntries].Icon);
+								Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_route.png"), TextureParameters.NoChange, out Items[totalEntries].Icon);
 								totalEntries++;
 							}
 						}
@@ -161,22 +162,23 @@ namespace RouteViewer
 						Align = TextAlignment.TopLeft;
 						break;
 					case MenuType.ErrorList:
-						Items = new MenuEntry[Interface.LogMessages.Count + 2];
-						Items[0] = Interface.LogMessages.Count == 0 ? new MenuCaption(menu, "No current errors / warnings.") : new MenuCaption(menu, Interface.LogMessages.Count + " total errors / warnings.");
+						var errorSnapshot = Interface.GetLogSnapshot();
+						Items = new MenuEntry[errorSnapshot.Count + 2];
+						Items[0] = errorSnapshot.Count == 0 ? new MenuCaption(menu, "No current errors / warnings.") : new MenuCaption(menu, errorSnapshot.Count + " total errors / warnings.");
 
-						for (int j = 0; j < Interface.LogMessages.Count; j++)
+						for (int j = 0; j < errorSnapshot.Count; j++)
 						{
-							Items[j + 1] = new MenuErrorDisplay(menu, Interface.LogMessages[j].Text);
-							switch (Interface.LogMessages[j].Type)
+							Items[j + 1] = new MenuErrorDisplay(menu, errorSnapshot[j].Text);
+							switch (errorSnapshot[j].Type)
 							{
 								case MessageType.Information:
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_information.png"), new TextureParameters(null, null), out Items[j + 1].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_information.png"), TextureParameters.NoChange, out Items[j + 1].Icon);
 									break;
 								case MessageType.Warning:
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_warning.png"), new TextureParameters(null, null), out Items[j + 1].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_warning.png"), TextureParameters.NoChange, out Items[j + 1].Icon);
 									break;
 								case MessageType.Error:
-									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_error.png"), new TextureParameters(null, null), out Items[j + 1].Icon);
+									Program.CurrentHost.RegisterTexture(Path.CombineFile(Program.FileSystem.DataFolder, "Menu\\icon_error.png"), TextureParameters.NoChange, out Items[j + 1].Icon);
 									break;
 							}
 						}
@@ -185,8 +187,7 @@ namespace RouteViewer
 						break;
 				}
 
-				ComputeExtent(menuType, Game.Menu.MenuFont, MaxWidth);
-				Height = Items.Length * Game.Menu.lineHeight;
+				ComputeExtent(menuType, Game.Menu.MenuFont, maxWidth, Game.Menu.LineHeight);
 				TopItem = 0;
 
 			}

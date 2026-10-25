@@ -1,6 +1,6 @@
 ﻿namespace CsvRwRouteParser
 {
-	enum StructureCommand
+	internal enum StructureCommand
 	{
 		/// <summary>The object used for RailType N</summary>
 		Rail,
@@ -61,7 +61,7 @@
 		 * HMMSIM
 		 */
 		/// <summary>The object used for Object N</summary>
-		/// <remarks>Equivilant to .FreeObj</remarks>
+		/// <remarks>Equivalent to .FreeObj</remarks>
 		Object
 
 	}

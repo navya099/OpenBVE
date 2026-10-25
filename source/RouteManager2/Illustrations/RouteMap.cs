@@ -5,24 +5,18 @@ using System.IO;
 using System.Linq;
 using OpenBveApi;
 using OpenBveApi.Hosts;
-using OpenBveApi.Input;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
 using OpenBveApi.Routes;
 using RouteManager2.Events;
 using RouteManager2.SignalManager;
-using RouteManager2.Tracks;
+
 
 namespace RouteManager2
 {
 	/// <summary>Used for creating illustrations</summary>
 	public static class Illustrations
 	{
-		//GDI Plus is not thread-safe
-		//This object should be locked on when drawing a route illustration / gradient profile
-		/// <summary>Holds the current lock for the illustrations drawing functions</summary>
-		public static readonly object Locker =  new object();
-
 		internal static CurrentRoute CurrentRoute;
 
 		private const double	LeftPad			= 8.0;
@@ -81,49 +75,59 @@ namespace RouteManager2
 							bgfine = Color.FromArgb(214, 222, 235),
 							},
 							// colours for in-game display
-			new MapColors() {background=Color.FromArgb(0x64000000), atcMap=Pens.Red,    normalMap=Pens.White,
-							actStatnFill=Brushes.SkyBlue,   inactStatnFill=Brushes.Gray,
-							actStatnBrdr=Pens.White,        inactStatnBrdr=Pens.LightGray,
-							actNameFill=Brushes.Black,      inactNameFill=Brushes.Gray,
-							actNameBrdr=Pens.White,         inactNameBrdr=Pens.LightGray,
-							actNameText=Brushes.White,      inactNameText=Brushes.LightGray,
-							belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),   belowSeaBrdr=Pens.Gray,
-							elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),       elevBrdr=Pens.Gray,
-							limitFill=Brushes.White,            limitBrdr= new Pen(Color.Red, 5f)},
-			new MapColors() {background=Color.FromArgb(0x64000000), atcMap=Pens.Red,    normalMap=Pens.White,
-			actStatnFill=Brushes.SkyBlue,   inactStatnFill=Brushes.Gray,
-			actStatnBrdr=Pens.White,        inactStatnBrdr=Pens.LightGray,
-			actNameFill=Brushes.Black,      inactNameFill=Brushes.Gray,
-			actNameBrdr=Pens.White,         inactNameBrdr=Pens.LightGray,
-			actNameText=Brushes.White,      inactNameText=Brushes.LightGray,
-			belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),   belowSeaBrdr=Pens.Gray,
-			elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),       elevBrdr=Pens.Gray,
-			limitFill=Brushes.White,            limitBrdr= new Pen(Color.Red, 5f)}
+			new MapColors {background=Color.FromArgb(0x64000000),	atcMap=Pens.Red,	normalMap=Pens.White,
+							actStatnFill=Brushes.SkyBlue,	inactStatnFill=Brushes.Gray,
+							actStatnBrdr=Pens.White,		inactStatnBrdr=Pens.LightGray,
+							actNameFill=Brushes.Black,		inactNameFill=Brushes.Gray,
+							actNameBrdr=Pens.White,			inactNameBrdr=Pens.LightGray,
+							actNameText=Brushes.White,		inactNameText=Brushes.LightGray,
+							belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),	belowSeaBrdr=Pens.Gray,
+							elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),		elevBrdr=Pens.Gray,
+							limitFill=Brushes.White,			limitBrdr= new Pen(Color.Red, 5f)},
+			new MapColors {background=Color.FromArgb(0x64000000),	atcMap=Pens.Red,	normalMap=Pens.White,
+			actStatnFill=Brushes.SkyBlue,	inactStatnFill=Brushes.Gray,
+			actStatnBrdr=Pens.White,		inactStatnBrdr=Pens.LightGray,
+			actNameFill=Brushes.Black,		inactNameFill=Brushes.Gray,
+			actNameBrdr=Pens.White,			inactNameBrdr=Pens.LightGray,
+			actNameText=Brushes.White,		inactNameText=Brushes.LightGray,
+			belowSeaFill= new SolidBrush(Color.FromArgb(0x7feee8aa)),	belowSeaBrdr=Pens.Gray,
+			elevFill= new SolidBrush(Color.FromArgb(0x7fd2b48c)),		elevBrdr=Pens.Gray,
+			limitFill=Brushes.White,			limitBrdr= new Pen(Color.Red, 5f)}
 		};
 
 		// data about world ranges of last generated images
 		private static int	lastGradientMinTrack, lastGradientMaxTrack;
 		private static int	lastRouteMinX, lastRouteMinZ, lastRouteMaxX, lastRouteMaxZ;
 		// access these properties as read-only
-		public  static int	LastGradientMinTrack => lastGradientMinTrack;
-		public  static int	LastGradientMaxTrack => lastGradientMaxTrack;
-		public  static int	LastRouteMinX => lastRouteMinX;
-		public  static int	LastRouteMaxX => lastRouteMaxX;
-		public  static int	LastRouteMinZ => lastRouteMinZ;
-		public  static int	LastRouteMaxZ => lastRouteMaxZ;
+		public static int LastGradientMinTrack => lastGradientMinTrack;
+		public static int LastGradientMaxTrack => lastGradientMaxTrack;
+		public static int LastRouteMinX => lastRouteMinX;
+		public static int LastRouteMaxX => lastRouteMaxX;
+		public static int LastRouteMinZ => lastRouteMinZ;
+		public static int LastRouteMaxZ => lastRouteMaxZ;
 
 		/// <summary>Creates and returns the route map as Bitmap.</summary>
 		/// <returns>The route map.</returns>
 		/// <param name="Width">The width of the bitmap to create.</param>
 		/// <param name="Height">The height of the bitmap to create.</param>
 		/// <param name="inGame"><c>true</c> = bitmap for in-game overlay | <c>false</c> = for standard window.</param>
-		public static Bitmap CreateRouteMap(int Width, int Height, bool inGame, out Dictionary<Guid, Vector2> switchPositions, TrackFollower follower = null, int drawRadius = 500)
+		/// <param name="switchPositions">The list of switch positions on the map</param>
+		/// <param name="follower">The TrackFollower used for drawing</param>
+		/// <param name="drawRadius">The draw radius</param>
+		public static Bitmap CreateRouteMap(int Width, int Height, bool inGame, out Dictionary<Guid, Vector2> switchPositions, TrackFollower follower = null, int drawRadius = 500, Font font = null)
 		{
 			switchPositions = null;
 			if (CurrentRoute.Tracks[0].Elements == null)
 			{
 				//Usually caused by selecting another route before preview has finished
 				return new Bitmap(1,1);
+			}
+
+			FontFamily fontFamily = FontFamily.GenericSansSerif;
+			// Font check
+			if (font != null)
+			{
+				fontFamily = font.FontFamily;
 			}
 			int firstUsedElement, lastUsedElement;
 			if (follower != null)
@@ -339,14 +343,13 @@ namespace RouteManager2
 			// STATION NAMES
 			{
 				double wh = imageSize.X * imageSize.Y;
-				Font f = new Font(FontFamily.GenericSansSerif, wh < 65536.0 ? 9.0f : 10.0f, GraphicsUnit.Pixel);
+				Font f = new Font(fontFamily, wh < 65536.0 ? 9.0f : 10.0f, GraphicsUnit.Pixel);
 				for (int i = firstUsedElement; i <= lastUsedElement; i++)
 				{
 					for (int j = 0; j < CurrentRoute.Tracks[0].Elements[i].Events.Count; j++)
 					{
-						if (CurrentRoute.Tracks[0].Elements[i].Events[j] is StationStartEvent)
+						if (CurrentRoute.Tracks[0].Elements[i].Events[j] is StationStartEvent e)
 						{
-							StationStartEvent e = (StationStartEvent)CurrentRoute.Tracks[0].Elements[i].Events[j];
 							if (CurrentRoute.Stations[e.StationIndex].Name != string.Empty)
 							{
 								double x = CurrentRoute.Tracks[0].Elements[i].WorldPosition.X;
@@ -472,7 +475,7 @@ namespace RouteManager2
 		/// <param name="Width">The width of the bitmap to create.</param>
 		/// <param name="Height">The height of the bitmap to create.</param>
 		/// <param name="inGame"><c>true</c> = bitmap for in-game overlay | <c>false</c> = for standard window.</param>
-		public static Bitmap CreateRouteGradientProfile(int Width, int Height, bool inGame)
+		public static Bitmap CreateRouteGradientProfile(int Width, int Height, bool inGame, Font font = null)
 		{
 			if (CurrentRoute.Tracks[0].Elements == null)
 			{
@@ -484,6 +487,14 @@ namespace RouteManager2
 				// than the more generic one thrown later
 				// NOTE: Will throw the generic error message on routes shorter than 900m with no stations
 				throw new InvalidDataException(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","route_corrupt_nostations"}));
+			}
+
+			FontFamily fontFamily = FontFamily.GenericSansSerif;
+
+			// Font check
+			if (font != null)
+			{
+				fontFamily = font.FontFamily;
 			}
 			// Track elements are assumed to be all of the same length, and this length
 			// is used as measure unit, rather than computing the incremental track length
@@ -504,18 +515,17 @@ namespace RouteManager2
 				y0 = y1 - 1.0;
 			y0 = y0 - 50; //강제로 계획고 -50으로 설정하기
 			// allow for some padding around actual data
-			double ox = LeftPad, oy = TopPad;
-			double w = (double)(Width - (LeftPad+RightPad));
-			double h = (double)(Height - (TopPad+BottomPad+TrackOffsPad));
-			// 스케일 변환 비율을 계산.
-			double nd = w / (double)(lastUsedElement - firstUsedElement);
-			double yd = h / (double)(y1 - y0);
+			double w = Width - (LeftPad+RightPad);
+			double h = Height - (TopPad+BottomPad+TrackOffsPad);
+			// horizontal and vertical scale
+			double nd = w / (lastUsedElement - firstUsedElement);
+			double yd = h / (y1 - y0);
 			// set total bitmap track position range; used by in-game profile to place
 			// the current position of the trains; as the train positions are known as track positions,
 			// actual track positions are needed here, rather than indices into the track element array.
-			double minX = CurrentRoute.Tracks[0].Elements[firstUsedElement].StartingTrackPosition;//노선 시작측점
-			double maxX = CurrentRoute.Tracks[0].Elements[lastUsedElement].StartingTrackPosition;//노선 끝 측점
-			double offX = ox * (maxX - minX) / w;
+			double minX = CurrentRoute.Tracks[0].Elements[firstUsedElement].StartingTrackPosition;
+			double maxX = CurrentRoute.Tracks[0].Elements[lastUsedElement].StartingTrackPosition;
+			double offX = LeftPad * (maxX - minX) / w;
 			lastGradientMinTrack = (int)(minX - offX);
 			lastGradientMaxTrack = (int)(maxX + offX);
 
@@ -531,33 +541,32 @@ namespace RouteManager2
 
 			// BELOW SEA LEVEL
 			{
-				double y = oy + (h - 0.5 * (double)(-CurrentRoute.Atmosphere.InitialElevation - y0) * yd);
-				double x0 = ox - (double)(0) * nd;
-				double x1 = ox + (double)(lastUsedElement - firstUsedElement) * nd;
-				g.FillRectangle(mapColors[mode].belowSeaFill, (float)x0, (float)y, (float)x1, (float)(oy + h) - (float)y);
-				g.DrawLine(mapColors[mode].belowSeaBrdr, (float)x0, (float)y, (float)x1, (float)y);
+				double y = TopPad + (h - 0.5 * (-CurrentRoute.Atmosphere.InitialElevation - y0) * yd);
+				double x1 = LeftPad + (lastUsedElement - firstUsedElement) * nd;
+				g.FillRectangle(mapColors[mode].belowSeaFill, (float)LeftPad, (float)y, (float)x1, (float)(TopPad + h) - (float)y);
+				g.DrawLine(mapColors[mode].belowSeaBrdr, (float)LeftPad, (float)y, (float)x1, (float)y);
 			}
 
 			// 지반고
 			{
 				totalElements = lastUsedElement - firstUsedElement + 1;
 				PointF[] p = new PointF[totalElements + 2];
-				p[0] = new PointF((float)ox, (float)(oy + h));
+				p[0] = new PointF((float)LeftPad, (float)(TopPad + h));
 				for (int i = firstUsedElement; i <= lastUsedElement; i++)
 				{
 					double fl = CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y;
 					double height = CurrentRoute.Tracks[0].Elements[i].Height;
 					double gl = fl - height;
-					double x = ox + (double)(i - firstUsedElement) * nd;
-					double y = oy + (h - 0.5 *
-						(double)(gl - y0) * yd);
-					p[i - firstUsedElement + 1] = new PointF((float)x, (float)y);
+					double x = LeftPad + (i - firstUsedElement) * nd;
+					double y = TopPad + (h - 0.5 *
+						(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
+					p[i -firstUsedElement + 1] = new PointF((float)x, (float)y);
 				}
-				p[totalElements + 1] = new PointF((float)(ox + (double)(totalElements - 1) * nd), (float)(oy + h));
+				p[totalElements + 1] = new PointF((float)(LeftPad + (totalElements - 1) * nd), (float)(TopPad + h));
 				g.FillPolygon(mapColors[mode].elevFill, p);
 				for (int i = 1; i < totalElements; i++)
 					g.DrawLine(mapColors[mode].elevBrdr, p[i], p[i + 1]);
-				g.DrawLine(mapColors[mode].elevBrdr, 0.0f, (float)(oy + h), (float)Width, (float)(oy + h));
+				g.DrawLine(mapColors[mode].elevBrdr, 0.0f, (float)(TopPad + h), (float)Width, (float)(TopPad + h));
 			}
 
 			// 계획고
@@ -587,7 +596,7 @@ namespace RouteManager2
 			}
 			// STATION NAMES
 			{
-				Font f = new Font(FontFamily.GenericSansSerif, 12.0f, GraphicsUnit.Pixel);
+				Font f = new Font(fontFamily, 12.0f, GraphicsUnit.Pixel);
 				StringFormat m = new StringFormat();
 				for (int i = firstUsedElement; i <= lastUsedElement; i++)
 				{
@@ -595,9 +604,8 @@ namespace RouteManager2
 
 					for (int j = 0; j < CurrentRoute.Tracks[0].Elements[i].Events.Count; j++)
 					{
-						if (CurrentRoute.Tracks[0].Elements[i].Events[j] is StationStartEvent)
+						if (CurrentRoute.Tracks[0].Elements[i].Events[j] is StationStartEvent e)
 						{
-							StationStartEvent e = (StationStartEvent)CurrentRoute.Tracks[0].Elements[i].Events[j];
 							if (CurrentRoute.Stations[e.StationIndex].Name != string.Empty)
 							{
 								bool stop = CurrentRoute.Stations[e.StationIndex].PlayerStops();
@@ -605,11 +613,11 @@ namespace RouteManager2
 								{
 									m.Alignment = StringAlignment.Near;
 									m.LineAlignment = StringAlignment.Near;
-									double x = ox + (double)(i - firstUsedElement) * nd;
-									double y = oy + (h - 0.5 *
-										(double)(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
+									double x = LeftPad + (i - firstUsedElement) * nd;
+									double y = TopPad + (h - 0.5 *
+										(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
 									string t = CurrentRoute.Stations[e.StationIndex].Name;
-									float tx = 0.0f, ty = (float)oy;
+									float tx = 0.0f, ty = (float)TopPad;
 									for (int k = 0; k < t.Length; k++)
 									{
 										SizeF s = g.MeasureString(t.Substring(k, 1), f, 65536, StringFormat.GenericTypographic);
@@ -627,16 +635,15 @@ namespace RouteManager2
 										new PointF((float)x, ty + 4.0f), new PointF((float)x, (float)y));
 								} else
 								{
-									m.Alignment = StringAlignment.Center;
-									m.LineAlignment = StringAlignment.Center;
+									m.Alignment = StringAlignment.Far;
+									m.LineAlignment = StringAlignment.Near;
 									double x = ox + (double)(i - firstUsedElement) * nd;
 									double y = oy + (h - 0.5 *
 										(double)(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd);
-									g.RotateTransform(0.0f);
-									g.TranslateTransform((float)x, (float)fl + 50, System.Drawing.Drawing2D.MatrixOrder.Append);
+									g.RotateTransform(-90.0f);
+									g.TranslateTransform((float)x, (float)oy, System.Drawing.Drawing2D.MatrixOrder.Append);
 
-
-
+									//정거장 구현 코드
 									string stationName = CurrentRoute.Stations[e.StationIndex].Name;
 
 									// 문자열 크기 계산
@@ -659,13 +666,15 @@ namespace RouteManager2
 									// 사각형 배경 채우기 (연한 노랑 예시)
 									g.FillRectangle(stop ?  Brushes.Red : mapColors[mode].inactNameText, textRect);
 
+
+
 									g.DrawString(CurrentRoute.Stations[e.StationIndex].Name, f,
 										stop ? mapColors[mode].limitFill : mapColors[mode].limitFill,
 										new PointF(0.0f, -5.0f), m);
 									g.ResetTransform();
 									SizeF s = g.MeasureString(CurrentRoute.Stations[e.StationIndex].Name, f);
-									g.DrawLine(stop ? mapColors[mode].planBrdr : mapColors[mode].inactNameBrdr,
-										new PointF((float)x, (float)(fl + 40)), new PointF((float)x, (float)y));
+									g.DrawLine(stop ? mapColors[mode].actNameBrdr : mapColors[mode].inactNameBrdr,
+										new PointF((float)x, (float)(TopPad + s.Width + 4)), new PointF((float)x, (float)y));
 								}
 							}
 						}
@@ -674,14 +683,13 @@ namespace RouteManager2
 			}
 			// ROUTE MARKERS
 			{
-				Font f = new Font(FontFamily.GenericSansSerif, 10.0f, GraphicsUnit.Pixel);
-				Font fs = new Font(FontFamily.GenericSansSerif, 9.0f, GraphicsUnit.Pixel);
+				Font f = new Font(fontFamily, 10.0f, GraphicsUnit.Pixel);
+				Font fs = new Font(fontFamily, 9.0f, GraphicsUnit.Pixel);
 				StringFormat m = new StringFormat
 				{
 					Alignment = StringAlignment.Far,
 					LineAlignment = StringAlignment.Center
 				};
-				System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.InvariantCulture;
 				int k = TrackOffDist * totalElements / Width;
 				if (k == 0)
 				{
@@ -700,27 +708,27 @@ namespace RouteManager2
 				
 				for (int i = firstUsedElement; i <= lastUsedElement; i += k)
 				{
-					double x = ox + (double)(i - firstUsedElement) * nd;
-					double y = (double)(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd;
+					double x = LeftPad + (i - firstUsedElement) * nd;
+					double y = (CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y - y0) * yd;
 					// track offset label
 					if (x < w)
 					{
-						string t = ((int)Math.Round(CurrentRoute.Tracks[0].Elements[i].StartingTrackPosition)).ToString(Culture);
-						g.DrawString(t + "m", f, mapColors[mode].actNameText, (float)x, (float)(oy + h + TrackOffY));
+						string t = ((int)Math.Round(CurrentRoute.Tracks[0].Elements[i].StartingTrackPosition)).ToString(CultureInfo.InvariantCulture);
+						g.DrawString(t + "m", f, mapColors[mode].actNameText, (float)x, (float)(TopPad + h + TrackOffY));
 					}
 					// route height at track offset (with measure and vertical line)
 					{
-						y = oy + (h - 0.5 * y) + 2.0f;
-						string t = ((int)Math.Round(CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y)).ToString(Culture);
+						y = TopPad + (h - 0.5 * y) + 2.0f;
+						string t = ((int)Math.Round(CurrentRoute.Atmosphere.InitialElevation + CurrentRoute.Tracks[0].Elements[i].WorldPosition.Y)).ToString(CultureInfo.InvariantCulture);
 						SizeF s = g.MeasureString(t, fs);
-						if (y < oy + h - (double)s.Width - 10.0)
+						if (y < TopPad + h - s.Width - 10.0)
 						{
 							g.RotateTransform(-90.0f);
 							g.TranslateTransform((float)x, (float)y + 4.0f, System.Drawing.Drawing2D.MatrixOrder.Append);
 							g.DrawString(t + "m", fs, mapColors[mode].actNameText, 0.0f, 0.0f, m);
 							g.ResetTransform();
 							g.DrawLine(mapColors[mode].inactNameBrdr,
-								(float)x, (float)(y + s.Width + 12.0), (float)x, (float)(oy + h));
+								(float)x, (float)(y + s.Width + 12.0), (float)x, (float)(TopPad + h));
 						}
 
 					}
@@ -730,8 +738,13 @@ namespace RouteManager2
 			return b;
 		}
 
-		private static void DrawPlayerPath(Graphics g, TrackFollower follower, int firstUsedElement, int lastUsedElement, Vector2 imageOrigin, Vector2 imageSize, Vector2 imageScale, double x0, double z0)
+		private static void DrawPlayerPath(Graphics g, TrackFollower follower, int firstUsedElement, int lastUsedElement, Vector2 imageOrigin, Vector2 imageSize, Vector2 imageScale, double x0, double z0, FontFamily fontFamily = null)
 		{
+			// Font check
+			if (fontFamily == null)
+			{
+				fontFamily = FontFamily.GenericSansSerif;
+			}
 			int key = follower.TrackIndex;
 			Track currentTrack = CurrentRoute.Tracks[key];
 			int start = 0;
@@ -749,7 +762,7 @@ namespace RouteManager2
 				{
 					continue;
 				}
-				Font boldFont = new Font(FontFamily.GenericSansSerif, 10.0f, FontStyle.Bold, GraphicsUnit.Pixel);
+				Font boldFont = new Font(fontFamily, 10.0f, FontStyle.Bold, GraphicsUnit.Pixel);
 				int nextTrackIndex = -1;
 				for (int j = 0; j < currentTrack.Elements[i + firstUsedElement].Events.Count; j++)
 				{

@@ -28,24 +28,24 @@ using System.IO;
 using System.Linq;
 using Bve5_Parsing.MapGrammar;
 using Bve5_Parsing.MapGrammar.EvaluateData;
+using LibRender2.Trains;
 using OpenBveApi;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
 using OpenBveApi.Objects;
 using OpenBveApi.Routes;
-using OpenBveApi.Sounds;
 using OpenBveApi.Trains;
 using SoundManager;
 using TrainManager.Car;
-using TrainManager.Handles;
 using TrainManager.Motor;
 using TrainManager.Trains;
 using Path = OpenBveApi.Path;
+// ReSharper disable SwitchStatementMissingSomeEnumCasesNoDefault
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
 		private static void LoadScriptedTrain(string FileName, bool PreviewOnly, MapData ParseData, RouteData RouteData)
 		{
@@ -56,13 +56,14 @@ namespace Route.Bve5
 
 			List<ScriptedTrain> OtherTrains = new List<ScriptedTrain>();
 
-			foreach (var Statement in ParseData.Statements)
+			foreach (Statement Statement in ParseData.Statements)
 			{
 				if (Statement.ElementName != MapElementName.Train)
 				{
 					continue;
 				}
 
+				// ReSharper disable once SwitchStatementHandlesSomeKnownEnumValuesWithDefault
 				switch (Statement.FunctionName)
 				{
 					case MapFunctionName.Add:
@@ -102,7 +103,7 @@ namespace Route.Bve5
 
 						if (!RouteData.TrackKeyList.Contains(TrackKey, StringComparer.OrdinalIgnoreCase))
 						{
-							Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Attempted to place ScriptedTrain " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
+							Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Attempted to place ScriptedTrain " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
 							TrackKey = "0";
 						}
 
@@ -113,7 +114,7 @@ namespace Route.Bve5
 						TrainFilePath = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), Convert.ToString(TrainFilePath));
 						if (!File.Exists(Convert.ToString(TrainFilePath)))
 						{
-							Plugin.CurrentHost.AddMessage(MessageType.Error, false, Convert.ToString(TrainFilePath) + "is not found.");
+							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: ScriptedTrain " + Convert.ToString(TrainFilePath) + " was not found.");
 							continue;
 						}
 
@@ -130,15 +131,14 @@ namespace Route.Bve5
 				}
 			}
 
-			foreach (var Statement in ParseData.Statements)
+			foreach (Statement Statement in ParseData.Statements)
 			{
-				dynamic d = Statement;
 				if (Statement.ElementName != MapElementName.Train || Statement.FunctionName != MapFunctionName.SetTrack)
 				{
 					continue;
 				}
 
-				string TrackKey = d.TrackKey;
+				string TrackKey = Statement.GetArgumentValueAsString(ArgumentName.TrackKey);
 				object TrainKey = Statement.Key;
 
 				if (string.IsNullOrEmpty(TrackKey))
@@ -148,7 +148,7 @@ namespace Route.Bve5
 
 				if (!RouteData.TrackKeyList.Contains(TrackKey, StringComparer.OrdinalIgnoreCase))
 				{
-					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "Attempted to place waypoint for ScriptedTrain " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
+					Plugin.CurrentHost.AddMessage(MessageType.Warning, false, "BVE5: Attempted to place waypoint for ScriptedTrain " + Statement.Key + " on the non-existent track " + TrackKey + " at track position " + Statement.Distance + "m");
 					TrackKey = "0";
 				}
 
@@ -167,7 +167,7 @@ namespace Route.Bve5
 				OtherTrains[TrainIndex].Direction = Direction;
 			}
 
-			foreach (var OtherTrain in OtherTrains)
+			foreach (ScriptedTrain OtherTrain in OtherTrains)
 			{
 				if (!RouteData.TrackKeyList.Contains(OtherTrain.TrackKey, StringComparer.OrdinalIgnoreCase))
 				{
@@ -185,7 +185,6 @@ namespace Route.Bve5
 
 				TrainManager.Trains.ScriptedTrain Train = new TrainManager.Trains.ScriptedTrain(TrainState.Pending);
 				Train.Cars = new CarBase[OtherTrain.CarObjects.Count];
-				Train.Handles.Reverser = new ReverserHandle(Train);
 
 				for (int i = 0; i < Train.Cars.Length; i++)
 				{
@@ -218,26 +217,26 @@ namespace Route.Bve5
 					RouteData.Objects.TryGetValue(OtherTrain.CarObjects[i].Key, out UnifiedObject CarObject);
 					if (CarObject != null)
 					{
-						Train.Cars[i].LoadCarSections(CarObject, false);
+						Train.Cars[i].CarSections.Add(CarSectionType.Exterior, new CarSection(Plugin.CurrentHost, ObjectType.Dynamic, false, Train.Cars[i], CarObject));
 					}
 				}
 
 				for (int i = 0; i < Train.Cars.Length; i++)
 				{
-					Train.Cars[i].Specs.IsMotorCar = true;
+					Train.Cars[i].TractionModel = new BVEMotorCar(Train.Cars[i], null);
 					BVE5AITrainSounds carSounds = new BVE5AITrainSounds(Train.Cars[i], new BVE5AISoundEntry[OtherTrain.CarSounds.Count]);
 					for (int j = 0; j < carSounds.SoundEntries.Length; j++)
 					{
-						RouteData.Sound3Ds.TryGetValue(OtherTrain.CarSounds[j].Key, out SoundHandle soundHandle);
-						carSounds.SoundEntries[j] = new BVE5AISoundEntry(soundHandle as SoundBuffer, OtherTrain.CarSounds[j].Function);
+						RouteData.Sound3Ds.TryGetTypedValue(OtherTrain.CarSounds[j].Key, out SoundBuffer soundBuffer);
+						carSounds.SoundEntries[j] = new BVE5AISoundEntry(soundBuffer.Clone(OtherTrain.CarSounds[j].Radius), OtherTrain.CarSounds[j].Function);
 					}
 
-					Train.Cars[i].Sounds.Motor = carSounds;
+					Train.Cars[i].TractionModel.MotorSounds = carSounds;
 				}
 
 				List<TravelData> Data = new List<TravelData>();
 
-				foreach (var Statement in ParseData.Statements)
+				foreach (Statement Statement in ParseData.Statements)
 				{
 					if (Statement.ElementName != MapElementName.Train || Statement.Key != OtherTrain.Key)
 					{
@@ -287,18 +286,19 @@ namespace Route.Bve5
 
 				Train.AI = new TrackFollowingObjectAI(Train, Data.ToArray());
 
-				// For debug
-				Plugin.CurrentHost.AddMessage(MessageType.Information, false, $"[{OtherTrain.Key}] 走行軌道: {OtherTrain.TrackKey}, 進行方向: {OtherTrain.Direction}, 有効開始位置: {Train.AppearanceStartPosition}m, 有効開始時刻: {Train.AppearanceTime}s");
+#if DEBUG
+				Plugin.CurrentHost.AddMessage(MessageType.Information, false, $"BVE5: Adding Scripted Train [{OtherTrain.Key}] Rail Index: {OtherTrain.TrackKey}, Direction of Travel: {OtherTrain.Direction}, Starting Position: {Train.AppearanceStartPosition}m, Appearance Time: {Train.AppearanceTime}s");
 
 				for (int i = 0; i < Data.Count; i++)
 				{
 					if (Data[i] is TravelStopData d)
 					{
-						Plugin.CurrentHost.AddMessage(MessageType.Information, false, $"[{OtherTrain.Key}] 停車位置: {d.Position}m, 減速度: {d.Decelerate * 3.6}km/h/s, 停車時間: {d.StopTime}s, 加速度: {d.Accelerate * 3.6}km/h/s, 加速後の走行速度: {d.TargetSpeed * 3.6}km/h");
+						Plugin.CurrentHost.AddMessage(MessageType.Information, false, $"BVE5: Scripted Train [{OtherTrain.Key}] Travel Point: {d.Position}m, Deceleration: {d.Decelerate * 3.6}km/h/s, Stop Time: {d.StopTime}s, Acceleration: {d.Accelerate * 3.6}km/h/s, Target Speed: {d.TargetSpeed * 3.6}km/h");
 					}
 				}
+#endif
 
-				foreach (var Car in Train.Cars)
+				foreach (CarBase Car in Train.Cars)
 				{
 					Car.FrontAxle.Follower.TrackIndex = Data[0].RailIndex;
 					Car.RearAxle.Follower.TrackIndex = Data[0].RailIndex;
@@ -309,10 +309,7 @@ namespace Route.Bve5
 				}
 
 				Train.PlaceCars(Data[0].Position);
-
-				int n = Plugin.TrainManager.TFOs.Length;
-				Array.Resize(ref Plugin.TrainManager.TFOs, n + 1);
-				Plugin.TrainManager.TFOs[n] = Train;
+				Plugin.TrainManager.TFOs.Add(Train);
 			}
 		}
 
@@ -378,7 +375,7 @@ namespace Route.Bve5
 				}
 			}
 
-			foreach (var Structure in Structures)
+			foreach (Dictionary<string, string> Structure in Structures)
 			{
 				Structure.TryGetValue("key", out string Key);
 				Structure.TryGetValue("distance", out string TempDistance);
@@ -401,25 +398,33 @@ namespace Route.Bve5
 				scriptedTrain.CarObjects.Add(new CarObject(Key, Distance, Span, Z));
 			}
 
-			foreach (var Sound3d in Sound3ds)
+			foreach (Dictionary<string, string> Sound3d in Sound3ds)
 			{
 				Sound3d.TryGetValue("key", out string Key);
+			
+				CarSound existingSound = scriptedTrain.CarSounds.Find(carSound => carSound.Key == Key);
+				if (existingSound != null && existingSound.Distance1 != null && existingSound.Distance2 != null) {
+					continue;
+				}
+
 				Sound3d.TryGetValue("distance1", out string TempDistance1);
 				Sound3d.TryGetValue("distance2", out string TempDistance2);
 				Sound3d.TryGetValue("function", out string Function);
 
 				Enum.TryParse(Function, true, out BVE5AISoundControl function);
 
-				if (string.IsNullOrEmpty(TempDistance1) || !NumberFormats.TryParseDoubleVb6(TempDistance1, out double Distance1))
-				{
-					Distance1 = 0.0;
+				double? Distance1 = null;
+				double? Distance2 = null;
+				
+				if (!string.IsNullOrEmpty(TempDistance1) && NumberFormats.TryParseDoubleVb6(TempDistance1, out double Distance1Parsed)) {
+					Distance1 = Distance1Parsed;
 				}
-				if (string.IsNullOrEmpty(TempDistance2) || !NumberFormats.TryParseDoubleVb6(TempDistance2, out double Distance2))
-				{
-					Distance2 = 0.0;
+				if (!string.IsNullOrEmpty(TempDistance2) && NumberFormats.TryParseDoubleVb6(TempDistance2, out double Distance2Parsed)) {
+					Distance2 = Distance2Parsed;
 				}
 
 				scriptedTrain.CarSounds.Add(new CarSound(Key, Distance1, Distance2, function));
+				scriptedTrain.CarSounds.Remove(existingSound);
 			}
 		}
 	}

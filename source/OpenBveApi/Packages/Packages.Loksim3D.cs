@@ -3,7 +3,7 @@ using System.Xml;
 
 namespace OpenBveApi.Packages
 {
-	class LoksimPackage
+	internal class LoksimPackage
 	{
 		internal static Package Parse(XmlDocument currentXML, string fileName, ref string packageImagePath)
 		{
@@ -67,7 +67,6 @@ namespace OpenBveApi.Packages
 								}
 								break;
 							case "DeleteFiles":
-								break;
 							case "DeinstallPackages":
 								break;
 						}

@@ -4,6 +4,7 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Text;
 using System.Globalization;
 using System.Windows.Forms;
+using Formats.OpenBve;
 using OpenBveApi;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
@@ -20,7 +21,7 @@ namespace TrainEditor {
 		}
 
 		// members
-		private TrainEditor.TrainDat.Train Train = new TrainDat.Train();
+		private TrainDat.Train Train = new TrainDat.Train();
 		private string FileName = null;
 
 		private string CurrentLanguageCode = "en-US";
@@ -86,6 +87,7 @@ namespace TrainEditor {
 				string folder = Program.FileSystem.GetDataFolder("Languages");
 				Translations.LoadLanguageFiles(folder);
 				Translations.ListLanguages(comboboxLanguages);
+				Translations.SelectedLanguage(ref CurrentLanguageCode, comboboxLanguages);
 				ApplyLanguage();
 			}
 		}
@@ -298,16 +300,10 @@ namespace TrainEditor {
 			// finish
 			return true;
 		}
-		/// <summary>Specifies constants defining the allowed number range for a conversion process.</summary>
-		private enum NumberRange {
-			Any = 0,
-			Positive = 1,
-			NonNegative = 2
-		}
 		/// <summary>Saves the content of a textbox into an output parameter and creates a message box if the textbox contains invalid data.</summary>
 		/// <param name="Box">A textbox control.</param>
 		/// <param name="Description">The description of the textbox.</param>
-		/// <param name="Page">The tabpage the textbox resides in.</param>
+		/// <param name="Page">The TabPage the textbox resides in.</param>
 		/// <param name="Range">The allowed number range.</param>
 		/// <param name="Value">The output parameter that receives the numeric value of the textbox content.</param>
 		/// <returns>A boolean indicating the success of the operation.</returns>
@@ -341,14 +337,14 @@ namespace TrainEditor {
 						prefix = "";
 						break;
 				}
-				MessageBox.Show(Description + " must be a " + prefix + "integer.", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+				MessageBox.Show(Description + @" must be a " + prefix + @"integer.", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
 				tabcontrolTabs.SelectedTab = Page;
 				Box.SelectAll();
 				Box.Focus();
 				return false;
-			} else {
-				return true;
 			}
+
+			return true;
 		}
 		/// <summary>Saves the content of a textbox into an output parameter and creates a message box if the textbox contains invalid data.</summary>
 		/// <param name="Box">A textbox control.</param>
@@ -387,14 +383,13 @@ namespace TrainEditor {
 						prefix = "";
 						break;
 				}
-				MessageBox.Show(Description + " must be a " + prefix + "floating-point number.", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
+				MessageBox.Show(Description + @" must be a " + prefix + @"floating-point number.", Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Exclamation);
 				tabcontrolTabs.SelectedTab = Page;
 				Box.SelectAll();
 				Box.Focus();
 				return false;
-			} else {
-				return true;
 			}
+			return true;
 		}
 
 		
@@ -404,7 +399,7 @@ namespace TrainEditor {
 		
 		// new
 		private void ButtonNewClick(object sender, EventArgs e) {
-			switch (MessageBox.Show(Translations.GetInterfaceString(HostApplication.TrainEditor, new [] {"general","new_message"}), "New", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question))
+			switch (MessageBox.Show(Translations.GetInterfaceString(HostApplication.TrainEditor, new [] {"general","new_message"}), @"New", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question))
 			{
 				case DialogResult.Yes:
 					if (buttonSave.Enabled) {
@@ -429,7 +424,7 @@ namespace TrainEditor {
 		
 		// open
 		private void ButtonOpenClick(object sender, EventArgs e) {
-			switch (MessageBox.Show(Translations.GetInterfaceString(HostApplication.TrainEditor, new [] {"general","open_message"}), "Open", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question))
+			switch (MessageBox.Show(Translations.GetInterfaceString(HostApplication.TrainEditor, new [] {"general","open_message"}), Translations.GetInterfaceString(HostApplication.TrainEditor, new[] { "general", "open" }), MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question))
 			{
 				case DialogResult.Yes:
 					if (buttonSave.Enabled) {
@@ -442,7 +437,7 @@ namespace TrainEditor {
 					return;
 			}
 			using (OpenFileDialog Dialog = new OpenFileDialog()) {
-				Dialog.Filter = "train.dat files|train.dat|All files|*";
+				Dialog.Filter = @"train.dat files|train.dat|All files|*";
 				Dialog.CheckFileExists = true;
 				if (Dialog.ShowDialog() == DialogResult.OK) {
 					try {
@@ -451,7 +446,7 @@ namespace TrainEditor {
 						this.Text = System.IO.Path.GetFileName(Path.GetDirectoryName(FileName)) + @" - " + Application.ProductName;
 						buttonSave.Enabled = true;
 					} catch (Exception ex) {
-						MessageBox.Show(ex.Message, "Open", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+						MessageBox.Show(ex.Message, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] { "general", "open" }), MessageBoxButtons.OK, MessageBoxIcon.Hand);
 						FileName = null;
 						Train = new TrainDat.Train();
 						this.Text = Application.ProductName;
@@ -475,7 +470,7 @@ namespace TrainEditor {
 						TrainDat.Save(FileName, Train);
 						System.Media.SystemSounds.Asterisk.Play();
 					} catch (Exception ex) {
-						MessageBox.Show(ex.Message, "Save", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+						MessageBox.Show(ex.Message, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] { "general", "save" }), MessageBoxButtons.OK, MessageBoxIcon.Hand);
 					}
 				} else {
 					System.Media.SystemSounds.Hand.Play();
@@ -495,7 +490,7 @@ namespace TrainEditor {
 							TrainDat.Save(FileName, Train);
 							this.Text = System.IO.Path.GetFileName(Path.GetDirectoryName(FileName)) + @" - " + Application.ProductName;
 						} catch (Exception ex) {
-							MessageBox.Show(ex.Message, "Save as", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+							MessageBox.Show(ex.Message, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] { "general", "save_as" }), MessageBoxButtons.OK, MessageBoxIcon.Hand);
 						}
 						LoadControlContent();
 					}
@@ -557,15 +552,15 @@ namespace TrainEditor {
 			int height = pictureboxAcceleration.ClientRectangle.Height;
 			// horizontal grid
 			for (float y = 0.0f; y <= AccelerationMaximumY; y += 1.0f) {
-				float yf = (1.0f - y / AccelerationMaximumY) * (float)height;
-				int yi = (int)Math.Round((double)yf);
+				float yf = (1.0f - y / AccelerationMaximumY) * height;
+				int yi = (int)Math.Round(yf);
 				e.Graphics.DrawLine(grayPen, new Point(0, yi), new Point(width, yi));
 				e.Graphics.DrawString(y.ToString("0", culture), font, grayBrush, new PointF(1.0f, yf));
 			}
 			// vertical grid
 			for (float x = 0.0f; x <= AccelerationMaximumX; x += 10.0f) {
-				float xf = x / AccelerationMaximumX * (float)width;
-				int xi = (int)Math.Round((double)xf);
+				float xf = x / AccelerationMaximumX * width;
+				int xi = (int)Math.Round(xf);
 				e.Graphics.DrawLine(grayPen, new Point(xi, 0), new Point(xi, height));
 				if (x != 0.0f) {
 					e.Graphics.DrawString(x.ToString("0", culture), font, grayBrush, new PointF(xf, 1.0f));
@@ -590,16 +585,11 @@ namespace TrainEditor {
 			Point[] points = new Point[pictureboxAcceleration.ClientRectangle.Width];
 			double factorX = AccelerationMaximumX / (double)pictureboxAcceleration.ClientRectangle.Width;
 			double factorY = -(double)pictureboxAcceleration.ClientRectangle.Height / AccelerationMaximumY;
-			double offsetY = (double)pictureboxAcceleration.ClientRectangle.Height;
+			double offsetY = pictureboxAcceleration.ClientRectangle.Height;
 			bool resistance = checkboxAccelerationSubtractDeceleration.Checked;
 			for (int x = 0; x < pictureboxAcceleration.ClientRectangle.Width; x++) {
-				double speed = (double)x * factorX;
-				double a;
-				if (resistance) {
-					a = Math.Max(GetAcceleration(Index, speed) - GetDeceleration(speed), 0.0);
-				} else {
-					a = GetAcceleration(Index, speed);
-				}
+				double speed = x * factorX;
+				double a = resistance ? Math.Max(GetAcceleration(Index, speed) - GetDeceleration(speed), 0.0) : GetAcceleration(Index, speed);
 				int y = (int)Math.Round(offsetY + a * factorY);
 				points[x] = new Point(x, y);
 			}
@@ -607,7 +597,7 @@ namespace TrainEditor {
 			if (Count <= 1) {
 				hue = 1.0;
 			} else {
-				hue = 0.5 * (double)Index / (double)(Count - 1);
+				hue = 0.5 * Index / (Count - 1);
 			}
 			Color color = GetColor(hue, Selected);
 			e.Graphics.DrawLines(new Pen(color), points);
@@ -630,11 +620,11 @@ namespace TrainEditor {
 		private void DrawDecelerationCurve(PaintEventArgs e) {
 			if (!checkboxAccelerationSubtractDeceleration.Checked) {
 				Point[] points = new Point[pictureboxAcceleration.ClientRectangle.Width];
-				double factorX = AccelerationMaximumX / (double)pictureboxAcceleration.ClientRectangle.Width;
-				double factory = -(double)pictureboxAcceleration.ClientRectangle.Height / AccelerationMaximumY;
-				double offsety = (double)pictureboxAcceleration.ClientRectangle.Height;
+				float factorX = AccelerationMaximumX / pictureboxAcceleration.ClientRectangle.Width;
+				float factory = -pictureboxAcceleration.ClientRectangle.Height / AccelerationMaximumY;
+				double offsety = pictureboxAcceleration.ClientRectangle.Height;
 				for (int x = 0; x < pictureboxAcceleration.ClientRectangle.Width; x++) {
-					double speed = (double)x * factorX;
+					float speed = x * factorX;
 					double a = GetDeceleration(speed);
 					int y = (int)Math.Round(offsety + a * factory);
 					points[x] = new Point(x, y);
@@ -645,14 +635,14 @@ namespace TrainEditor {
 
 		// mouse move
 		private void PictureboxAccelerationMouseMove(object sender, MouseEventArgs e) {
-			System.Globalization.CultureInfo Culture = System.Globalization.CultureInfo.InvariantCulture;
-			double x = (double)e.X / (double)(pictureboxAcceleration.ClientRectangle.Width - 1);
-			double y = (1.0 - (double)e.Y / (double)(pictureboxAcceleration.ClientRectangle.Height - 1));
+			CultureInfo Culture = CultureInfo.InvariantCulture;
+			double x = e.X / (pictureboxAcceleration.ClientRectangle.Width - 1.0);
+			double y = 1.0 - e.Y / (pictureboxAcceleration.ClientRectangle.Height - 1.0);
 			x = AccelerationMaximumX * x;
 			y = AccelerationMaximumY * y;
 			labelAccelerationInfo.Text =
-				"X: " + x.ToString("0.00", Culture) + " km/h\n" +
-				"Y: " + y.ToString("0.00", Culture) + " km/h/s";
+				@"X: " + x.ToString("0.00", Culture) + @" km/h\n" +
+				@"Y: " + y.ToString("0.00", Culture) + @" km/h/s";
 		}
 
 		// notch selected
@@ -660,13 +650,13 @@ namespace TrainEditor {
 			int i = comboboxAccelerationNotch.SelectedIndex;
 			if (i >= 0 & i < Train.Acceleration.Entries.Length) {
 				CultureInfo Culture = CultureInfo.InvariantCulture;
-				this.Tag = new object();
+				Tag = new object();
 				textboxA0.Text = Train.Acceleration.Entries[i].StageZeroAcceleration.ToString(Culture);
 				textboxA1.Text = Train.Acceleration.Entries[i].StageOneAcceleration.ToString(Culture);
 				textboxV1.Text = Train.Acceleration.Entries[i].StageOneSpeed.ToString(Culture);
 				textboxV2.Text = Train.Acceleration.Entries[i].StageTwoSpeed.ToString(Culture);
 				textboxE.Text = Train.Acceleration.Entries[i].StageTwoExponent.ToString(Culture);
-				this.Tag = null;
+				Tag = null;
 			}
 			pictureboxAcceleration.Invalidate();
 		}
@@ -674,7 +664,7 @@ namespace TrainEditor {
 		// textboxes
 		private void TextboxA0TextChanged(object sender, EventArgs e) {
 			int i = comboboxAccelerationNotch.SelectedIndex;
-			if (i >= 0 & i < Train.Acceleration.Entries.Length & this.Tag == null) {
+			if (i >= 0 & i < Train.Acceleration.Entries.Length & Tag == null) {
 				double a0;
 				if (double.TryParse(textboxA0.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out a0)) {
 					Train.Acceleration.Entries[i].StageZeroAcceleration = Math.Max(a0, 0.0);
@@ -684,7 +674,7 @@ namespace TrainEditor {
 		}
 		private void TextboxA1TextChanged(object sender, EventArgs e) {
 			int i = comboboxAccelerationNotch.SelectedIndex;
-			if (i >= 0 & i < Train.Acceleration.Entries.Length & this.Tag == null) {
+			if (i >= 0 & i < Train.Acceleration.Entries.Length & Tag == null) {
 				double a1;
 				if (double.TryParse(textboxA1.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out a1)) {
 					Train.Acceleration.Entries[i].StageOneAcceleration = Math.Max(a1, 0.0);
@@ -694,7 +684,7 @@ namespace TrainEditor {
 		}
 		private void TextboxV1TextChanged(object sender, EventArgs e) {
 			int i = comboboxAccelerationNotch.SelectedIndex;
-			if (i >= 0 & i < Train.Acceleration.Entries.Length & this.Tag == null) {
+			if (i >= 0 & i < Train.Acceleration.Entries.Length & Tag == null) {
 				double v1;
 				if (double.TryParse(textboxV1.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out v1)) {
 					Train.Acceleration.Entries[i].StageOneSpeed = Math.Max(v1, 0.0);
@@ -707,7 +697,7 @@ namespace TrainEditor {
 		}
 		private void TextboxV2TextChanged(object sender, EventArgs e) {
 			int i = comboboxAccelerationNotch.SelectedIndex;
-			if (i >= 0 & i < Train.Acceleration.Entries.Length & this.Tag == null) {
+			if (i >= 0 & i < Train.Acceleration.Entries.Length & Tag == null) {
 				double v2;
 				if (double.TryParse(textboxV2.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out v2)) {
 					Train.Acceleration.Entries[i].StageTwoSpeed = Math.Max(v2, Train.Acceleration.Entries[i].StageOneSpeed);
@@ -717,7 +707,7 @@ namespace TrainEditor {
 		}
 		private void TextboxETextChanged(object sender, EventArgs e) {
 			int i = comboboxAccelerationNotch.SelectedIndex;
-			if (i >= 0 & i < Train.Acceleration.Entries.Length & this.Tag == null) {
+			if (i >= 0 & i < Train.Acceleration.Entries.Length & Tag == null) {
 				double e2;
 				if (double.TryParse(textboxE.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out e2)) {
 					Train.Acceleration.Entries[i].StageTwoExponent = e2;
@@ -769,7 +759,7 @@ namespace TrainEditor {
 		private float MotorHoverYPitch = 0.0f;
 		private float MotorHoverYVolume = 0.0f;
 		private class PictureBoxUpdateQueue {
-			private PictureBox[] Boxes = new PictureBox[4];
+			private readonly PictureBox[] Boxes = new PictureBox[4];
 			internal void Add(PictureBox Box) {
 				int i;
 				for (i = 0; i < 4; i++) {
@@ -791,7 +781,7 @@ namespace TrainEditor {
 				return this.Boxes[0];
 			}
 		}
-		private TrainEditor.formEditor.PictureBoxUpdateQueue MotorUpdateQueue = new PictureBoxUpdateQueue();
+		private readonly PictureBoxUpdateQueue MotorUpdateQueue = new PictureBoxUpdateQueue();
 		
 		// motor p1
 		private void PictureboxMotorP1Paint(object sender, PaintEventArgs e) {
@@ -1033,13 +1023,13 @@ namespace TrainEditor {
 			e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
 			e.Graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 			e.Graphics.Clear(Color.Black);
-			Font font = new Font(this.Font.FontFamily, 7.0f);
+			Font font = new Font(Font.FontFamily, 7.0f);
 			Pen grayPen = new Pen(Color.FromArgb(64, 64, 64));
 			Brush grayBrush = Brushes.DimGray;
-			float factorX = (float)width / (MotorMaximumX - MotorMinimumX);
+			float factorX = width / (MotorMaximumX - MotorMinimumX);
 			float factorYpitch = -(float)height / MotorMaximumYPitch;
 			float factorYvolume = -(float)height / MotorMaximumYVolume;
-			float offsetY = (float)height;
+			float offsetY = height;
 			bool selectedPitch = radiobuttonPitch.Checked;
 			bool selectedVolume = radiobuttonVolume.Checked;
 			const double huefactor = 0.785398163397448;
@@ -1047,15 +1037,15 @@ namespace TrainEditor {
 			// vertical grid
 			for (float x = 0.0f; x < MotorMaximumX; x += 10.0f) {
 				float a = (x - MotorMinimumX) * factorX;
-				e.Graphics.DrawLine(grayPen, new PointF(a, 0.0f), new PointF(a, (float)height));
+				e.Graphics.DrawLine(grayPen, new PointF(a, 0.0f), new PointF(a, height));
 				e.Graphics.DrawString(x.ToString("0", culture), font, grayBrush, new PointF(a, 1.0f));
 			}
 			// horizontal base lines
 			{
-				float yp = offsetY + (float)100.0f * factorYpitch;
-				float yv = offsetY + (float)128.0f * factorYvolume;
-				e.Graphics.DrawLine(grayPen, new PointF(0.0f, yp), new PointF((float)width, yp));
-				e.Graphics.DrawLine(grayPen, new PointF(0.0f, yv), new PointF((float)width, yv));
+				float yp = offsetY + 100.0f * factorYpitch;
+				float yv = offsetY + 128.0f * factorYvolume;
+				e.Graphics.DrawLine(grayPen, new PointF(0.0f, yp), new PointF(width, yp));
+				e.Graphics.DrawLine(grayPen, new PointF(0.0f, yv), new PointF(width, yv));
 				e.Graphics.DrawString("p=100", font, grayBrush, new PointF(1.0f, yp));
 				e.Graphics.DrawString("v=128", font, grayBrush, new PointF(1.0f, yv));
 			}
@@ -1064,7 +1054,7 @@ namespace TrainEditor {
 				float x = (MotorHoverX - MotorMinimumX) * factorX;
 				Pen p = new Pen(Color.DimGray);
 				p.DashStyle = DashStyle.Dash;
-				e.Graphics.DrawLine(p, new PointF(x, 0.0f), new PointF(x, (float)height));
+				e.Graphics.DrawLine(p, new PointF(x, 0.0f), new PointF(x, height));
 				p.Dispose();
 			}
 			// pen
@@ -1081,13 +1071,13 @@ namespace TrainEditor {
 						}
 						Color c;
 						if (s >= 0) {
-							double hue = huefactor * (double)s;
+							double hue = huefactor * s;
 							hue -= Math.Floor(hue);
 							c = GetColor(hue, true);
 						} else {
 							c = Color.DimGray;
 						}
-						e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(32, c)), new RectangleF(x, 0.0f, w, (float)height));
+						e.Graphics.FillRectangle(new SolidBrush(Color.FromArgb(32, c)), new RectangleF(x, 0.0f, w, height));
 					}
 				}
 			}
@@ -1097,10 +1087,10 @@ namespace TrainEditor {
 			int length = 0;
 			int soundIndex = -1;
 			for (int i = 0; i < Motor.Entries.Length; i++) {
-				float v = 0.2f * (float)i;
+				float v = 0.2f * i;
 				float x = (v - MotorMinimumX) * factorX;
-				float yPitch = offsetY + (float)Motor.Entries[i].Pitch * factorYpitch;
-				float yVolume = offsetY + (float)Motor.Entries[i].Gain * factorYvolume;
+				float yPitch = offsetY + Motor.Entries[i].Pitch * factorYpitch;
+				float yVolume = offsetY + Motor.Entries[i].Gain * factorYvolume;
 				if (soundIndex != Motor.Entries[i].SoundIndex & length != 0) {
 					pointsPitch[length] = new PointF(x, pointsPitch[length - 1].Y);
 					pointsVolume[length] = new PointF(x, pointsVolume[length - 1].Y);
@@ -1109,7 +1099,7 @@ namespace TrainEditor {
 					Array.Resize(ref pointsVolume, length);
 					Color colorPitch, colorVolume;
 					if (soundIndex >= 0) {
-						double hue = huefactor * (double)soundIndex;
+						double hue = huefactor * soundIndex;
 						hue -= Math.Floor(hue);
 						colorPitch = GetColor(hue, selectedPitch);
 						colorVolume = GetColor(hue, selectedVolume);
@@ -1129,7 +1119,7 @@ namespace TrainEditor {
 				length++;
 			}
 			if (length != 0) {
-				float v = 0.2f * (float)Motor.Entries.Length;
+				float v = 0.2f * Motor.Entries.Length;
 				float x = (v - MotorMinimumX) * factorX;
 				pointsPitch[length] = new PointF(x, pointsPitch[length - 1].Y);
 				pointsVolume[length] = new PointF(x, pointsVolume[length - 1].Y);
@@ -1138,7 +1128,7 @@ namespace TrainEditor {
 				Array.Resize(ref pointsVolume, length);
 				Color colorPitch, colorVolume;
 				if (soundIndex >= 0) {
-					double hue = huefactor * (double)soundIndex;
+					double hue = huefactor * soundIndex;
 					hue -= Math.Floor(hue);
 					colorPitch = GetColor(hue, selectedPitch);
 					colorVolume = GetColor(hue, selectedVolume);
@@ -1152,13 +1142,13 @@ namespace TrainEditor {
 			soundIndex = -1;
 			for (int i = 0; i < Motor.Entries.Length; i++) {
 				if (Motor.Entries[i].SoundIndex != soundIndex) {
-					float v = 0.2f * (float)i;
+					float v = 0.2f * i;
 					float x = (v - MotorMinimumX) * factorX;
-					float yPitch = offsetY + (float)Motor.Entries[i].Pitch * factorYpitch;
-					float yVolume = offsetY + (float)Motor.Entries[i].Gain * factorYvolume;
+					float yPitch = offsetY + Motor.Entries[i].Pitch * factorYpitch;
+					float yVolume = offsetY + Motor.Entries[i].Gain * factorYvolume;
 					Color colorPitch, colorVolume;
 					if (Motor.Entries[i].SoundIndex >= 0) {
-						double hue = huefactor * (double)Motor.Entries[i].SoundIndex;
+						double hue = huefactor * Motor.Entries[i].SoundIndex;
 						hue -= Math.Floor(hue);
 						colorPitch = GetColor(hue, selectedPitch);
 						colorVolume = GetColor(hue, selectedVolume);
@@ -1215,27 +1205,27 @@ namespace TrainEditor {
 			e.Graphics.DrawRectangle(new Pen(SystemColors.ButtonShadow), new Rectangle(0, 0, width - 1, height - 1));
 			// queue
 			PictureBox b = MotorUpdateQueue.Next();
-			if (b != null) b.Invalidate();
+			b?.Invalidate();
 		}
 		
 		// mouse
 		private void MotorMouseDown(MouseEventArgs e, PictureBox Box) {
-			float width = (float)Box.ClientRectangle.Width;
-			float height = (float)Box.ClientRectangle.Height;
-			MotorSelectionStartX = MotorMinimumX + (MotorMaximumX - MotorMinimumX) * (float)e.X / (float)width;
-			MotorSelectionStartX = 0.2f * (float)Math.Round(5.0 * (double)MotorSelectionStartX);
-			MotorSelectionStartYPitch = (1.0f - (float)e.Y / height) * MotorMaximumYPitch;
-			MotorSelectionStartYVolume = (1.0f - (float)e.Y / height) * MotorMaximumYVolume;
+			float width = Box.ClientRectangle.Width;
+			float height = Box.ClientRectangle.Height;
+			MotorSelectionStartX = MotorMinimumX + (MotorMaximumX - MotorMinimumX) * e.X / width;
+			MotorSelectionStartX = 0.2f * (float)Math.Round(5.0 * MotorSelectionStartX);
+			MotorSelectionStartYPitch = (1.0f - e.Y / height) * MotorMaximumYPitch;
+			MotorSelectionStartYVolume = (1.0f - e.Y / height) * MotorMaximumYVolume;
 			MotorSelectionBox = Box;
 		}
 		private void MotorMouseMove(MouseEventArgs e, PictureBox Box) {
-			float width = (float)Box.ClientRectangle.Width;
-			float height = (float)Box.ClientRectangle.Height;
+			float width = Box.ClientRectangle.Width;
+			float height = Box.ClientRectangle.Height;
 			float oldhoverx = MotorHoverX;
-			MotorHoverX = MotorMinimumX + (MotorMaximumX - MotorMinimumX) * (float)e.X / (float)width;
-			MotorHoverX = 0.2f * (float)Math.Round(5.0 * (double)MotorHoverX);
-			MotorHoverYPitch = (1.0f - (float)e.Y / height) * MotorMaximumYPitch;
-			MotorHoverYVolume = (1.0f - (float)e.Y / height) * MotorMaximumYVolume;
+			MotorHoverX = MotorMinimumX + (MotorMaximumX - MotorMinimumX) * e.X / width;
+			MotorHoverX = 0.2f * (float)Math.Round(5.0 * MotorHoverX);
+			MotorHoverYPitch = (1.0f - e.Y / height) * MotorMaximumYPitch;
+			MotorHoverYVolume = (1.0f - e.Y / height) * MotorMaximumYVolume;
 			if (oldhoverx != MotorHoverX) {
 				bool start = MotorUpdateQueue.Seek() == null;
 				MotorUpdateQueue.Add(Box);
@@ -1255,18 +1245,18 @@ namespace TrainEditor {
 			}
 			CultureInfo culture = CultureInfo.InvariantCulture;
 			labelMotorInfo.Text =
-				"X = #" + ((int)Math.Floor(5.0 * (double)MotorHoverX)).ToString(culture) + " (" + MotorHoverX.ToString("0.00", culture) + " km/h)\n\n" +
-				Translations.GetInterfaceString(HostApplication.TrainEditor, new []{"motor","y_pitch"}) + " = " + MotorHoverYPitch.ToString("0.00", culture) + "\n" +
-				Translations.GetInterfaceString(HostApplication.TrainEditor, new []{"motor","y_volume"}) + " = " + MotorHoverYVolume.ToString("0.00", culture) + " (" + (0.78125 * MotorHoverYVolume).ToString("0", culture) + "%)";
+				@"X = #" + ((int)Math.Floor(5.0 * MotorHoverX)).ToString(culture) + @" (" + MotorHoverX.ToString("0.00", culture) + @" km/h)\n\n" +
+				Translations.GetInterfaceString(HostApplication.TrainEditor, new []{"motor","y_pitch"}) + @" = " + MotorHoverYPitch.ToString("0.00", culture) + @"\n" +
+				Translations.GetInterfaceString(HostApplication.TrainEditor, new []{"motor","y_volume"}) + @" = " + MotorHoverYVolume.ToString("0.00", culture) + @" (" + (0.78125 * MotorHoverYVolume).ToString("0", culture) + @"%)";
 		}
 		private void MotorMouseUp(MouseEventArgs e, TrainDat.Motor Motor, PictureBox Box) {
 			if (MotorSelectionBox != null) {
-				float width = (float)Box.ClientRectangle.Width;
-				float height = (float)Box.ClientRectangle.Height;
-				float x = MotorMinimumX + (MotorMaximumX - MotorMinimumX) * (float)e.X / (float)width;
-				x = 0.2f * (float)Math.Round(5.0 * (double)x);
-				int ia = (int)Math.Round((double)(5.0 * MotorSelectionStartX));
-				int ib = (int)Math.Round((double)(5.0 * x));
+				float width = Box.ClientRectangle.Width;
+				float height = Box.ClientRectangle.Height;
+				float x = MotorMinimumX + (MotorMaximumX - MotorMinimumX) * e.X / width;
+				x = 0.2f * (float)Math.Round(5.0 * x);
+				int ia = (int)Math.Round(5.0 * MotorSelectionStartX);
+				int ib = (int)Math.Round(5.0 * x);
 				bool swap;
 				if (ia > ib) {
 					int t = ia;
@@ -1294,16 +1284,14 @@ namespace TrainEditor {
 							ib--;
 						}
 						int j;
-						if (!int.TryParse(comboboxSoundIndex.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out j)) {
-							j = -1;
-						} else if (j < -1) {
+						if (!int.TryParse(comboboxSoundIndex.Text, NumberStyles.Integer, CultureInfo.InvariantCulture, out j) || j < -1) {
 							j = -1;
 						}
 						for (int i = ia ; i <= ib; i++) {
 							Motor.Entries[i].SoundIndex = j;
 						}
 					} else if (radiobuttonPitch.Checked) {
-						float yPitch = (1.0f - (float)e.Y / height) * MotorMaximumYPitch;
+						float yPitch = (1.0f - e.Y / height) * MotorMaximumYPitch;
 						float y = swap ? yPitch : MotorSelectionStartYPitch;
 						float dy = 0.2f * (yPitch - MotorSelectionStartYPitch) / (x - MotorSelectionStartX);
 						for (int i = ia ; i <= ib; i++) {
@@ -1311,7 +1299,7 @@ namespace TrainEditor {
 							y += dy;
 						}
 					} else if (radiobuttonVolume.Checked) {
-						float yVolume = (1.0f - (float)e.Y / height) * MotorMaximumYVolume;
+						float yVolume = (1.0f - e.Y / height) * MotorMaximumYVolume;
 						float y = swap ? yVolume : MotorSelectionStartYVolume;
 						float dy = 0.2f * (yVolume - MotorSelectionStartYVolume) / (x - MotorSelectionStartX);
 						for (int i = ia ; i <= ib; i++) {
@@ -1613,32 +1601,32 @@ namespace TrainEditor {
 
 		private void buttonSetDelayPowerUp_Click(object sender, EventArgs e)
 		{
-			this.setDelay(ref this.Train.Delay.DelayPowerUp, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","power_up"}));
+			setDelay(ref Train.Delay.DelayPowerUp, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","power_up"}));
 		}
 
 		private void buttonSetDelayPowerDown_Click(object sender, EventArgs e)
 		{
-			this.setDelay(ref this.Train.Delay.DelayPowerDown, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","power_down"}));
+			setDelay(ref Train.Delay.DelayPowerDown, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","power_down"}));
 		}
 
 		private void buttonSetDelayBrakeUp_Click(object sender, EventArgs e)
 		{
-			this.setDelay(ref this.Train.Delay.DelayBrakeUp, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","brake_up"}));
+			setDelay(ref Train.Delay.DelayBrakeUp, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","brake_up"}));
 		}
 
 		private void buttonSetDelayBrakeDown_Click(object sender, EventArgs e)
 		{
-			this.setDelay(ref this.Train.Delay.DelayBrakeDown, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","brake_down"}));
+			setDelay(ref Train.Delay.DelayBrakeDown, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","brake_down"}));
 		}
 
 		private void buttonLocoBrakeDelayUp_Click(object sender, EventArgs e)
 		{
-			this.setDelay(ref this.Train.Delay.DelayLocoBrakeUp, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"extended","delay_loco_brake_up"}));
+			setDelay(ref Train.Delay.DelayLocoBrakeUp, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"extended","delay_loco_brake_up"}));
 		}
 
 		private void buttonLocoBrakeDelayDown_Click(object sender, EventArgs e)
 		{
-			this.setDelay(ref this.Train.Delay.DelayLocoBrakeDown, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"extended","delay_loco_brake_down"}));
+			setDelay(ref Train.Delay.DelayLocoBrakeDown, Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"extended","delay_loco_brake_down"}));
 		}
 
 		private void setDelay(ref double[] delayValues, string delayType)
@@ -1663,7 +1651,7 @@ namespace TrainEditor {
 					Label l = new Label
 					{
 						Location = new Point(140, currentPosition + 3),
-						Text = Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","notch"}) + " " + (object)index
+						Text = Translations.GetInterfaceString(HostApplication.TrainEditor, new[] {"delay","notch"}) + @" " + index
 					};
 					formDelay.Controls.Add(l);
 					currentPosition += 25;
@@ -1691,7 +1679,7 @@ namespace TrainEditor {
 				{
 					if (formDelay.Controls[i] is TextBox)
 					{
-						if (this.SaveControlContent((TextBox)formDelay.Controls[i], delayType + (object)i, this.tabpagePropertiesOne, formEditor.NumberRange.NonNegative, out delayValues[arrayIndex]))
+						if (SaveControlContent((TextBox)formDelay.Controls[i], delayType + i, tabpagePropertiesOne, NumberRange.NonNegative, out delayValues[arrayIndex]))
 						{
 							arrayIndex++;
 						}

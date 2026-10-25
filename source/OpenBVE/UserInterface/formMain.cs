@@ -29,6 +29,7 @@ namespace OpenBve {
 		private formMain()
 		{
 			InitializeComponent();
+			toolTip = new ToolTip(components);
 		}
 
 		public sealed override string Text
@@ -39,26 +40,27 @@ namespace OpenBve {
 		
 		internal static LaunchParameters ShowMainDialog(LaunchParameters initial)
 		{
-			using (formMain Dialog = new formMain())
+			using (formMain mainDialog = new formMain())
 			{
-				Dialog.Result = initial;
-				Dialog.ShowDialog();
-				LaunchParameters result = Dialog.Result;
+				mainDialog.Result = initial;
+				mainDialog.ShowDialog();
+				LaunchParameters result = mainDialog.Result;
 				//Dispose of the worker thread when closing the form
-				//If it's still running, it attempts to update a non-existant form and crashes nastily
-				Dialog.DisposePreviewRouteThread();
+				//If it's still running, it attempts to update a non-existent form and crashes nastily
+				mainDialog.DisposePreviewRouteThread();
 				if (!OpenTK.Configuration.RunningOnMacOS)
 				{
-					Dialog.trainWatcher.Dispose();
-					Dialog.routeWatcher.Dispose();
+					mainDialog.trainWatcher.Dispose();
+					mainDialog.routeWatcher.Dispose();
 				}
 				return result;
 			}
 		}
 
 		// members
+		private readonly ToolTip toolTip;
 		private LaunchParameters Result;
-		private int[] EncodingCodepages = new int[0];
+		private int[] EncodingCodepages;
 		private Image JoystickImage;
 		private Image RailDriverImage;
 		private Image GamepadImage;
@@ -73,11 +75,11 @@ namespace OpenBve {
 		private void formMain_Load(object sender, EventArgs e)
 		{
 			MinimumSize = Size;
-			if (Interface.CurrentOptions.MainMenuWidth == -1 & Interface.CurrentOptions.MainMenuHeight == -1)
+			if (Interface.CurrentOptions.MainMenuWidth == -1 && Interface.CurrentOptions.MainMenuHeight == -1)
 			{
 				WindowState = FormWindowState.Maximized;
 			}
-			else if (Interface.CurrentOptions.MainMenuWidth > 0 & Interface.CurrentOptions.MainMenuHeight > 0)
+			else if (Interface.CurrentOptions.MainMenuWidth > 0 && Interface.CurrentOptions.MainMenuHeight > 0)
 			{
 				Size = new Size(Interface.CurrentOptions.MainMenuWidth, Interface.CurrentOptions.MainMenuHeight);
 				CenterToScreen();
@@ -153,6 +155,7 @@ namespace OpenBve {
 			Image MechanikRouteIcon = LoadImage(MenuFolder, "icon_mechanik.png");
 			Image Bve5Icon = LoadImage(MenuFolder, "icon_bve5.png");
 			Image TrainIcon = LoadImage(MenuFolder, "icon_train.png");
+			Image MSTSIcon = LoadImage(MenuFolder, "icon_msts.png");
 			Image KeyboardIcon = LoadImage(MenuFolder, "icon_keyboard.png");
 			Image MouseIcon = LoadImage(MenuFolder, "icon_mouse.png");
 			Image JoystickIcon = LoadImage(MenuFolder, "icon_joystick.png");
@@ -196,31 +199,31 @@ namespace OpenBve {
 			for (int i = 0; i < Interface.CurrentOptions.RecentlyUsedRoutes.Length; i++)
 			{
 				if (string.IsNullOrEmpty(Interface.CurrentOptions.RecentlyUsedRoutes[i])) continue;
-				string RouteFileName = System.IO.Path.GetFileName(Interface.CurrentOptions.RecentlyUsedRoutes[i]);
-				string RoutePath = Path.GetDirectoryName(Interface.CurrentOptions.RecentlyUsedRoutes[i]);
-				if (string.IsNullOrEmpty(RouteFileName) || string.IsNullOrEmpty(RoutePath)) continue;
-				ListViewItem Item = listviewRouteRecently.Items.Add(RouteFileName);
+				string routeFileName = Path.GetFileName(Interface.CurrentOptions.RecentlyUsedRoutes[i]);
+				string routePath = Path.GetDirectoryName(Interface.CurrentOptions.RecentlyUsedRoutes[i]);
+				if (string.IsNullOrEmpty(routeFileName) || string.IsNullOrEmpty(routePath)) continue;
+				ListViewItem listItem = listviewRouteRecently.Items.Add(routeFileName);
 				string extension = System.IO.Path.GetExtension(Interface.CurrentOptions.RecentlyUsedRoutes[i]).ToLowerInvariant();
 				switch (extension)
 				{
 					case ".dat":
-						Item.ImageKey = @"mechanik";
+						listItem.ImageKey = @"mechanik";
 						break;
 					case ".rw":
-						Item.ImageKey = @"rwroute";
+						listItem.ImageKey = @"rwroute";
 						break;
 					case ".csv":
-						Item.ImageKey = @"csvroute";
+						listItem.ImageKey = @"csvroute";
 						break;
 					case ".txt":
-						Item.ImageKey = @"bve5";
+						listItem.ImageKey = @"bve5";
 						break;
 				}
 
-				Item.Tag = Interface.CurrentOptions.RecentlyUsedRoutes[i];
-				if (textboxRouteFolder.Items.Count == 0 || !textboxRouteFolder.Items.Contains(RoutePath))
+				listItem.Tag = Interface.CurrentOptions.RecentlyUsedRoutes[i];
+				if (textboxRouteFolder.Items.Count == 0 || !textboxRouteFolder.Items.Contains(routePath))
 				{
-					textboxRouteFolder.Items.Add(RoutePath);
+					textboxRouteFolder.Items.Add(routePath);
 				}
 
 			}
@@ -233,6 +236,7 @@ namespace OpenBve {
 			if (ParentIcon != null) listviewTrainFolders.SmallImageList.Images.Add("parent", ParentIcon);
 			if (FolderIcon != null) listviewTrainFolders.SmallImageList.Images.Add("folder", FolderIcon);
 			if (TrainIcon != null) listviewTrainFolders.SmallImageList.Images.Add("train", TrainIcon);
+			if (MSTSIcon != null) listviewTrainFolders.SmallImageList.Images.Add("msts", MSTSIcon);
 			if (DiskIcon != null) listviewTrainFolders.SmallImageList.Images.Add("disk", DiskIcon);
 			if (ParentIcon != null) listViewTrainPackages.SmallImageList.Images.Add("parent", ParentIcon);
 			if (FolderIcon != null) listViewTrainPackages.SmallImageList.Images.Add("folder", FolderIcon);
@@ -245,21 +249,22 @@ namespace OpenBve {
 			listviewTrainRecently.Columns.Add("");
 			listviewTrainRecently.SmallImageList = new ImageList { TransparentColor = Color.White };
 			if (TrainIcon != null) listviewTrainRecently.SmallImageList.Images.Add("train", TrainIcon);
+			if (MSTSIcon != null) listviewTrainRecently.SmallImageList.Images.Add("msts", MSTSIcon);
 			for (int i = 0; i < Interface.CurrentOptions.RecentlyUsedTrains.Length; i++)
 			{
 				if (string.IsNullOrEmpty(Interface.CurrentOptions.RecentlyUsedTrains[i])) continue;
-				string TrainFileName = System.IO.Path.GetFileName(Interface.CurrentOptions.RecentlyUsedTrains[i]);
-				string TrainPath = Path.GetDirectoryName(Interface.CurrentOptions.RecentlyUsedTrains[i]);
-				if (!Directory.Exists(TrainPath))
+				string trainFileName = Path.GetFileName(Interface.CurrentOptions.RecentlyUsedTrains[i]);
+				string trainPath = Path.GetDirectoryName(Interface.CurrentOptions.RecentlyUsedTrains[i]);
+				if (!Directory.Exists(trainPath))
 				{
 					continue;
 				}
-				ListViewItem Item = listviewTrainRecently.Items.Add(TrainFileName);
-				Item.ImageKey = @"train";
+				ListViewItem Item = listviewTrainRecently.Items.Add(trainFileName);
+				Item.ImageKey = trainFileName.EndsWith(".con", StringComparison.InvariantCultureIgnoreCase) ? @"msts" : @"train";
 				Item.Tag = Interface.CurrentOptions.RecentlyUsedTrains[i];
-				if (textboxTrainFolder.Items.Count == 0 || !textboxTrainFolder.Items.Contains(TrainPath))
+				if (textboxTrainFolder.Items.Count == 0 || !textboxTrainFolder.Items.Contains(trainPath))
 				{
-					textboxTrainFolder.Items.Add(TrainPath);
+					textboxTrainFolder.Items.Add(trainPath);
 				}
 			}
 			listviewTrainRecently.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
@@ -357,7 +362,7 @@ namespace OpenBve {
 			comboboxBlackBoxFormat.Items.Clear();
 			comboboxBlackBoxFormat.Items.AddRange(new object[] { "", "" });
 			comboboxBlackBoxFormat.SelectedIndex = 1;
-			if (Game.BlackBoxEntryCount == 0)
+			if (Game.BlackBoxEntries.Count == 0)
 			{
 				labelBlackBox.Enabled = false;
 				labelBlackBoxFormat.Enabled = false;
@@ -382,6 +387,16 @@ namespace OpenBve {
 			comboboxVSync.Items.Add("");
 			comboboxVSync.Items.Add("");
 			comboboxVSync.SelectedIndex = Interface.CurrentOptions.VerticalSynchronization ? 1 : 0;
+			// Map FPSLimit value to combo index: 0=Unlimited, 1=30, 2=60, 3=120, 4=240
+			switch (Interface.CurrentOptions.FPSLimit)
+			{
+				case 30: comboBoxFPSLimit.SelectedIndex = 1; break;
+				case 60: comboBoxFPSLimit.SelectedIndex = 2; break;
+				case 120: comboBoxFPSLimit.SelectedIndex = 3; break;
+				case 240: comboBoxFPSLimit.SelectedIndex = 4; break;
+				default: comboBoxFPSLimit.SelectedIndex = 0; break;
+			}
+			UpdateFPSLimitEnabled();
 			switch (Interface.CurrentOptions.UserInterfaceFolder)
 			{
 				case "Slim":
@@ -444,6 +459,9 @@ namespace OpenBve {
 			}
 			updownAntiAliasing.Value = Interface.CurrentOptions.AntiAliasingLevel;
 			updownDistance.Value = Interface.CurrentOptions.ViewingDistance;
+			updownNearClipScenery.Value = (decimal)Interface.CurrentOptions.NearClipScenery;
+			updownNearClipCab.Value = (decimal)Interface.CurrentOptions.NearClipCab;
+			updownNearClipBase.Value = (decimal)Interface.CurrentOptions.NearClipBase;
 			comboboxMotionBlur.Items.Clear();
 			comboboxMotionBlur.Items.AddRange(new object[] { "", "", "", "" });
 			comboboxMotionBlur.SelectedIndex = (int)Interface.CurrentOptions.MotionBlur;
@@ -454,7 +472,57 @@ namespace OpenBve {
 			checkboxDerailments.Checked = Interface.CurrentOptions.Derailments;
 			checkBoxLoadInAdvance.Checked = Interface.CurrentOptions.LoadInAdvance;
 			checkBoxUnloadTextures.Checked = Interface.CurrentOptions.UnloadUnusedTextures;
-			checkBoxIsUseNewRenderer.Checked = Interface.CurrentOptions.IsUseNewRenderer;
+			// Shadow Resolution
+			switch (Interface.CurrentOptions.ShadowResolution)
+			{
+				case ShadowMapResolution.Off:    comboboxShadowResolution.SelectedIndex = 0; break;
+				case ShadowMapResolution.Low:    comboboxShadowResolution.SelectedIndex = 1; break;
+				case ShadowMapResolution.Medium: comboboxShadowResolution.SelectedIndex = 2; break;
+				case ShadowMapResolution.High:   comboboxShadowResolution.SelectedIndex = 3; break;
+				case ShadowMapResolution.Ultra:  comboboxShadowResolution.SelectedIndex = 4; break;
+				default: comboboxShadowResolution.SelectedIndex = 3; break;
+			}
+			// Shadow Distance
+			switch (Interface.CurrentOptions.ShadowDrawDistance)
+			{
+				case ShadowDistance.Near:    comboboxShadowDistance.SelectedIndex = 0; break;
+				case ShadowDistance.Medium:  comboboxShadowDistance.SelectedIndex = 1; break;
+				case ShadowDistance.Far:     comboboxShadowDistance.SelectedIndex = 2; break;
+				case ShadowDistance.VeryFar: comboboxShadowDistance.SelectedIndex = 3; break;
+				case ShadowDistance.ViewingDistance: comboboxShadowDistance.SelectedIndex = 4; break;
+				default: comboboxShadowDistance.SelectedIndex = 1; break;
+			}
+			// Shadow Cascades
+			switch (Interface.CurrentOptions.ShadowCascades)
+			{
+				case ShadowCascadeCount.Two:   comboboxShadowCascades.SelectedIndex = 0; break;
+				case ShadowCascadeCount.Three: comboboxShadowCascades.SelectedIndex = 1; break;
+				case ShadowCascadeCount.Four:  comboboxShadowCascades.SelectedIndex = 2; break;
+				default: comboboxShadowCascades.SelectedIndex = 1; break;
+			}
+			// Shadow Strength
+			trackbarShadowStrength.Value = (int)(Interface.CurrentOptions.ShadowStrength * 100.0);
+			labelShadowStrengthValue.Text = trackbarShadowStrength.Value + @"%";
+			updownShadowBias.Value = (decimal)Interface.CurrentOptions.ShadowBias;
+			updownShadowNormalBias.Value = (decimal)Interface.CurrentOptions.ShadowNormalBias;
+			checkboxShadowFilterCascades.Checked = Interface.CurrentOptions.ShadowFilterCascades;
+			checkboxShadowSmooth.Checked = Interface.CurrentOptions.ShadowSmooth;
+			// Map filter radius to preset: Low=1.0, Medium=1.5, High=2.5
+			if (Interface.CurrentOptions.ShadowFilterRadius < 1.25) comboboxShadowFilterRadius.SelectedIndex = 0;
+			else if (Interface.CurrentOptions.ShadowFilterRadius < 2.0) comboboxShadowFilterRadius.SelectedIndex = 1;
+			else comboboxShadowFilterRadius.SelectedIndex = 2;
+			// Enable/disable shadow sub-controls based on resolution setting
+			bool shadowEnabled = Interface.CurrentOptions.ShadowResolution != ShadowMapResolution.Off;
+			comboboxShadowDistance.Enabled = shadowEnabled;
+			comboboxShadowCascades.Enabled = shadowEnabled;
+			checkboxShadowFilterCascades.Enabled = shadowEnabled;
+			checkboxShadowSmooth.Enabled = shadowEnabled;
+			bool softnessEnabled = shadowEnabled && checkboxShadowSmooth.Checked;
+			labelShadowSoftness.Enabled = softnessEnabled;
+			comboboxShadowFilterRadius.Enabled = softnessEnabled;
+			trackbarShadowStrength.Enabled = shadowEnabled;
+			updownShadowBias.Enabled = shadowEnabled;
+			updownShadowNormalBias.Enabled = shadowEnabled;
 			checkboxBlackBox.Checked = Interface.CurrentOptions.BlackBox;
 			checkBoxLoadingSway.Checked = Interface.CurrentOptions.LoadingSway;
 			checkBoxTransparencyFix.Checked = Interface.CurrentOptions.OldTransparencyMode;
@@ -476,6 +544,9 @@ namespace OpenBve {
 			checkBoxEnableKiosk.Checked = Interface.CurrentOptions.KioskMode;
 			numericUpDownKioskTimeout.Value = (decimal)Interface.CurrentOptions.KioskModeTimer;
 			checkBoxAccessibility.Checked = Interface.CurrentOptions.Accessibility;
+			checkboxCameraInteriorTransition.Checked = Interface.CurrentOptions.CameraInteriorTransition;
+			checkboxCameraExteriorTransition.Checked = Interface.CurrentOptions.CameraExteriorTransition;
+			updownCameraTransitionSpeed.Value = (decimal)Interface.CurrentOptions.CameraTransitionSpeed;
 			ListInputDevicePlugins();
 			if (Program.CurrentHost.MonoRuntime)
 			{
@@ -565,8 +636,8 @@ namespace OpenBve {
 					break;
 				}
 			}
-
-			panelOptionsPage2.Visible = false; // Deliberately hide, as changing font can glitch this into visibility
+			panelOptionsPage2.Visible = false;
+			panelOptionsPage3.Visible = false; // Deliberately hide, as changing font can glitch this into visibility
 			comboBoxFont.DrawItem += comboBoxFont_DrawItem;
 		}
 
@@ -579,7 +650,7 @@ namespace OpenBve {
 				{
 					SetFont(Controls, font.Name);
 					Interface.CurrentOptions.Font = font.Name;
-					Program.Renderer.Fonts = new Fonts(Program.CurrentHost, font.Name);
+					Program.Renderer.Fonts = new Fonts(Program.CurrentHost, Program.Renderer, font.Name);
 				}
 				catch
 				{
@@ -587,7 +658,7 @@ namespace OpenBve {
 					MessageBox.Show(@"Failed to set font " + font.Name, Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"program","title"}), MessageBoxButtons.OK, MessageBoxIcon.Warning);
 					SetFont(Controls, oldFont);
 					Interface.CurrentOptions.Font = oldFont;
-					Program.Renderer.Fonts = new Fonts(Program.CurrentHost, oldFont);
+					Program.Renderer.Fonts = new Fonts(Program.CurrentHost, Program.Renderer, oldFont);
 				}
 				
 			}
@@ -612,9 +683,9 @@ namespace OpenBve {
 			e.Graphics.DrawString((fallback ? fontFamily.Name : font.Name), font, (fallback ? Brushes.Red : Brushes.Black), e.Bounds.X, e.Bounds.Y);
 		}
 
-		public static void SetFont(Control.ControlCollection ctrls, string fontName)
+		public static void SetFont(Control.ControlCollection controls, string fontName)
 		{
-			foreach (Control ctrl in ctrls)
+			foreach (Control ctrl in controls)
 			{
 				// recursive
 				SetFont(ctrl.Controls, fontName);
@@ -652,6 +723,8 @@ namespace OpenBve {
 			labelVSync.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","display_vsync"});
 			comboboxVSync.Items[0] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","display_vsync_off"});
 			comboboxVSync.Items[1] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","display_vsync_on"});
+			labelFPSLimit.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","display_fpslimit"});
+			comboBoxFPSLimit.Items[0] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","display_fpslimit_unlimited"});
 			labelHUDScale.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","hud_size"});
 			labelHUDSmall.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","hud_size_small"});
 			labelHUDNormal.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","hud_size_normal"});
@@ -684,14 +757,52 @@ namespace OpenBve {
 			//Viewing distance and motion blur
 			labelDistance.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_viewingdistance"});
 			labelDistanceUnit.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_viewingdistance_meters"});
+			labelNearClipScenery.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_nearclip_scenery"});
+			labelNearClipCab.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_nearclip_cab"});
+			labelNearClipBase.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_nearclip_base"});
 			labelMotionBlur.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_motionblur"});
 			comboboxMotionBlur.Items[0] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_motionblur_none"});
 			comboboxMotionBlur.Items[1] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_motionblur_low"});
 			comboboxMotionBlur.Items[2] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_motionblur_medium"});
 			comboboxMotionBlur.Items[3] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_motionblur_high"});
-			labelMotionBlur.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","quality_distance_motionblur"});
+			//Shadows
+			groupboxShadows.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_header" });
+			labelShadowResolution.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_resolution" });
+			labelShadowDistance.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_distance" });
+			labelShadowCascades.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_cascades" });
+			labelShadowStrength.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_strength" });
+			labelShadowBias.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_bias" });
+			if (labelShadowBias.Text == "shadows_bias")
+			{
+				labelShadowBias.Text = "Shadow Bias:";
+			}
+			labelShadowNormalBias.Text = "Normal Bias:";
+
+
+			// Combobox items (shadow resolution)
+			comboboxShadowResolution.Items[0] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_resolution_off" });
+			comboboxShadowResolution.Items[1] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_resolution_low" });
+			comboboxShadowResolution.Items[2] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_resolution_medium" });
+			comboboxShadowResolution.Items[3] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_resolution_high" });
+			comboboxShadowResolution.Items[4] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_resolution_ultra" });
+
+			// Combobox items (shadow distance)
+			comboboxShadowDistance.Items[0] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_distance_near" });
+			comboboxShadowDistance.Items[1] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_distance_medium" });
+			comboboxShadowDistance.Items[2] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_distance_far" });
+			comboboxShadowDistance.Items[3] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_distance_veryfar" });
+			comboboxShadowDistance.Items[4] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_distance_viewingdistance" });
+
+			// Combobox items (shadow cascades)
+			comboboxShadowCascades.Items[0] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_cascades_2" });
+			comboboxShadowCascades.Items[1] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_cascades_3" });
+			comboboxShadowCascades.Items[2] = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "shadows_cascades_4" });
 			//Simulation
 			groupboxSimulation.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","misc_simulation"});
+			groupboxCamera.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","camera"});
+			checkboxCameraInteriorTransition.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","camera_interior_transition"});
+			checkboxCameraExteriorTransition.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","camera_exterior_transition"});
+			labelCameraTransitionSpeed.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","camera_transition_duration"});
 			checkboxToppling.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","misc_simulation_toppling"});
 			checkboxCollisions.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","misc_simulation_collisions"});
 			checkboxDerailments.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","misc_simulation_derailments"});
@@ -714,7 +825,6 @@ namespace OpenBve {
 			groupBoxAdvancedOptions.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","advanced"});
 			checkBoxLoadInAdvance.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","advanced_load_advance"});
 			checkBoxUnloadTextures.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","advanced_unload_textures"});
-			checkBoxIsUseNewRenderer.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","advanced_is_use_new_renderer"});
 			labelTimeAcceleration.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","advanced_timefactor"});
 			labelCursor.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","advanced_cursor"});
 			//Other Options
@@ -739,10 +849,16 @@ namespace OpenBve {
 			textBoxRouteDirectory.Text = Program.FileSystem.RouteInstallationDirectory;
 			textBoxTrainDirectory.Text = Program.FileSystem.TrainInstallationDirectory;
 			textBoxOtherDirectory.Text = Program.FileSystem.OtherInstallationDirectory;
+			textBoxMSTSTrainsetDirectory.Text = Program.FileSystem.MSTSDirectory;
 			labelRouteInstallDirectory.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","package_route_directory"});
 			labelTrainInstallDirectory.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","package_train_directory"});
 			labelOtherInstallDirectory.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","package_other_directory"});
+			label1.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "options", "package_msts_directory" });
 			labelPackageCompression.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","package_compression"});
+			comboBoxCompressionFormat.Items.Clear();
+			comboBoxCompressionFormat.Items.Add("Zip");
+			comboBoxCompressionFormat.Items.Add("Tar.GZ");
+			comboBoxCompressionFormat.Items.Add("BZ2");
 			//Kiosk Mode
 			groupBoxKioskMode.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","kiosk_mode"});
 			checkBoxEnableKiosk.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"options","kiosk_mode_enable"});
@@ -837,7 +953,7 @@ namespace OpenBve {
 				case GameMode.Arcade: labelRatingModeValue.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"mode","arcade"}); break;
 				case GameMode.Normal: labelRatingModeValue.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"mode","normal"}); break;
 				case GameMode.Expert: labelRatingModeValue.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"mode","expert"}); break;
-				default: labelRatingModeValue.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"mode","unkown"}); break;
+				default: labelRatingModeValue.Text = Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"mode","unknown"}); break;
 			}
 			{
 				double ratio = Game.CurrentScore.Maximum == 0 ? 0.0 : (double)Game.CurrentScore.CurrentValue / Game.CurrentScore.Maximum;
@@ -914,13 +1030,13 @@ namespace OpenBve {
 				comboboxKeyboardKey.DisplayMember = "Value";
 				comboboxKeyboardKey.ValueMember = "Key";
 				
-				ListViewItem[] Items = new ListViewItem[Interface.CurrentControls.Length];
+				ListViewItem[] listItems = new ListViewItem[Interface.CurrentControls.Length];
 				for (int i = 0; i < Interface.CurrentControls.Length; i++)
 				{
-					Items[i] = new ListViewItem(new[] { "", "", "", "", "" });
-					UpdateControlListElement(Items[i], i, false);
+					listItems[i] = new ListViewItem(new[] { "", "", "", "", "" });
+					UpdateControlListElement(listItems[i], i, false);
 				}
-				listviewControls.Items.AddRange(Items);
+				listviewControls.Items.AddRange(listItems);
 				listviewControls.AutoResizeColumns(ColumnHeaderAutoResizeStyle.ColumnContent);
 			}
 			/*
@@ -1046,18 +1162,88 @@ namespace OpenBve {
 			//Uninstall result panel
 			// *** All labels set at runtime ***
 
+			
 			//HACK- WHY IS THIS NEEDED???
-			if (panelOptionsPage2.Visible)
+			if (panelOptionsPage3.Visible)
+			{
+				panelOptionsPage3.Hide();
+				panelOptionsPage3.Show();
+			}
+			else if (panelOptionsPage2.Visible)
 			{
 				panelOptionsPage2.Hide();
+				panelOptionsPage3.Hide();
 				panelOptionsPage2.Show();
 			}
 			else
 			{
 				panelOptionsPage2.Hide();
+				panelOptionsPage3.Hide();
 			}
 
 
+			
+			ApplyToolTips();
+		}
+
+		/// <summary>Applies tooltips to the various controls on the form</summary>
+		private void ApplyToolTips()
+		{
+			SetToolTip("vsync", labelVSync, comboboxVSync);
+			SetToolTip("interpolation", labelInterpolation, comboboxInterpolation);
+			SetToolTip("anisotropic", labelAnisotropic, updownAnisotropic);
+			SetToolTip("antialiasing", labelAntiAliasing, updownAntiAliasing);
+			SetToolTip("transparency", labelTransparency, trackbarTransparency);
+			SetToolTip("viewingdistance", labelDistance, updownDistance);
+			SetToolTip("motionblur", labelMotionBlur, comboboxMotionBlur);
+			SetToolTip("fpslimit", labelFPSLimit, comboBoxFPSLimit);
+		}
+
+		/// <summary>Sets the tooltip for one or more controls using a translation key</summary>
+		/// <param name="key">The translation key in the 'tooltips' group</param>
+		/// <param name="controls">The controls to apply the tooltip to</param>
+		private void SetToolTip(string key, params Control[] controls)
+		{
+			string text = WordWrap(Translations.GetInterfaceString(HostApplication.OpenBve, new[] { "tooltips", key }));
+			foreach (Control control in controls)
+			{
+				toolTip.SetToolTip(control, text);
+			}
+		}
+
+		/// <summary>Wraps long tooltips onto multiple lines so they do not stretch across the screen.</summary>
+		/// <remarks>Works on all platforms: explicit line breaks are honoured by both the native Windows tooltip and Mono's tooltip renderer.</remarks>
+		private static string WordWrap(string text)
+		{
+			if (string.IsNullOrEmpty(text))
+			{
+				return text;
+			}
+			const int maxWidth = 400;
+			Font font = SystemFonts.DefaultFont;
+			var lines = new List<string>();
+			foreach (string line in text.Split('\n'))
+			{
+				string current = string.Empty;
+				foreach (string word in line.TrimEnd('\r').Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries))
+				{
+					string candidate = current.Length == 0 ? word : current + " " + word;
+					if (current.Length == 0 || TextRenderer.MeasureText(candidate, font).Width <= maxWidth)
+					{
+						current = candidate;
+					}
+					else
+					{
+						lines.Add(current);
+						current = word;
+					}
+				}
+				if (current.Length > 0)
+				{
+					lines.Add(current);
+				}
+			}
+			return string.Join(Environment.NewLine, lines);
 		}
 
 		// form closing
@@ -1065,6 +1251,9 @@ namespace OpenBve {
 		{
 			Interface.CurrentOptions.FullscreenMode = radiobuttonFullscreen.Checked;
 			Interface.CurrentOptions.VerticalSynchronization = comboboxVSync.SelectedIndex == 1;
+			// Map combo index to FPSLimit value
+			int[] fpsPresets = { 0, 30, 60, 120, 240 };
+			Interface.CurrentOptions.FPSLimit = comboBoxFPSLimit.SelectedIndex >= 0 ? fpsPresets[comboBoxFPSLimit.SelectedIndex] : 0;
 			Interface.CurrentOptions.WindowWidth = (int)Math.Round(updownWindowWidth.Value);
 			Interface.CurrentOptions.WindowHeight = (int)Math.Round(updownWindowHeight.Value);
 			Interface.CurrentOptions.FullscreenWidth = (int)Math.Round(updownFullscreenWidth.Value);
@@ -1074,12 +1263,24 @@ namespace OpenBve {
 			Interface.CurrentOptions.AnisotropicFilteringLevel = (int)Math.Round(updownAnisotropic.Value);
 			Interface.CurrentOptions.AntiAliasingLevel = (int)Math.Round(updownAntiAliasing.Value);
 			Interface.CurrentOptions.TransparencyMode = (TransparencyMode)trackbarTransparency.Value;
+			Interface.CurrentOptions.NearClipScenery = (double)updownNearClipScenery.Value;
+			Interface.CurrentOptions.NearClipCab = (double)updownNearClipCab.Value;
+			Interface.CurrentOptions.NearClipBase = (double)updownNearClipBase.Value;
 			int newViewingDistance = (int)Math.Round(updownDistance.Value);
+			// ensure viewing distance is greater than the near clipping plane to avoid rendering issues
+			double maxNearClip = Math.Max(Interface.CurrentOptions.NearClipScenery, Math.Max(Interface.CurrentOptions.NearClipCab, Interface.CurrentOptions.NearClipBase));
+
+
+			if (newViewingDistance <= maxNearClip)
+			{
+				newViewingDistance = (int)Math.Ceiling(maxNearClip) + 1;
+			}
 			if (newViewingDistance != Interface.CurrentOptions.ViewingDistance)
 			{
 				Interface.CurrentOptions.ViewingDistance = newViewingDistance;
 				Interface.CurrentOptions.QuadTreeLeafSize = Math.Max(50, (int)Math.Ceiling(Interface.CurrentOptions.ViewingDistance / 10.0d) * 10); // quad tree size set to 10% of viewing distance to the nearest 10
 			}
+
 			
 			
 			Interface.CurrentOptions.MotionBlur = (MotionBlurMode)comboboxMotionBlur.SelectedIndex;
@@ -1090,7 +1291,38 @@ namespace OpenBve {
 			Interface.CurrentOptions.UnloadUnusedTextures = checkBoxUnloadTextures.Checked;
 			Interface.CurrentOptions.OldTransparencyMode = checkBoxTransparencyFix.Checked;
 			Interface.CurrentOptions.EnableBveTsHacks = checkBoxHacks.Checked;
-			Interface.CurrentOptions.IsUseNewRenderer = checkBoxIsUseNewRenderer.Checked;
+			// Shadow Resolution
+			switch (comboboxShadowResolution.SelectedIndex)
+			{
+				case 0: Interface.CurrentOptions.ShadowResolution = ShadowMapResolution.Off; break;
+				case 1: Interface.CurrentOptions.ShadowResolution = ShadowMapResolution.Low; break;
+				case 2: Interface.CurrentOptions.ShadowResolution = ShadowMapResolution.Medium; break;
+				case 3: Interface.CurrentOptions.ShadowResolution = ShadowMapResolution.High; break;
+				case 4: Interface.CurrentOptions.ShadowResolution = ShadowMapResolution.Ultra; break;
+			}
+			// Shadow Distance
+			switch (comboboxShadowDistance.SelectedIndex)
+			{
+				case 0: Interface.CurrentOptions.ShadowDrawDistance = ShadowDistance.Near; break;
+				case 1: Interface.CurrentOptions.ShadowDrawDistance = ShadowDistance.Medium; break;
+				case 2: Interface.CurrentOptions.ShadowDrawDistance = ShadowDistance.Far; break;
+				case 3: Interface.CurrentOptions.ShadowDrawDistance = ShadowDistance.VeryFar; break;
+				case 4: Interface.CurrentOptions.ShadowDrawDistance = ShadowDistance.ViewingDistance; break;
+			}
+			// Shadow Cascades
+			switch (comboboxShadowCascades.SelectedIndex)
+			{
+				case 0: Interface.CurrentOptions.ShadowCascades = ShadowCascadeCount.Two; break;
+				case 1: Interface.CurrentOptions.ShadowCascades = ShadowCascadeCount.Three; break;
+				case 2: Interface.CurrentOptions.ShadowCascades = ShadowCascadeCount.Four; break;
+			}
+			// Shadow Strength
+			Interface.CurrentOptions.ShadowStrength = trackbarShadowStrength.Value / 100.0;
+			Interface.CurrentOptions.ShadowBias = (double)updownShadowBias.Value;
+			Interface.CurrentOptions.ShadowNormalBias = (double)updownShadowNormalBias.Value;
+			Interface.CurrentOptions.ShadowFilterCascades = checkboxShadowFilterCascades.Checked;
+			Interface.CurrentOptions.ShadowSmooth = checkboxShadowSmooth.Checked;
+			Interface.CurrentOptions.ShadowFilterRadius = comboboxShadowFilterRadius.SelectedIndex == 0 ? 1.0 : comboboxShadowFilterRadius.SelectedIndex == 2 ? 2.5 : 1.5;
 			Interface.CurrentOptions.GameMode = (GameMode)comboboxMode.SelectedIndex;
 			Interface.CurrentOptions.BlackBox = checkboxBlackBox.Checked;
 			Interface.CurrentOptions.LoadingSway = checkBoxLoadingSway.Checked;
@@ -1110,6 +1342,9 @@ namespace OpenBve {
 			Interface.CurrentOptions.CurrentObjParser = (ObjParsers)comboBoxObjparser.SelectedIndex;
 			Interface.CurrentOptions.Panel2ExtendedMode = checkBoxPanel2Extended.Checked;
 			Interface.CurrentOptions.Accessibility = checkBoxAccessibility.Checked;
+			Interface.CurrentOptions.CameraInteriorTransition = checkboxCameraInteriorTransition.Checked;
+			Interface.CurrentOptions.CameraExteriorTransition = checkboxCameraExteriorTransition.Checked;
+			Interface.CurrentOptions.CameraTransitionSpeed = (double)updownCameraTransitionSpeed.Value;
 			switch (trackBarHUDSize.Value)
 			{
 				case 0:
@@ -1198,7 +1433,7 @@ namespace OpenBve {
 				string[] a = new string[Interface.CurrentOptions.RecentlyUsedTrains.Length];
 				for (int i = 0; i < Interface.CurrentOptions.RecentlyUsedTrains.Length; i++)
 				{
-					if (Directory.Exists(Interface.CurrentOptions.RecentlyUsedTrains[i]))
+					if ((Interface.CurrentOptions.RecentlyUsedTrains[i].EndsWith(".con", StringComparison.InvariantCultureIgnoreCase) && File.Exists(Interface.CurrentOptions.RecentlyUsedTrains[i])) || Directory.Exists(Interface.CurrentOptions.RecentlyUsedTrains[i]))
 					{
 						a[n] = Interface.CurrentOptions.RecentlyUsedTrains[i];
 						n++;
@@ -1239,23 +1474,19 @@ namespace OpenBve {
 			}
 			// Remember enabled input device plugins
 			{
-				int n = 0;
-				string[] a = new string[InputDevicePlugin.AvailablePluginInfos.Count];
+				List<string> a = new List<string>();
 				for (int i = 0; i < InputDevicePlugin.AvailablePluginInfos.Count; i++)
 				{
-					InputDevicePlugin.PluginInfo Info = InputDevicePlugin.AvailablePluginInfos[i];
-					if (Info.Status != InputDevicePlugin.PluginInfo.PluginStatus.Enable) {
+					if (InputDevicePlugin.AvailablePluginInfos[i].Status != InputDevicePlugin.PluginInfo.PluginStatus.Enable) {
 						continue;
 					}
-					string PluginPath = Path.CombineFile(Program.FileSystem.GetDataFolder("InputDevicePlugins"), Info.FileName);
-					if (File.Exists(PluginPath))
+					string pluginPath = Path.CombineFile(Program.FileSystem.GetDataFolder("InputDevicePlugins"), InputDevicePlugin.AvailablePluginInfos[i].FileName);
+					if (File.Exists(pluginPath))
 					{
-						a[n] = Info.FileName;
-						n++;
+						a.Add(InputDevicePlugin.AvailablePluginInfos[i].FileName);
 					}
 				}
-				Array.Resize(ref a, n);
-				Interface.CurrentOptions.EnableInputDevicePlugins = a;
+				Interface.CurrentOptions.EnabledInputDevicePlugins = a.ToArray();
 			}
 			// Unload input device plugins if we're closing the program
 			if (!Result.Start)
@@ -1398,7 +1629,7 @@ namespace OpenBve {
 			if (WindowState != FormWindowState.Maximized)
 			{
 				System.Windows.Forms.Screen s = System.Windows.Forms.Screen.FromControl(this);
-				if (Width >= 0.95 * s.WorkingArea.Width | Height >= 0.95 * s.WorkingArea.Height)
+				if (Width >= 0.95 * s.WorkingArea.Width || Height >= 0.95 * s.WorkingArea.Height)
 				{
 					WindowState = FormWindowState.Maximized;
 				}
@@ -1495,6 +1726,10 @@ namespace OpenBve {
 			panelPackages.Visible = false;
 			pictureboxJoysticks.Visible = false;
 			UpdatePanelColor();
+			if (radiobuttonOptions.Checked)
+			{
+				SetOptionsPage(0);
+			}
 		}
 		private void radioButtonPackages_CheckedChanged(object sender, EventArgs e)
 		{
@@ -1634,91 +1869,86 @@ namespace OpenBve {
 					Program.Joysticks.AttachedJoysticks[guid].Poll();
 					bool railDriver = Program.Joysticks.AttachedJoysticks[guid] is AbstractRailDriver;
 					int axes = Program.Joysticks.AttachedJoysticks[guid].AxisCount();
-						for (int i = 0; i < axes; i++)
+					for (int i = 0; i < axes; i++)
+					{
+						double a = Program.Joysticks.AttachedJoysticks[guid].GetAxis(i);
+						if (a < -0.75)
 						{
-							double a = Program.Joysticks.AttachedJoysticks[guid].GetAxis(i);
-							if (a < -0.75)
+							if (railDriver)
 							{
-								if (railDriver)
+								if (i == 4)
 								{
-									if (i == 4)
-									{
-										//Bail-off lever, starts at negative
-										continue;
-									}
+									//Bail-off lever, starts at negative
+									continue;
+								}
 								Interface.CurrentControls[j].Method = ControlMethod.RailDriver;
-								}
-								Interface.CurrentControls[j].Device = guid;
-								Interface.CurrentControls[j].Component = JoystickComponent.Axis;
-								Interface.CurrentControls[j].Element = i;
-								Interface.CurrentControls[j].Direction = -1;
-								radiobuttonJoystick.Focus();
-								UpdateJoystickDetails();
-								UpdateControlListElement(listviewControls.Items[j], j, true);
-								return;
 							}
-							if (a > 0.75)
-							{
-								if (railDriver)
-								{
-									Interface.CurrentControls[j].Method = ControlMethod.RailDriver;
-								}
-								Interface.CurrentControls[j].Device = guid;
-								Interface.CurrentControls[j].Component = JoystickComponent.Axis;
-								Interface.CurrentControls[j].Element = i;
-								Interface.CurrentControls[j].Direction = 1;
-								radiobuttonJoystick.Focus();
-								UpdateJoystickDetails();
-								UpdateControlListElement(listviewControls.Items[j], j, true);
-								return;
-							}
+							Interface.CurrentControls[j].Device = guid;
+							Interface.CurrentControls[j].Component = JoystickComponent.Axis;
+							Interface.CurrentControls[j].Element = i;
+							Interface.CurrentControls[j].Direction = -1;
+							radiobuttonJoystick.Focus();
+							UpdateJoystickDetails();
+							UpdateControlListElement(listviewControls.Items[j], j, true);
+							return;
 						}
-						int buttons = Program.Joysticks.AttachedJoysticks[guid].ButtonCount();
-						for (int i = 0; i < buttons; i++)
+						if (a > 0.75)
 						{
-							if (Program.Joysticks.AttachedJoysticks[guid].GetButton(i) == ButtonState.Pressed)
+							if (railDriver)
 							{
-								if (railDriver)
-								{
-									Interface.CurrentControls[j].Method = ControlMethod.RailDriver;
-								}
-								Interface.CurrentControls[j].Device = guid;
-								Interface.CurrentControls[j].Component = JoystickComponent.Button;
-								Interface.CurrentControls[j].Element = i;
-								Interface.CurrentControls[j].Direction = 1;
-								radiobuttonJoystick.Focus();
-								UpdateJoystickDetails();
-								UpdateControlListElement(listviewControls.Items[j], j, true);
-								return;
+								Interface.CurrentControls[j].Method = ControlMethod.RailDriver;
 							}
+							Interface.CurrentControls[j].Device = guid;
+							Interface.CurrentControls[j].Component = JoystickComponent.Axis;
+							Interface.CurrentControls[j].Element = i;
+							Interface.CurrentControls[j].Direction = 1;
+							radiobuttonJoystick.Focus();
+							UpdateJoystickDetails();
+							UpdateControlListElement(listviewControls.Items[j], j, true);
+							return;
 						}
-						int hats = Program.Joysticks.AttachedJoysticks[guid].HatCount();
-						for (int i = 0; i < hats; i++)
+					}
+					int buttons = Program.Joysticks.AttachedJoysticks[guid].ButtonCount();
+					for (int i = 0; i < buttons; i++)
+					{
+						if (Program.Joysticks.AttachedJoysticks[guid].GetButton(i) == ButtonState.Pressed)
 						{
-							JoystickHatState hat = Program.Joysticks.AttachedJoysticks[guid].GetHat(i);
-							if (hat.Position != HatPosition.Centered)
+							if (railDriver)
 							{
-								Interface.CurrentControls[j].Device = guid;
-								Interface.CurrentControls[j].Component = JoystickComponent.Hat;
-								Interface.CurrentControls[j].Element = i;
-								Interface.CurrentControls[j].Direction = (int)hat.Position;
-								radiobuttonJoystick.Focus();
-								UpdateJoystickDetails();
-								UpdateControlListElement(listviewControls.Items[j], j, true);
-								return;
+								Interface.CurrentControls[j].Method = ControlMethod.RailDriver;
 							}
+							Interface.CurrentControls[j].Device = guid;
+							Interface.CurrentControls[j].Component = JoystickComponent.Button;
+							Interface.CurrentControls[j].Element = i;
+							Interface.CurrentControls[j].Direction = 1;
+							radiobuttonJoystick.Focus();
+							UpdateJoystickDetails();
+							UpdateControlListElement(listviewControls.Items[j], j, true);
+							return;
 						}
-					
-					
+					}
+					int hats = Program.Joysticks.AttachedJoysticks[guid].HatCount();
+					for (int i = 0; i < hats; i++)
+					{
+						JoystickHatState hat = Program.Joysticks.AttachedJoysticks[guid].GetHat(i);
+						if (hat.Position != HatPosition.Centered)
+						{
+							Interface.CurrentControls[j].Device = guid;
+							Interface.CurrentControls[j].Component = JoystickComponent.Hat;
+							Interface.CurrentControls[j].Element = i;
+							Interface.CurrentControls[j].Direction = (int)hat.Position;
+							radiobuttonJoystick.Focus();
+							UpdateJoystickDetails();
+							UpdateControlListElement(listviewControls.Items[j], j, true);
+							return;
+						}
+					}
 				}
 			}
-
 			pictureboxJoysticks.Invalidate();
 
 		}
-
-
-
+		
 		// =========
 		// functions
 		// =========
@@ -1813,7 +2043,7 @@ namespace OpenBve {
 			}
 		}
 
-		private void checkForUpdate()
+		private void CheckForUpdate()
 		{
 			string xmlUrl = Interface.CurrentOptions.DailyBuildUpdates ? "https://vps.bvecornwall.co.uk/OpenBVE/Builds/version.xml" : "http://openbve-project.net/version.xml";
 			HttpWebRequest hwRequest = (HttpWebRequest)WebRequest.Create(xmlUrl);
@@ -1917,24 +2147,53 @@ namespace OpenBve {
 
 		private void linkLabelCheckUpdates_Click(object sender, EventArgs e)
 		{
-			checkForUpdate();
+			CheckForUpdate();
+		}
+
+		private Control[][] optionsPages;
+		private int currentOptionsPage = 0;
+
+		private void SetOptionsPage(int pageIndex)
+		{
+			if (optionsPages == null)
+			{
+				optionsPages = new[] {
+					new Control[] { panelOptionsLeft, panelOptionsRight },
+					new Control[] { panelOptionsPage2 },
+					new Control[] { panelOptionsPage3 }
+				};
+			}
+			currentOptionsPage = pageIndex;
+			for (int i = 0; i < optionsPages.Length; i++)
+			{
+				for (int j = 0; j < optionsPages[i].Length; j++)
+				{
+					optionsPages[i][j].Visible = (i == pageIndex);
+				}
+			}
+			buttonOptionsPrevious.Enabled = (currentOptionsPage > 0);
+			buttonOptionsNext.Enabled = (currentOptionsPage < optionsPages.Length - 1);
+
+			if (panelOptionsPage2.Visible)
+			{
+				//HACK: Column Header in list view won't appear in Mono without resizing it...
+				listviewInputDevice.AutoResizeColumns(ColumnHeaderAutoResizeStyle.None);
+			}
 		}
 
 		private void buttonOptionsPrevious_Click(object sender, EventArgs e)
 		{
-			if (panelOptionsLeft.Visible)
+			if (currentOptionsPage > 0)
 			{
-				panelOptionsLeft.Hide();
-				panelOptionsRight.Hide();
-				panelOptionsPage2.Show();
-				//HACK: Column Header in list view won't appear in Mono without resizing it...
-				listviewInputDevice.AutoResizeColumns(ColumnHeaderAutoResizeStyle.None);
+				SetOptionsPage(currentOptionsPage - 1);
 			}
-			else
+		}
+
+		private void buttonOptionsNext_Click(object sender, EventArgs e)
+		{
+			if (currentOptionsPage < optionsPages.Length - 1)
 			{
-				panelOptionsPage2.Hide();
-				panelOptionsLeft.Show();
-				panelOptionsRight.Show();
+				SetOptionsPage(currentOptionsPage + 1);
 			}
 		}
 
@@ -2027,7 +2286,7 @@ namespace OpenBve {
 			Interface.CurrentOptions.CurrentCompatibilitySignalSet = compatibilitySignals[comboBoxCompatibilitySignals.GetItemText(comboBoxCompatibilitySignals.SelectedItem)]; //Cheat by using the name as the dictionary key!
 		}
 
-		private void tabcontrolRouteDetails_SelectedIndexChanged(object sender, EventArgs e)
+		private void tabControlRouteDetails_SelectedIndexChanged(object sender, EventArgs e)
 		{
 			if (Program.CurrentHost.MonoRuntime) {
 				// MONO issue on some systems means that the map may not draw initially, so force redraw
@@ -2064,6 +2323,18 @@ namespace OpenBve {
 		private void textboxTrainDescription_LinkClicked(object sender, LinkClickedEventArgs e)
 		{
 			Process.Start(e.LinkText);
+		}
+
+		private void buttonMSTSTrainsetDirectory_Click(object sender, EventArgs e)
+		{
+			using (var folderSelectDialog = new FolderBrowserDialog())
+			{
+				if (folderSelectDialog.ShowDialog() == DialogResult.OK)
+				{
+					Program.FileSystem.MSTSDirectory = folderSelectDialog.SelectedPath;
+					textBoxMSTSTrainsetDirectory.Text = folderSelectDialog.SelectedPath;
+				}
+			}
 		}
 	}
 }

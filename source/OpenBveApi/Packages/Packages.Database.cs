@@ -157,7 +157,7 @@ namespace OpenBveApi.Packages
 		/// <param name="Folder">The root database folder</param>
 		/// <param name="File">The database file</param>
 		/// <param name="ErrorMessage">The error message to return if failed</param>
-		/// <returns>Whether the loading succeded</returns>
+		/// <returns>Whether the loading succeeded</returns>
 		public static bool LoadDatabase(string Folder, string File, out string[] ErrorMessage)
 		{
 			ErrorMessage = new string[]{ };
@@ -216,7 +216,7 @@ namespace OpenBveApi.Packages
 		 */
 
 		/// <summary>Checks a list of dependancies or reccomendations to see if they are installed</summary>
-		public static List<Package> checkDependsReccomends(List<Package> currentList)
+		public static List<Package> CheckDependsReccomends(List<Package> currentList)
 		{
 			if (currentList == null)
 			{

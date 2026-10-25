@@ -1,8 +1,9 @@
-using System;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
 using OpenBveApi.Math;
 using OpenBveApi.Trains;
+using System;
+// ReSharper disable StringLiteralTypo
 
 namespace OpenBveApi.FunctionScripting
 {
@@ -19,11 +20,13 @@ namespace OpenBveApi.FunctionScripting
 		/// <summary>The last result returned</summary>
 		public double LastResult { get; set; }
 		/// <summary>The minimum pinned result or NaN to set no minimum</summary>
-		public double Maximum { get; set; } = Double.NaN;
+		public double Maximum { get; set; } = double.NaN;
 		/// <summary>The maximum pinned result or NaN to set no maximum</summary>
-		public double Minimum { get; set; } = Double.NaN;
+		public double Minimum { get; set; } = double.NaN;
 		/// <summary>We caught an exception on the last execution of the script, so further execution has been stopped</summary> 
 		private bool exceptionCaught;
+		/// <summary>The total number of states</summary>
+		public readonly int TotalStates;
 
 		/// <summary>Performs the function script, and returns the current result</summary>
 		public double ExecuteScript(AbstractTrain Train, int CarIndex, Vector3 Position, double TrackPosition, int SectionIndex, bool IsPartOfTrain, double TimeElapsed, int CurrentState)
@@ -40,7 +43,8 @@ namespace OpenBveApi.FunctionScripting
 			{
 				if (!exceptionCaught)
 				{
-					currentHost.AddMessage(MessageType.Error, false, ex.Message);
+					// use different exception types to show warning vs error for stuff deliberately not implemented in viewers
+					currentHost.AddMessage(ex is NotImplementedException ? MessageType.Warning : MessageType.Error, false, ex.Message);
 					exceptionCaught = true;
 				}
 				
@@ -78,6 +82,31 @@ namespace OpenBveApi.FunctionScripting
 			return true;
 		}
 
+		/// <summary>Called when the underlying object is reversed</summary>
+		public void CorrectCarIndices(int offset)
+		{
+			int c = 0;
+			for (int i = 0; i < InstructionSet.Length - 1; i++)
+			{
+				if (InstructionSet[i] == Instructions.SystemConstant)
+				{
+					// must have at least one instruction on the stack afterwards
+					if (InstructionSet[i + 1] > Instructions.CarIndexDependant)
+					{
+						Constants[c] += offset;
+					}
+					c++;
+				}
+
+				if (InstructionSet[i] == Instructions.SystemConstantArray)
+				{
+					int n = (int)InstructionSet[i + 1];
+					c += n;
+				}
+				
+			}
+		}
+
 		/// <summary>Creates a new empty function script</summary>
 		/// <param name="Host">A reference to the base application host interface</param>
 		public FunctionScript(HostInterface Host)
@@ -90,9 +119,11 @@ namespace OpenBveApi.FunctionScripting
 		/// <param name="Host">A reference to the base application host interface</param>
 		/// <param name="Expression">The function string</param>
 		/// <param name="Infix">Whether this is in Infix notation (TRUE) or Postfix notation (FALSE)</param>
-		public FunctionScript(HostInterface Host, string Expression, bool Infix)
+		/// <param name="States">The total number of states</param>
+		public FunctionScript(HostInterface Host, string Expression, bool Infix, int States = 1)
 		{
 			currentHost = Host;
+			TotalStates = States;
 			if (Infix)
 			{
 				//If in infix format, we must convert to postfix first
@@ -422,7 +453,11 @@ namespace OpenBveApi.FunctionScripting
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.CameraView;
 							n++; s++; if (s >= m) m = s; break;
-							// train
+						case "cameracar":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.CameraCar;
+							n++; s++; if (s >= m) m = s; break;
+						// train
 						case "playertrain":
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.PlayerTrain;
@@ -474,6 +509,15 @@ namespace OpenBveApi.FunctionScripting
 							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.TrainAccelerationMotorOfCar;
+							n++; break;
+						case "decelerationmotor":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TrainMotorDeceleration;
+							n++; s++; if (s >= m) m = s; break;
+						case "decelerationmotorindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TrainMotorDecelerationOfCar;
 							n++; break;
 						case "distance":
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
@@ -815,7 +859,11 @@ namespace OpenBveApi.FunctionScripting
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.SectionAspectNumber;
 							n++; s++; if (s >= m) m = s; break;
-							// state
+						case "sectionlimit":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.SectionLimit;
+							n++; s++; if (s >= m) m = s; break;
+						// state
 						case "currentstate":
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.CurrentObjectState;
@@ -900,7 +948,7 @@ namespace OpenBveApi.FunctionScripting
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.EngineRunning;
 							n++; s++; if (s >= m) m = s; break;
-						case "enginerunningcar":
+						case "enginerunningindex":
 							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.EngineRunningCar;
@@ -909,16 +957,21 @@ namespace OpenBveApi.FunctionScripting
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.EngineRPM;
 							n++; s++; if (s >= m) m = s; break;
-						case "enginerpmcar":
+						case "enginerpmindex":
 							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.EngineRPMCar;
+							n++; break;
+						case "enginepowerindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.EnginePowerCar;
 							n++; break;
 						case "fuellevel":
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.FuelLevel;
 							n++; s++; if (s >= m) m = s; break;
-						case "fuellevelcar":
+						case "fuellevelindex":
 							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.FuelLevelCar;
@@ -927,10 +980,157 @@ namespace OpenBveApi.FunctionScripting
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.Amps;
 							n++; s++; if (s >= m) m = s; break;
-						case "ampscar":
+						case "ampsindex":
 							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
 							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
 							InstructionSet[n] = Instructions.AmpsCar;
+							n++; break;
+						case "pantographstate":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.PantographState;
+							n++; s++; if (s >= m) m = s; break;
+						case "pantographstateindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.PantographStateOfCar;
+							n++; break;
+						//New power supply bits from 1.9.0
+						case "overheadvolts":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadVolts;
+							n++; s++; if (s >= m) m = s; break;
+						case "overheadvoltsindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadVoltsTarget;
+							n++; break;
+						case "thirdrailvolts":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailVolts;
+							n++; s++; if (s >= m) m = s; break;
+						case "thirdrailvoltsindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailVoltsTarget;
+							n++; break;
+						case "fourthrailvolts":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailVolts;
+							n++; s++; if (s >= m) m = s; break;
+						case "fourthrailvoltsindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailVoltsTarget;
+							n++; break;
+						case "overheadheight":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadHeight;
+							n++; s++; if (s >= m) m = s; break;
+						case "overheadheightindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadHeightTarget;
+							n++; break;
+						case "thirdrailheight":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailHeight;
+							n++; s++; if (s >= m) m = s; break;
+						case "thirdrailheightindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailHeightTarget;
+							n++; break;
+						case "fourthrailheight":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailHeight;
+							n++; s++; if (s >= m) m = s; break;
+						case "fourthrailheightindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailHeightTarget;
+							n++; break;
+						case "overheadac":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadAC;
+							n++; s++; if (s >= m) m = s; break;
+						case "thirdrailac":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailAC;
+							n++; s++; if (s >= m) m = s; break;
+						case "fourthrailac":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailAC;
+							n++; s++; if (s >= m) m = s; break;
+						case "overheadamps":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadAmps;
+							n++; s++; if (s >= m) m = s; break;
+						case "overheadampsindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.OverheadAmpsTarget;
+							n++; break;
+						case "thirdrailamps":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailAmps;
+							n++; s++; if (s >= m) m = s; break;
+						case "thirdrailampsindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.ThirdRailAmpsTarget;
+							n++; break;
+						case "fourthrailamps":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailAmps;
+							n++; s++; if (s >= m) m = s; break;
+						case "fourthrailampsindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.FourthRailAmpsTarget;
+							n++; break;
+						case "cylindercocksstateindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.CylinderCocksStateOfCar;
+							n++; break;
+						case "blowerssstateindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.BlowersStateOfCar;
+							n++; break;
+						case "tenderwaterindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TenderWaterOfCar;
+							n++; break;
+						case "boilerpressureindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.BoilerPressureOfCar;
+							n++; break;
+						case "railnumber":
+						case "tracknumber":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TrackNumber;
+							n++; s++; if (s >= m) m = s; break;
+						case "railnumberindex":
+						case "tracknumberindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TrackNumberIndex;
+							n++; break;
+						case "totalstates":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TotalStates;
+							n++; s++; if (s >= m) m = s; break;
+						case "carmass":
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TrainCarMass;
+							n++; s++; if (s >= m) m = s; break;
+						case "carmassindex":
+							if (s < 1) throw new InvalidOperationException(Arguments[i] + " requires at least 1 argument on the stack in function script " + Expression);
+							if (n >= InstructionSet.Length) Array.Resize(ref InstructionSet, InstructionSet.Length << 1);
+							InstructionSet[n] = Instructions.TrainCarMassIndex;
 							n++; break;
 						// default
 						default:

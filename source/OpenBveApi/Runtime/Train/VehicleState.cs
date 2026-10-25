@@ -80,13 +80,13 @@ namespace OpenBveApi.Runtime
 		/// <summary>Gets the track pitch value at the front axle of the driver's car.</summary>
 		public double Pitch => MyPitch;
 
-		/// <summary>Gets the track pitch value at the front axle of the driver's car.</summary>
+		/// <summary>Gets the rain intensity value at the front axle of the driver's car.</summary>
 		public double RainIntensity => MyRainIntensity;
 
-		/// <summary>Gets the track pitch value at the front axle of the driver's car.</summary>
+		/// <summary>Gets the adhesion value at the front axle of the driver's car.</summary>
 		public double Adhesion => MyAdhesion;
 
-		/// <summary>Gets the track pitch value at the front axle of the driver's car.</summary>
+		/// <summary>Gets whether the driver's car is currently experiencing wheelslip.</summary>
 		public bool WheelSlip => MyWheelSlip;
 
 		/// <summary>Gets the track world coord value at the front axle of the driver's car.</summary>

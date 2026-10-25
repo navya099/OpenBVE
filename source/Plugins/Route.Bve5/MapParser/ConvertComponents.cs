@@ -23,6 +23,7 @@
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Bve5_Parsing.MapGrammar;
 using Bve5_Parsing.MapGrammar.EvaluateData;
@@ -32,12 +33,12 @@ using OpenBveApi.Math;
 using OpenBveApi.Objects;
 using RouteManager2.Climate;
 using RouteManager2.Stations;
+// ReSharper disable SwitchStatementMissingSomeEnumCasesNoDefault
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
-		private static double lastLegacyCurvePosition = double.MinValue;
 		private static double lastLegacyGradientPosition = double.MinValue;
 		private static void ConvertCurve(Statement Statement, RouteData RouteData)
 		{
@@ -77,7 +78,7 @@ namespace Route.Bve5
 						break;
 					case MapFunctionName.BeginTransition:
 						{
-							RouteData.TryAddBlock(Statement.Distance);
+							RouteData.FindOrAddBlock(Statement.Distance);
 							RouteData.sortedBlocks[Statement.Distance].Rails["0"].CurveInterpolateStart = true;
 							RouteData.sortedBlocks[Statement.Distance].Rails["0"].CurveTransitionStart = true;
 						}
@@ -87,45 +88,27 @@ namespace Route.Bve5
 					case MapFunctionName.Change:
 					case MapFunctionName.Curve:
 						{
-							/*
-							 * NOTE: The behaviour of Legacy commands is not properly documented, and *does not* match prior versions of BVE.
-							 *		 From observation of BVE5 behavior:
-							 *		 * When the distance between curves is greater than 25m, interpolation is used from -10m to +15m of the statement position
-							 *		 * Otherwise, it's somewhat glitchy, e.g. https://github.com/leezer3/OpenBVE/issues/1045#issuecomment-2275286076
-							 *         For the minute, let's assume that is fundamentally bugged, and just issue an immediate change in this case
-							 */
 							double Radius = d.Radius;
-							double Cant = Statement.GetArgumentValueAsDouble(ArgumentName.Cant) / 1000.0;
-							if (Statement.ElementName == MapElementName.Legacy && Statement.Distance - lastLegacyCurvePosition >= 15)
+							double Cant = Statement.GetArgumentValueAsDouble(ArgumentName.Cant);
+							if (Math.Abs(Cant) > 1)
 							{
-								int firstIndex = RouteData.FindOrAddBlock(Math.Max(0, Statement.Distance - 10));
-								int secondIndex = RouteData.FindOrAddBlock(Statement.Distance + 15);
-								RouteData.Blocks[secondIndex].CurrentTrackState.CurveRadius = Radius;
-								RouteData.Blocks[secondIndex].CurrentTrackState.CurveCant = Math.Abs(Cant) * Math.Sign(Radius);
-								RouteData.Blocks[firstIndex].Rails["0"].CurveInterpolateStart = true;
-								RouteData.Blocks[firstIndex].Rails["0"].CurveInterpolateEnd = true;
-								RouteData.Blocks[secondIndex].Rails["0"].CurveInterpolateEnd = true;
-								RouteData.Blocks[secondIndex].Rails["0"].CurveTransitionEnd = true;
+								// If Abs(Cant) is less than 1, it's in m not mm
+								Cant /= 1000.0;
 							}
-							else
-							{
-								int Index = RouteData.FindOrAddBlock(Statement.Distance);
-								RouteData.Blocks[Index].CurrentTrackState.CurveRadius = Radius;
-								RouteData.Blocks[Index].CurrentTrackState.CurveCant = Math.Abs(Cant) * Math.Sign(Radius);
-								RouteData.Blocks[Index].Rails["0"].CurveInterpolateStart = true;
-								RouteData.Blocks[Index].Rails["0"].CurveTransitionEnd = true;
-							}
-
+							int Index = RouteData.FindOrAddBlock(Statement.Distance);
+							RouteData.Blocks[Index].CurrentTrackState.CurveRadius = Radius;
+							RouteData.Blocks[Index].CurrentTrackState.CurveCant = Cant;
+							RouteData.Blocks[Index].Rails["0"].CurveInterpolateStart = true;
+							RouteData.Blocks[Index].Rails["0"].CurveTransitionEnd = true;
 							if (Statement.ElementName == MapElementName.Legacy)
 							{
-								lastLegacyCurvePosition = Statement.Distance;
+								RouteData.Blocks[Index].Rails["0"].CurveIsLegacy = true;
 							}
-
 						}
 						break;
 					case MapFunctionName.End:
 						{
-							RouteData.TryAddBlock(Statement.Distance);
+							RouteData.FindOrAddBlock(Statement.Distance);
 							RouteData.sortedBlocks[Statement.Distance].Rails["0"].CurveInterpolateStart = true;
 							RouteData.sortedBlocks[Statement.Distance].Rails["0"].CurveTransitionEnd = true;
 						}
@@ -154,11 +137,16 @@ namespace Route.Bve5
 							}
 							else
 							{
-								Cant = d.Cant / 1000.0;
+								Cant = d.Cant;
+								if (Math.Abs(Cant) > 1)
+								{
+									// If Abs(Cant) is less than 1, it's in m not mm
+									Cant /= 1000.0;
+								}
 							}
 
 							RouteData.Blocks[Index].CurrentTrackState.CurveRadius = Convert.ToDouble(Radius);
-							RouteData.Blocks[Index].CurrentTrackState.CurveCant = Math.Abs(Convert.ToDouble(Cant)) * Math.Sign(Convert.ToDouble(Radius));
+							RouteData.Blocks[Index].CurrentTrackState.CurveCant = Cant;
 							RouteData.Blocks[Index].Rails["0"].CurveInterpolateStart = true;
 							RouteData.Blocks[Index].Rails["0"].CurveInterpolateEnd = true;
 							RouteData.Blocks[Index].Rails["0"].CurveTransitionEnd = true;
@@ -167,7 +155,7 @@ namespace Route.Bve5
 					case MapFunctionName.Turn:
 						{
 							object Slope = d.Slope;
-							RouteData.TryAddBlock(Statement.Distance);
+							RouteData.FindOrAddBlock(Statement.Distance);
 							RouteData.sortedBlocks[Statement.Distance].Turn = Convert.ToDouble(Slope);
 						}
 						break;
@@ -264,10 +252,7 @@ namespace Route.Bve5
 							continue;
 						}
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.TryAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -284,7 +269,7 @@ namespace Route.Bve5
 				{
 					case MapFunctionName.BeginTransition:
 						{
-							RouteData.TryAddBlock(Statement.Distance);
+							RouteData.FindOrAddBlock(Statement.Distance);
 							RouteData.sortedBlocks[Statement.Distance].GradientInterpolateStart = true;
 							RouteData.sortedBlocks[Statement.Distance].GradientTransitionStart = true;
 						}
@@ -328,7 +313,7 @@ namespace Route.Bve5
 						break;
 					case MapFunctionName.End:
 						{
-							RouteData.TryAddBlock(Statement.Distance);
+							RouteData.FindOrAddBlock(Statement.Distance);
 							RouteData.sortedBlocks[Statement.Distance].GradientInterpolateStart = true;
 							RouteData.sortedBlocks[Statement.Distance].GradientTransitionEnd = true;
 						}
@@ -396,10 +381,7 @@ namespace Route.Bve5
 						double StartDistance = Multiple(RouteData.Blocks[StartBlock].StartingDistance, InterpolateInterval);
 						double EndDistance = RouteData.Blocks[i].StartingDistance;
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.FindOrAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -449,10 +431,7 @@ namespace Route.Bve5
 							continue;
 						}
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.FindOrAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -461,23 +440,25 @@ namespace Route.Bve5
 			}
 		}
 
-		private static void ConvertTrack(MapData ParseData, RouteData RouteData)
+		private static void ConvertTrack(RouteData RouteData)
 		{
-
 			// Own track is excluded.
 			for (int railIndex = 1; railIndex < RouteData.TrackKeyList.Count; railIndex++)
 			{
 				string railKey = RouteData.TrackKeyList[railIndex];
-				foreach (var Statement in ParseData.Statements)
+				if (!RouteData.trackStatementsByKey.TryGetValue(railKey, out List<Statement> railStatements))
 				{
-					if (Statement.ElementName != MapElementName.Track || !Statement.Key.Equals(RouteData.TrackKeyList[railIndex], StringComparison.InvariantCultureIgnoreCase))
-					{
-						continue;
-					}
+					railStatements = new List<Statement>();
+				}
 
+				// NOTE: Where two InterpolateX / InterpolateY statements are at the same distance, BVETS takes the first
+				//       however, where two Position statements are at the same distance BVETS takes the *second*
+				double lastInterpolateXDistance = double.MinValue, lastInterpolateYDistance = double.MinValue;
+				foreach (Statement Statement in railStatements)
+				{
 					dynamic d = Statement;
 
-					if (Statement.FunctionName == MapFunctionName.Position || (Statement.HasSubElement && Statement.SubElementName == MapSubElementName.X))
+					if (Statement.FunctionName == MapFunctionName.Position || (Statement.HasSubElement && Statement.SubElementName == MapSubElementName.X && lastInterpolateXDistance != Statement.Distance))
 					{
 						int Index = RouteData.FindOrAddBlock(Statement.Distance);
 						int LastInterpolateIndex = -1;
@@ -524,9 +505,13 @@ namespace Route.Bve5
 						RouteData.Blocks[Index].Rails[railKey].Position.X = Convert.ToDouble(X);
 						RouteData.Blocks[Index].Rails[railKey].RadiusH = Convert.ToDouble(RadiusH);
 						RouteData.Blocks[Index].Rails[railKey].InterpolateX = true;
+						if (Statement.FunctionName != MapFunctionName.Position)
+						{
+							lastInterpolateXDistance = Statement.Distance;
+						}
 					}
 
-					if (Statement.FunctionName == MapFunctionName.Position || (Statement.HasSubElement && Statement.SubElementName == MapSubElementName.Y))
+					if ((Statement.FunctionName == MapFunctionName.Position || (Statement.HasSubElement && Statement.SubElementName == MapSubElementName.Y && lastInterpolateYDistance != Statement.Distance)))
 					{
 						int Index = RouteData.FindOrAddBlock(Statement.Distance);
 						int LastInterpolateIndex = -1;
@@ -572,6 +557,10 @@ namespace Route.Bve5
 						RouteData.Blocks[Index].Rails[railKey].Position.Y = Convert.ToDouble(Y);
 						RouteData.Blocks[Index].Rails[railKey].RadiusV = Convert.ToDouble(RadiusV);
 						RouteData.Blocks[Index].Rails[railKey].InterpolateY = true;
+						if (Statement.FunctionName != MapFunctionName.Position)
+						{
+							lastInterpolateYDistance = Statement.Distance;
+						}
 					}
 
 					if (Statement.HasSubElement && Statement.SubElementName == MapSubElementName.Cant)
@@ -580,14 +569,14 @@ namespace Route.Bve5
 						{
 							case MapFunctionName.BeginTransition:
 								{
-									RouteData.TryAddBlock(Statement.Distance);
+									RouteData.FindOrAddBlock(Statement.Distance);
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveInterpolateStart = true;
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveTransitionStart = true;
 								}
 								break;
 							case MapFunctionName.Begin:
 								{
-									RouteData.TryAddBlock(Statement.Distance);
+									RouteData.FindOrAddBlock(Statement.Distance);
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveCant = Statement.GetArgumentValueAsDouble(ArgumentName.Cant) / 1000.0;
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveInterpolateStart = true;
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveTransitionEnd = true;
@@ -595,7 +584,7 @@ namespace Route.Bve5
 								break;
 							case MapFunctionName.End:
 								{
-									RouteData.TryAddBlock(Statement.Distance);
+									RouteData.FindOrAddBlock(Statement.Distance);
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveInterpolateStart = true;
 									RouteData.sortedBlocks[Statement.Distance].Rails[railKey].CurveTransitionEnd = true;
 								}
@@ -710,10 +699,7 @@ namespace Route.Bve5
 							continue;
 						}
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.FindOrAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -751,10 +737,7 @@ namespace Route.Bve5
 							continue;
 						}
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.FindOrAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -798,10 +781,7 @@ namespace Route.Bve5
 						double StartDistance = Multiple(RouteData.Blocks[StartBlock].StartingDistance, InterpolateInterval);
 						double EndDistance = RouteData.Blocks[i].StartingDistance;
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.FindOrAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -852,10 +832,7 @@ namespace Route.Bve5
 							continue;
 						}
 
-						for (double k = StartDistance; k < EndDistance; k += InterpolateInterval)
-						{
-							RouteData.FindOrAddBlock(k);
-						}
+						RouteData.CreateMissingBlocks(StartDistance, EndDistance, InterpolateInterval);
 					}
 
 					// now use distance to retrieve the *new* index of said block after insertions (+1 to carry on with loop)
@@ -868,285 +845,287 @@ namespace Route.Bve5
 
 		private static void ConvertStation(Statement Statement, RouteData RouteData)
 		{
-
+			string stationKey = Statement.Key.ToLowerInvariant();
+			if (!RouteData.StationList.ContainsKey(stationKey))
 			{
-				string stationKey = Statement.Key.ToLowerInvariant();
-				if (!RouteData.StationList.ContainsKey(stationKey))
-				{
-					Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Unable to find a station with key " + Statement.Key + " in the BVE5 station list.");
-					return;
-				}
-
-				dynamic d = Statement;
-
-				object Doors = d.Door;
-				object BackwardTolerance = d.Margin1;
-				object ForwardTolerance = d.Margin2;
-
-				double DefaultTrackPosition = Statement.Distance + StationNoticeDistance;
-				if (DefaultTrackPosition < 0.0)
-				{
-					DefaultTrackPosition = 0.0;
-				}
-				
-				RouteStation NewStation = new RouteStation(stationKey);
-				RouteData.StationList[stationKey].Create(ref NewStation);
-				RouteData.Sounds.TryGetValue(RouteData.StationList[stationKey].ArrivalSoundKey, out NewStation.ArrivalSoundBuffer);
-				RouteData.Sounds.TryGetValue(RouteData.StationList[stationKey].DepartureSoundKey, out NewStation.DepartureSoundBuffer);
-				NewStation.OpenLeftDoors = Convert.ToDouble(Doors) < 0.0;
-				NewStation.OpenRightDoors = Convert.ToDouble(Doors) > 0.0;
-				NewStation.Stops = new StationStop[1];
-				NewStation.Stops[0].TrackPosition = Statement.Distance;
-				NewStation.Stops[0].BackwardTolerance = Math.Abs(Convert.ToDouble(BackwardTolerance));
-				NewStation.Stops[0].ForwardTolerance = Convert.ToDouble(ForwardTolerance);
-				NewStation.DefaultTrackPosition = DefaultTrackPosition;
-				int StationBlockIndex = RouteData.FindOrAddBlock(DefaultTrackPosition);
-				RouteData.Blocks[StationBlockIndex].StationIndex = CurrentStation;
-
-				int StopBlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
-				RouteData.Blocks[StopBlockIndex].Stop = CurrentStation;
-
-				Array.Resize(ref Plugin.CurrentRoute.Stations, CurrentStation + 1);
-				Plugin.CurrentRoute.Stations[CurrentStation] = NewStation;
-				CurrentStation++;
+				Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Unable to find a station with key " + Statement.Key + " in the station list.");
+				return;
 			}
+
+			dynamic d = Statement;
+
+			object Doors = d.Door;
+			object BackwardTolerance = d.Margin1;
+			object ForwardTolerance = d.Margin2;
+
+			double DefaultTrackPosition = Statement.Distance + StationNoticeDistance;
+			if (DefaultTrackPosition < 0.0)
+			{
+				DefaultTrackPosition = 0.0;
+			}
+
+			RouteStation NewStation = new RouteStation(stationKey);
+			RouteData.StationList[stationKey].Create(ref NewStation);
+			if (!string.IsNullOrEmpty(RouteData.StationList[stationKey].ArrivalSoundKey) && !RouteData.Sounds.TryGetValue(RouteData.StationList[stationKey].ArrivalSoundKey, out NewStation.ArrivalSoundBuffer))
+			{
+				Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Unable to find the Station ArrivalSound with key " + RouteData.StationList[stationKey].ArrivalSoundKey + " for station " + stationKey);
+			}
+
+			if (!string.IsNullOrEmpty(RouteData.StationList[stationKey].DepartureSoundKey) && !RouteData.Sounds.TryGetValue(RouteData.StationList[stationKey].DepartureSoundKey, out NewStation.DepartureSoundBuffer))
+			{
+				Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Unable to find the Station DepartureSound with key " + RouteData.StationList[stationKey].DepartureSoundKey + " for station " + stationKey);
+			}
+
+			NewStation.OpenLeftDoors = Convert.ToDouble(Doors) < 0.0;
+			NewStation.OpenRightDoors = Convert.ToDouble(Doors) > 0.0;
+			NewStation.Stops = new StationStop[1];
+			NewStation.Stops[0].TrackPosition = Statement.Distance;
+			NewStation.Stops[0].BackwardTolerance = Math.Abs(Convert.ToDouble(BackwardTolerance));
+			NewStation.Stops[0].ForwardTolerance = Convert.ToDouble(ForwardTolerance);
+			NewStation.DefaultTrackPosition = DefaultTrackPosition;
+			int StationBlockIndex = RouteData.FindOrAddBlock(DefaultTrackPosition);
+			RouteData.Blocks[StationBlockIndex].StationIndex = CurrentStation;
+
+			int StopBlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
+			RouteData.Blocks[StopBlockIndex].Stop = CurrentStation;
+
+			Array.Resize(ref Plugin.CurrentRoute.Stations, CurrentStation + 1);
+			Plugin.CurrentRoute.Stations[CurrentStation] = NewStation;
+			CurrentStation++;
 		}
 
 		private static void ConvertBackground(Statement Statement, RouteData RouteData)
 		{
+			dynamic d = Statement;
+			string BackgroundKey = Convert.ToString(d.StructureKey);
+			BackgroundKey = BackgroundKey.ToLowerInvariant();
+			
+			if (!RouteData.Backgrounds.ContainsKey(BackgroundKey))
 			{
-				dynamic d = Statement;
-
-				string BackgroundKey = Convert.ToString(d.StructureKey);
-				BackgroundKey = BackgroundKey.ToLowerInvariant();
-
-
-				if (!RouteData.Backgrounds.ContainsKey(BackgroundKey))
+				if (RouteData.Objects.TryGetValue(Convert.ToString(BackgroundKey), out UnifiedObject unifiedObject) && unifiedObject != null)
 				{
-					RouteData.Objects.TryGetValue(Convert.ToString(BackgroundKey), out UnifiedObject Object);
-
-					if (Object != null)
-					{
-						RouteData.Backgrounds.Add(Convert.ToString(BackgroundKey), Object);
-					}
+					RouteData.Backgrounds.Add(Convert.ToString(BackgroundKey), unifiedObject);
 				}
+			}
 
-				if (RouteData.Backgrounds.ContainsKey(BackgroundKey))
-				{
-					RouteData.TryAddBlock(Statement.Distance);
-					RouteData.sortedBlocks[Statement.Distance].Background = BackgroundKey;
-				}
+			if (RouteData.Backgrounds.ContainsKey(BackgroundKey))
+			{
+				RouteData.FindOrAddBlock(Statement.Distance);
+				RouteData.sortedBlocks[Statement.Distance].Background = BackgroundKey;
 			}
 		}
 
 		private static void ConvertFog(Statement Statement, RouteData RouteData)
 		{
+			switch (Statement.FunctionName)
 			{
-				switch (Statement.FunctionName)
-				{
-					case MapFunctionName.Fog:
-						{
-							double Start = Statement.GetArgumentValueAsDouble(ArgumentName.Start);
-							double End = Statement.GetArgumentValueAsDouble(ArgumentName.End);
-							double TempRed, TempGreen, TempBlue;
-							if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out TempRed))
-							{
-								TempRed = 128;
-							}
-							if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out TempGreen))
-							{
-								TempGreen = 128;
-							}
-							if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out TempBlue))
-							{
-								TempBlue = 128;
-							}
-
-							int Red = Convert.ToInt32(TempRed);
-							int Green = Convert.ToInt32(TempGreen);
-							int Blue = Convert.ToInt32(TempBlue);
-							if (Red < 0 || Red > 255)
-							{
-								Red = Red < 0 ? 0 : 255;
-							}
-							if (Green < 0 || Green > 255)
-							{
-								Green = Green < 0 ? 0 : 255;
-							}
-							if (Blue < 0 || Blue > 255)
-							{
-								Blue = Blue < 0 ? 0 : 255;
-							}
-
-							int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
-
-							if (Start > End)
-							{
-								Start = Plugin.CurrentRoute.NoFogStart;
-								End = Plugin.CurrentRoute.NoFogEnd;
-							}
-
-							RouteData.Blocks[BlockIndex].Fog = new Fog((float)Start, (float)End, new Color24((byte)Red, (byte)Green, (byte)Blue), Statement.Distance);
-							RouteData.Blocks[BlockIndex].FogDefined = true;
-						}
-						break;
-					case MapFunctionName.Interpolate:
-					case MapFunctionName.Set:
+				case MapFunctionName.Fog:
+					double Start = Statement.GetArgumentValueAsDouble(ArgumentName.Start);
+					double End = Statement.GetArgumentValueAsDouble(ArgumentName.End);
+					if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out double TempRed))
 					{
-						RouteData.TryAddBlock(Statement.Distance);
-						float Density = 1.0f, r = 1.0f, g = 1.0f, b = 1.0f;
-						if (!Statement.HasArgument(ArgumentName.Red) && !Statement.HasArgument(ArgumentName.Green) && !Statement.HasArgument(ArgumentName.Blue))
+						TempRed = 128;
+					}
+
+					if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out double TempGreen))
+					{
+						TempGreen = 128;
+					}
+
+					if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseDoubleVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out double TempBlue))
+					{
+						TempBlue = 128;
+					}
+
+					int Red = Convert.ToInt32(TempRed);
+					int Green = Convert.ToInt32(TempGreen);
+					int Blue = Convert.ToInt32(TempBlue);
+					if (Red < 0 || Red > 255)
+					{
+						Red = Red < 0 ? 0 : 255;
+					}
+
+					if (Green < 0 || Green > 255)
+					{
+						Green = Green < 0 ? 0 : 255;
+					}
+
+					if (Blue < 0 || Blue > 255)
+					{
+						Blue = Blue < 0 ? 0 : 255;
+					}
+
+					int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
+
+					if (Start > End)
+					{
+						Start = Plugin.CurrentRoute.NoFogStart;
+						End = Plugin.CurrentRoute.NoFogEnd;
+					}
+
+					RouteData.Blocks[BlockIndex].Fog = new Fog((float)Start, (float)End, new Color24((byte)Red, (byte)Green, (byte)Blue), Statement.Distance);
+					RouteData.Blocks[BlockIndex].FogDefined = true;
+				break;
+				case MapFunctionName.Interpolate:
+				case MapFunctionName.Set:
+					RouteData.FindOrAddBlock(Statement.Distance);
+					float Density = 0.0f, r = 1.0f, g = 1.0f, b = 1.0f;
+					if (!Statement.HasArgument(ArgumentName.Red) && !Statement.HasArgument(ArgumentName.Green) &&
+					    !Statement.HasArgument(ArgumentName.Blue))
+					{
+						if (!Statement.HasArgument(ArgumentName.Density))
 						{
-							if (!Statement.HasArgument(ArgumentName.Density))
-							{
-								// Has the same effect as setting the fog value twice, hence no interpolation
-								RouteData.sortedBlocks[Statement.Distance].FogDefined = true;
-								RouteData.sortedBlocks[Statement.Distance].Fog.TrackPosition = Statement.Distance;
-							}
-							else
-							{
-								// Changes the density, but not the color
-								if (!NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Density), out Density))
-								{
-									Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid FogDensity value at track position " + Statement.Distance);
-									break;
-								}
-								RouteData.sortedBlocks[Statement.Distance].FogDefined = true;
-								RouteData.sortedBlocks[Statement.Distance].Fog.TrackPosition = Statement.Distance;
-								RouteData.sortedBlocks[Statement.Distance].Fog.Density = Density;
-							}
+							// Has the same effect as setting the fog value twice, hence no interpolation
+							RouteData.sortedBlocks[Statement.Distance].FogDefined = true;
+							RouteData.sortedBlocks[Statement.Distance].Fog.TrackPosition = Statement.Distance;
 						}
 						else
 						{
+							// Changes the density, but not the color
 							if (!NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Density), out Density))
 							{
-								Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid FogDensity value at track position " + Statement.Distance);
+								Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Invalid FogDensity value at track position " + Statement.Distance);
 								break;
 							}
-							if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out r))
-							{
-								Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid FogColor R value at track position " + Statement.Distance);
-							}
-							if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out g))
-							{
-								Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid FogColor G value at track position " + Statement.Distance);
-							}
-							if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out b))
-							{
-								Plugin.CurrentHost.AddMessage(MessageType.Error, false, "Invalid FogColor B value at track position " + Statement.Distance);
-							}
+
+							RouteData.sortedBlocks[Statement.Distance].FogDefined = true;
+							RouteData.sortedBlocks[Statement.Distance].Fog.TrackPosition = Statement.Distance;
+							RouteData.sortedBlocks[Statement.Distance].Fog.Density = Density;
+						}
+					}
+					else
+					{
+						if (!NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Density), out Density))
+						{
+							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Invalid FogDensity value at track position " + Statement.Distance);
+							break;
 						}
 
-						RouteData.sortedBlocks[Statement.Distance].Fog = new Fog(0, 1, new Color24((byte)(r * 255), (byte)(g * 255), (byte)(b * 255)), Statement.Distance, false, Density);
-						RouteData.sortedBlocks[Statement.Distance].FogDefined = true;
+						if (!Statement.HasArgument(ArgumentName.Red) || !NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Red), out r))
+						{
+							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Invalid FogColor R value at track position " + Statement.Distance);
+						}
+
+						if (!Statement.HasArgument(ArgumentName.Green) || !NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Green), out g))
+						{
+							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Invalid FogColor G value at track position " + Statement.Distance);
+						}
+
+						if (!Statement.HasArgument(ArgumentName.Blue) || !NumberFormats.TryParseFloatVb6(Statement.GetArgumentValueAsString(ArgumentName.Blue), out b))
+						{
+							Plugin.CurrentHost.AddMessage(MessageType.Error, false, "BVE5: Invalid FogColor B value at track position " + Statement.Distance);
+						}
 					}
-					break;
-				}
+
+					RouteData.sortedBlocks[Statement.Distance].Fog = new Fog(0, 1, new Color24((byte)(r * 255), (byte)(g * 255), (byte)(b * 255)), Statement.Distance, false, Density);
+					RouteData.sortedBlocks[Statement.Distance].FogDefined = true;
+				break;
 			}
+
 		}
 
 		private static void ConvertIrregularity(Statement Statement, RouteData RouteData)
 		{
+			double X = !Statement.HasArgument(ArgumentName.X) ? 0.0 : Statement.GetArgumentValueAsDouble(ArgumentName.X);
+
+			double Squaring = 1.0 - 8.0 * (8.0 - Convert.ToDouble(X) * 10000.0);
+			if (Squaring < 0.0)
 			{
-
-
-				double X = !Statement.HasArgument(ArgumentName.X) ? 0.0 : Statement.GetArgumentValueAsDouble(ArgumentName.X);
-
-				double Squaring = 1.0 - 8.0 * (8.0 - Convert.ToDouble(X) * 10000.0);
-				if (Squaring < 0.0)
-				{
-					Squaring = 0.0;
-				}
-				double Accuracy = (-1.0 + Math.Sqrt(Squaring)) / 4.0;
-				if (Accuracy < 0.0 || Accuracy > 4.0)
-				{
-					Accuracy = Accuracy < 0.0 ? 0.0 : 4.0;
-				}
-
-				int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
-				RouteData.Blocks[BlockIndex].Accuracy = Accuracy;
-				RouteData.Blocks[BlockIndex].AccuracyDefined = true;
+				Squaring = 0.0;
 			}
 
-			if (!RouteData.Blocks.Last().AccuracyDefined)
+			double Accuracy = (-1.0 + Math.Sqrt(Squaring)) / 4.0;
+			if (Accuracy < 0.0 || Accuracy > 4.0)
 			{
-				int LastDefinedIndex = -1;
-				if (RouteData.Blocks.Count > 1)
-				{
-					LastDefinedIndex = RouteData.Blocks.FindLastIndex(RouteData.Blocks.Count - 2, RouteData.Blocks.Count - 1, Block => Block.AccuracyDefined);
-				}
-				RouteData.Blocks.Last().Accuracy = LastDefinedIndex != -1 ? RouteData.Blocks[LastDefinedIndex].Accuracy : 2.0;
-				RouteData.Blocks.Last().AccuracyDefined = true;
+				Accuracy = Accuracy < 0.0 ? 0.0 : 4.0;
 			}
+
+			int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
+			RouteData.Blocks[BlockIndex].Accuracy = Accuracy;
+			RouteData.Blocks[BlockIndex].AccuracyDefined = true;
+
+
+			if (RouteData.Blocks.Last().AccuracyDefined)
+			{
+				return;
+			}
+			int LastDefinedIndex = -1;
+			if (RouteData.Blocks.Count > 1)
+			{
+				LastDefinedIndex = RouteData.Blocks.FindLastIndex(RouteData.Blocks.Count - 2, RouteData.Blocks.Count - 1, Block => Block.AccuracyDefined);
+			}
+
+			RouteData.Blocks.Last().Accuracy = LastDefinedIndex != -1 ? RouteData.Blocks[LastDefinedIndex].Accuracy : 2.0;
+			RouteData.Blocks.Last().AccuracyDefined = true;
 		}
 
 		private static void ConvertAdhesion(Statement Statement, RouteData RouteData)
 		{
+
+
+			switch (Statement.GetArgumentNames().Count())
 			{
-
-				switch (Statement.GetArgumentNames().Count())
+				case 1:
 				{
-					case 1:
-						{
-							if (!Statement.HasArgument(ArgumentName.A))
-							{
-								//Invalid number
-								return;
-							}
-							
-							int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
-							//Presumably this is just the adhesion coefficent at 0km/h
-							RouteData.Blocks[BlockIndex].AdhesionMultiplier = (int)(Statement.GetArgumentValueAsDouble(ArgumentName.A) * 100 / 0.26) / 100.0;
-							RouteData.Blocks[BlockIndex].AdhesionMultiplierDefined = true;
-						}
-						break;
-					case 3:
-						{
-							double C0 = Statement.GetArgumentValueAsDouble(ArgumentName.A);
-							double C1 = Statement.GetArgumentValueAsDouble(ArgumentName.B);
-							double C2 = Statement.GetArgumentValueAsDouble(ArgumentName.C);
-							if (C0 != 0.0 && C1 == 0.0 && C2 != 0.0)
-							{
-								int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
-								RouteData.Blocks[BlockIndex].AdhesionMultiplierDefined = true;
+					if (!Statement.HasArgument(ArgumentName.A))
+					{
+						//Invalid number
+						return;
+					}
 
-								if (C0 == 0.35 && C2 == 0.01)
-								{
-									//Default adhesion value of 100
-									RouteData.Blocks[BlockIndex].AdhesionMultiplier = 1;
-									return;
-								}
-
-								int CA = (int)(C0 * 100 / 0.26);
-								double CB = 1.0 / (300 * (CA / 100.0 * 0.259999990463257));
-
-								if (Math.Round(CB, 8) == C2)
-								{
-									//BVE2 / 4 converted value, so let's use that
-									RouteData.Blocks[BlockIndex].AdhesionMultiplier = CA / 100.0;
-									return;
-								}
-
-								//They don't match.....
-								//Use an average of the two to get something reasonable
-								//TODO: Implement adhesion based upon speed formula
-								RouteData.Blocks[BlockIndex].AdhesionMultiplier = (CA + CB) / 2 / 100;
-							}
-						}
-						break;
+					int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
+					//Presumably this is just the adhesion coefficient at 0km/h
+					RouteData.Blocks[BlockIndex].AdhesionMultiplier = (int)(Statement.GetArgumentValueAsDouble(ArgumentName.A) * 100 / 0.26) / 100.0;
+					RouteData.Blocks[BlockIndex].AdhesionMultiplierDefined = true;
 				}
+				break;
+				case 3:
+				{
+					double C0 = Statement.GetArgumentValueAsDouble(ArgumentName.A);
+					double C1 = Statement.GetArgumentValueAsDouble(ArgumentName.B);
+					double C2 = Statement.GetArgumentValueAsDouble(ArgumentName.C);
+					if (C0 != 0.0 && C1 == 0.0 && C2 != 0.0)
+					{
+						int BlockIndex = RouteData.FindOrAddBlock(Statement.Distance);
+						RouteData.Blocks[BlockIndex].AdhesionMultiplierDefined = true;
+
+						if (C0 == 0.35 && C2 == 0.01)
+						{
+							//Default adhesion value of 100
+							RouteData.Blocks[BlockIndex].AdhesionMultiplier = 1;
+							return;
+						}
+
+						int CA = (int)(C0 * 100 / 0.26);
+						double CB = 1.0 / (300 * (CA / 100.0 * 0.259999990463257));
+
+						if (Math.Round(CB, 8) == C2)
+						{
+							//BVE2 / 4 converted value, so let's use that
+							RouteData.Blocks[BlockIndex].AdhesionMultiplier = CA / 100.0;
+							return;
+						}
+
+						//They don't match.....
+						//Use an average of the two to get something reasonable
+						//TODO: Implement adhesion based upon speed formula
+						RouteData.Blocks[BlockIndex].AdhesionMultiplier = (CA + CB) / 2 / 100;
+					}
+				} 
+				break;
 			}
 
-			if (!RouteData.Blocks.Last().AdhesionMultiplierDefined)
+			if (RouteData.Blocks.Last().AdhesionMultiplierDefined)
 			{
-				int LastDefinedIndex = -1;
-				if (RouteData.Blocks.Count > 1)
-				{
-					LastDefinedIndex = RouteData.Blocks.FindLastIndex(RouteData.Blocks.Count - 2, RouteData.Blocks.Count - 1, Block => Block.AdhesionMultiplierDefined);
-				}
-				RouteData.Blocks.Last().AdhesionMultiplier = LastDefinedIndex != -1 ? RouteData.Blocks[LastDefinedIndex].AdhesionMultiplier : 1.0;
-				RouteData.Blocks.Last().AdhesionMultiplierDefined = true;
+				return;
 			}
+			int LastDefinedIndex = -1;
+			if (RouteData.Blocks.Count > 1)
+			{
+				LastDefinedIndex = RouteData.Blocks.FindLastIndex(RouteData.Blocks.Count - 2, RouteData.Blocks.Count - 1, Block => Block.AdhesionMultiplierDefined);
+			}
+			RouteData.Blocks.Last().AdhesionMultiplier = LastDefinedIndex != -1 ? RouteData.Blocks[LastDefinedIndex].AdhesionMultiplier : 1.0;
+			RouteData.Blocks.Last().AdhesionMultiplierDefined = true;
 		}
 
 		private static void ConvertJointNoise(Statement Statement, RouteData RouteData)

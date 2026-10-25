@@ -275,6 +275,15 @@ namespace TrainEditor2.Views
 
 			app.SelectedItem
 				.BindTo(
+					tabPageParticleSource,
+					x => x.Enabled,
+					BindingMode.OneWay,
+					x => app.SelectedItem?.Value?.Model?.Tag is ParticleSource
+				)
+				.AddTo(disposable);
+
+			app.SelectedItem
+				.BindTo(
 					tabPageCar,
 					x => x.Enabled,
 					BindingMode.OneWay,
@@ -430,9 +439,11 @@ namespace TrainEditor2.Views
 
 			new[] { app.UpCar, app.UpCoupler }.BindToButton(buttonCarsUp).AddTo(disposable);
 			new[] { app.DownCar, app.DownCoupler }.BindToButton(buttonCarsDown).AddTo(disposable);
-			app.AddCar.BindToButton(buttonCarsAdd).AddTo(disposable);
+			new[] { app.AddParticleSource, app.AddCar }.BindToButton(buttonCarsAdd).AddTo(disposable);
+			new[] { app.RemoveParticleSource, app.RemoveCar }.BindToButton(buttonCarsRemove).AddTo(disposable);
+
 			app.CopyCar.BindToButton(buttonCarsCopy).AddTo(disposable);
-			app.RemoveCar.BindToButton(buttonCarsRemove).AddTo(disposable);
+			
 
 			app.ChangeCarClass.BindToCheckBox(checkBoxIsMotorCar).AddTo(disposable);
 
@@ -786,11 +797,9 @@ namespace TrainEditor2.Views
 
 		private void GlControlMotor_Paint(object sender, PaintEventArgs e)
 		{
-			MotorCarViewModel car = app.Train.Value.SelectedCar.Value as MotorCarViewModel;
-
 			glControlMotor.MakeCurrent();
 
-			if (car != null)
+			if (app.Train.Value.SelectedCar.Value is MotorCarViewModel car)
 			{
 				car.Motor.Value.DrawGlControl.Execute();
 			}

@@ -3,7 +3,6 @@ using OpenBveApi.Math;
 using OpenBveApi.Routes;
 using OpenBveApi.Sounds;
 using OpenBveApi.Trains;
-using OpenBveApi.World;
 
 namespace OpenBveApi.Objects
 {
@@ -28,11 +27,6 @@ namespace OpenBveApi.Objects
 		public AnimationScript VolumeFunction;
 		/// <summary>The function script controlling the sound's pitch, or a null reference</summary>
 		public AnimationScript PitchFunction;
-
-		/// <inheritdoc/>
-		/// <remarks>In this case, the position of the track follower is returned.</remarks>
-		public override double RelativeTrackPosition => Follower.TrackPosition;
-
 		/// <summary>Creates a new WorldSound</summary>
 		public WorldSound(Hosts.HostInterface Host, SoundHandle buffer) : base(Host)
 		{
@@ -54,11 +48,9 @@ namespace OpenBveApi.Objects
 
 		/// <summary>Creates the animated object within the game world</summary>
 		/// <param name="position">The absolute position</param>
-		/// <param name="WorldTransformation">The world transformation to apply (e.g. ground, rail)</param>
-		/// <param name="LocalTransformation">The local transformation to apply in order to rotate the model</param>
 		/// <param name="SectionIndex">The index of the section if placed using a SigF command</param>
 		/// <param name="trackPosition">The absolute track position</param>
-		public void CreateSound(Vector3 position, Transformation WorldTransformation, Transformation LocalTransformation, int SectionIndex, double trackPosition)
+		public void CreateSound(Vector3 position, int SectionIndex, double trackPosition)
 		{
 			int a = currentHost.AnimatedWorldObjectsUsed;
 			WorldSound snd = (WorldSound)Clone();

@@ -42,11 +42,13 @@ namespace OpenBveApi.Objects
 		/// <summary>The time since the last update of this object</summary>
 		public double SecondsSinceLastUpdate;
 		/// <summary>Contains the list of animations contained within this object</summary>
-		public Dictionary<string, KeyframeAnimation> Animations;
+		public Dictionary<int, KeyframeAnimation> Animations;
 		/// <summary>The objects within this object</summary>
 		public ObjectState[] Objects;
-		/// <summary>The keyframe matricies to be sent to the shader</summary>
-		public KeyframeMatrix[] Matricies;
+		/// <summary>The keyframe matrices to be sent to the shader</summary>
+		public KeyframeMatrix[] Matrices;
+		/// <summary>Whether the object is an interior object</summary>
+		public bool IsInterior;
 		/// <summary>The pivots</summary>
 		public Dictionary<string, PivotPoint> Pivots = new Dictionary<string, PivotPoint>();
 		/// <summary>Holds a reference to the car if appropriate</summary>
@@ -59,6 +61,8 @@ namespace OpenBveApi.Objects
 		internal Vector3 rearAxlePosition;
 		/// <summary>The current absolute track position of the car</summary>
 		internal double currentTrackPosition;
+		/// <summary>Whether the object is reversed</summary>
+		internal bool IsReversed;
 
 		/// <summary>Creates an empty KeyFrameAnimatedObject</summary>
 		/// <param name="currentHost">The host application interface</param>
@@ -67,19 +71,25 @@ namespace OpenBveApi.Objects
 			this.currentHost = currentHost;
 			RefreshRate = 0;
 			SecondsSinceLastUpdate = 0;
-			Matricies = new KeyframeMatrix[0];
-			Animations = new Dictionary<string, KeyframeAnimation>();
+			Matrices = Array.Empty<KeyframeMatrix>();
+			Animations = new Dictionary<int, KeyframeAnimation>();
 			trackFollower = new TrackFollower(currentHost);
 		}
 
 		/// <inheritdoc />
-		public override void CreateObject(Vector3 position, Transformation worldTransformation, Transformation localTransformation, int sectionIndex, double startingDistance, double endingDistance, double trackPosition, double brightness, bool duplicateMaterials = false)
+		public override void CreateObject(Vector3 position, Transformation worldTransformation, Transformation localTransformation, ObjectCreationParameters parameters)
 		{
+			// Update animations
+			for (int i = 0; i < Animations.Count; i++)
+			{
+				int key = Animations.ElementAt(i).Key;
+				Animations[key].Update(null, IsReversed, position, parameters.TrackPosition, 0); // current state not applicable, no hand-crafted functions
+			}
 			Transformation finalTransformation = new Transformation(localTransformation, worldTransformation);
-			Matrix4D[] matriciesToShader = new Matrix4D[Matricies.Length];
+			Matrix4D[] matriciesToShader = new Matrix4D[Matrices.Length];
 			for (int i = 0; i < matriciesToShader.Length; i++)
 			{
-				matriciesToShader[i] = Matricies[i].Matrix;
+				matriciesToShader[i] = Matrices[i].Matrix;
 			}
 
 			for (int i = 0; i < Objects.Length; i++)
@@ -91,7 +101,6 @@ namespace OpenBveApi.Objects
 				Objects[i].WorldPosition = position;
 				Objects[i].Rotate = Matrix4D.NoTransformation;
 				Objects[i].Translation = Matrix4D.NoTransformation;
-				currentHost.ShowObject(Objects[i], ObjectType.Dynamic);
 				Objects[i].Matricies = matriciesToShader;
 			}
 			int a = currentHost.AnimatedWorldObjectsUsed;
@@ -102,7 +111,7 @@ namespace OpenBveApi.Objects
 				Direction = finalTransformation.Z,
 				Up = finalTransformation.Y,
 				Side = finalTransformation.X,
-				TrackPosition = trackPosition
+				TrackPosition = parameters.TrackPosition
 			};
 			currentHost.AnimatedWorldObjects[a] = currentObject;
 			currentHost.AnimatedWorldObjectsUsed++;
@@ -125,10 +134,10 @@ namespace OpenBveApi.Objects
 				clonedObject.Objects[i] = (ObjectState)Objects[i].Clone();
 			}
 
-			clonedObject.Matricies = new KeyframeMatrix[Matricies.Length];
-			for (int i = 0; i < Matricies.Length; i++)
+			clonedObject.Matrices = new KeyframeMatrix[Matrices.Length];
+			for (int i = 0; i < Matrices.Length; i++)
 			{
-				clonedObject.Matricies[i] = new KeyframeMatrix(clonedObject, Matricies[i].Name, Matricies[i]._matrix);
+				clonedObject.Matrices[i] = new KeyframeMatrix(clonedObject, Matrices[i].Index, Matrices[i].Name, Matrices[i]._matrix);
 			}
 
 			for (int i = 0; i < Animations.Count; i++)
@@ -157,13 +166,13 @@ namespace OpenBveApi.Objects
 		}
 
 		/// <inheritdoc />
-		public override UnifiedObject TransformLeft(double nearDistance, double farDistance)
+		public override UnifiedObject TransformLeft(double nearDistance, double farDistance, bool FlipFaces = false)
 		{
 			throw new NotSupportedException("Cannot transform a KeyframeObject");
 		}
 
 		/// <inheritdoc />
-		public override UnifiedObject TransformRight(double nearDistance, double farDistance)
+		public override UnifiedObject TransformRight(double nearDistance, double farDistance, bool FlipFaces = false)
 		{
 			throw new NotSupportedException("Cannot transform a KeyframeObject");
 		}
@@ -174,12 +183,10 @@ namespace OpenBveApi.Objects
 		/// <param name="direction"></param>
 		/// <param name="up"></param>
 		/// <param name="side"></param>
-		/// <param name="show"></param>
 		/// <param name="timeElapsed">The time elapsed since this object was last updated</param>
-		/// <param name="enableDamping">Whether damping is to be applied for this call</param>
 		/// <param name="isTouch">Whether Animated Object belonging to TouchElement class.</param>
 		/// <param name="camera"></param>
-		public void Update(double trackPosition, Vector3 position, Vector3 direction, Vector3 up, Vector3 side, bool show, double timeElapsed, bool enableDamping, bool isTouch = false, dynamic camera = null)
+		public void Update(double trackPosition, Vector3 position, Vector3 direction, Vector3 up, Vector3 side, double timeElapsed, bool isTouch = false, dynamic camera = null)
 		{
 			if (BaseCar != null)
 			{
@@ -193,13 +200,13 @@ namespace OpenBveApi.Objects
 			// Update animations
 			for (int i = 0; i < Animations.Count; i++)
 			{
-				string key = Animations.ElementAt(i).Key;
-				Animations[key].Update(BaseCar, position, trackPosition, -1, BaseCar != null, timeElapsed); // current state not applicable, no hand-crafted functions
+				int key = Animations.ElementAt(i).Key;
+				Animations[key].Update(BaseCar, IsReversed, position, trackPosition, timeElapsed); // current state not applicable, no hand-crafted functions
 			}
-			Matrix4D[] matriciesToShader = new Matrix4D[Matricies.Length];
+			Matrix4D[] matriciesToShader = new Matrix4D[Matrices.Length];
 			for (int i = 0; i < matriciesToShader.Length; i++)
 			{
-				matriciesToShader[i] = Matricies[i].Matrix;
+				matriciesToShader[i] = Matrices[i].Matrix;
 			}
 			for (int i = 0; i < Objects.Length; i++)
 			{
@@ -210,6 +217,11 @@ namespace OpenBveApi.Objects
 				Objects[i].Matricies = matriciesToShader;
 				Objects[i].Translation = Matrix4D.CreateTranslation(position.X, position.Y, -position.Z);
 				Objects[i].Rotate = (Matrix4D)new Transformation(direction, up, side);
+				if (IsReversed)
+				{
+					Objects[i].Rotate *= Matrix4D.ZFlip;
+				}
+				
 				currentHost.ShowObject(Objects[i], ObjectType.Dynamic);
 			}
 		}
@@ -217,18 +229,43 @@ namespace OpenBveApi.Objects
 		/// <summary>Reverses the object</summary>
 		public void Reverse()
 		{
-			foreach (ObjectState state in Objects)
+			IsReversed = true;
+
+		}
+
+		/// <summary>Converts the KeyframeAnimatedObject to a static object</summary>
+		/// <remarks>This will set all animation positions to Frame 0</remarks>
+        public static implicit operator StaticObject(KeyframeAnimatedObject keyframeAnimatedObject)
+		{
+			Matrix4D[] matricies = new Matrix4D[keyframeAnimatedObject.Matrices.Length];
+			for (int i = 0; i < keyframeAnimatedObject.Animations.Count; i++)
 			{
-				if (state.Prototype == null)
-				{
-					continue;
-				}
-				state.Prototype = (StaticObject)state.Prototype.Clone();
-				state.Prototype.ApplyScale(-1.0, 1.0, -1.0);
-				Matrix4D t = state.Translation;
-				t.Row3.X *= -1.0f;
-				t.Row3.Z *= -1.0f;
-				state.Translation = t;
+				int key = keyframeAnimatedObject.Animations.ElementAt(i).Key;
+				keyframeAnimatedObject.Animations[key].Update(null, keyframeAnimatedObject.IsReversed, Vector3.Zero, 0, 0.0); // current state not applicable, no hand-crafted functions
+			}
+
+			for (int i = 0; i < matricies.Length; i++)
+			{
+				matricies[i] = keyframeAnimatedObject.Matrices[i].Matrix;
+			}
+			StaticObject staticObject = new StaticObject(keyframeAnimatedObject.currentHost);
+			for (int i = 0; i < keyframeAnimatedObject.Objects.Length; i++)
+			{
+				staticObject.JoinObjects(keyframeAnimatedObject.Objects[i].Prototype, matricies);
+			}
+			return staticObject;
+		}
+
+		/// <inheritdoc />
+		public override void ApplyTranslation(Vector3 translationVector, bool absoluteTranslation = false)
+		{
+			if (absoluteTranslation)
+			{
+				Matrices[0]._matrix.Row3.Xyz = translationVector;
+			}
+			else
+			{
+				Matrices[0]._matrix.Row3.Xyz += translationVector;
 			}
 		}
 	}

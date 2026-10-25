@@ -1,4 +1,6 @@
+using OpenBveApi.Routes;
 using System;
+using System.Collections.Generic;
 
 namespace OpenBveApi.Trains
 {
@@ -26,7 +28,7 @@ namespace OpenBveApi.Trains
 		/// <summary>The speed limit of the signalling section the train is currently in</summary>
 		/// <remarks>Default units are km/h</remarks>
 		public double CurrentSectionLimit;
-		/// <summary>The route speed limts</summary>
+		/// <summary>The route speed limits</summary>
 		public double[] RouteLimits;
 		/// <summary>The current route limit in effect</summary>
 		/// <remarks>Units are m/s</remarks>
@@ -60,6 +62,12 @@ namespace OpenBveApi.Trains
 
 		/// <summary>Gets the length of the train</summary>
 		public virtual double Length => 0;
+
+		/// <summary>Returns the available power supplies to this train</summary>
+		public virtual Dictionary<PowerSupplyTypes, PowerSupply> AvailablePowerSupplies => new Dictionary<PowerSupplyTypes, PowerSupply>();
+
+		/// <summary>Gets the current signal aspect applicable to the train</summary>
+		public virtual int CurrentSignalAspect => 0;
 
 		/// <summary>Updates the train</summary>
 		/// <param name="TimeElapsed">The time elapsed since the last call to update</param>
@@ -115,7 +123,7 @@ namespace OpenBveApi.Trains
 
 		}
 
-		/// <summary>Updates the safety systems on this train with data recieved from a beacon</summary>
+		/// <summary>Updates the safety systems on this train with data received from a beacon</summary>
 		public virtual void UpdateBeacon(int transponderType, int sectionIndex, int optional)
 		{
 

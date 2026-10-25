@@ -26,12 +26,28 @@ namespace CsvRwRouteParser
 			Roll = roll;
 		}
 
+		internal void CreateRailAligned(ObjectDictionary FreeObjects, Vector3 WorldPosition, Transformation RailTransformation, double StartingDistance, double EndingDistance)
+		{
+			double dz = TrackPositionOverride - StartingDistance;
+			WorldPosition += Position.X * RailTransformation.X + Position.Y * RailTransformation.Y + dz * RailTransformation.Z;
+			FreeObjects.TryGetValue(Type, out UnifiedObject obj);
+			obj?.CreateObject(WorldPosition, RailTransformation, new Transformation(Yaw, Pitch, Roll), new ObjectCreationParameters(TrackPositionOverride, StartingDistance, EndingDistance));
+		}
+
+		internal void CreateRailAligned(ObjectDictionary FreeObjects, double TrackPositionOverride, Vector3 WorldPosition, Transformation RailTransformation, double StartingDistance, double EndingDistance)
+		{
+			double dz = TrackPositionOverride - StartingDistance;
+			WorldPosition += Position.X * RailTransformation.X + Position.Y * RailTransformation.Y + dz * RailTransformation.Z;
+			FreeObjects.TryGetValue(Type, out UnifiedObject obj);
+			obj?.CreateObject(WorldPosition, RailTransformation, new Transformation(Yaw, Pitch, Roll), new ObjectCreationParameters(TrackPositionOverride, StartingDistance, EndingDistance));
+		}
+
 		internal Vector3 CreateRailAligned(ObjectDictionary FreeObjects, Vector3 WorldPosition, Transformation RailTransformation, double StartingDistance, double EndingDistance)
 		{
 			double dz = TrackPosition - StartingDistance;
 			WorldPosition += Position.X * RailTransformation.X + Position.Y * RailTransformation.Y + dz * RailTransformation.Z;
 			FreeObjects.TryGetValue(Type, out UnifiedObject obj);
-			obj?.CreateObject(WorldPosition, RailTransformation, new Transformation(Yaw, Pitch, Roll), StartingDistance, EndingDistance, TrackPosition);
+			obj?.CreateObject(WorldPosition, RailTransformation, new Transformation(Yaw, Pitch, Roll), new ObjectCreationParameters(TrackPosition, StartingDistance, EndingDistance));
 			return WorldPosition;
 		}
 
@@ -40,7 +56,7 @@ namespace CsvRwRouteParser
 			double d = TrackPosition - StartingDistance;
 			Vector3 wpos = WorldPosition + new Vector3(Direction.X * d + Direction.Y * Position.X, Position.Y - Height, Direction.Y * d - Direction.X * Position.X);
 			FreeObjects.TryGetValue(Type, out UnifiedObject obj);
-			obj?.CreateObject(wpos, GroundTransformation, new Transformation(Yaw, Pitch, Roll), StartingDistance, EndingDistance, TrackPosition);
+			obj?.CreateObject(wpos, GroundTransformation, new Transformation(Yaw, Pitch, Roll), new ObjectCreationParameters(TrackPosition, StartingDistance, EndingDistance));
 		}
 	}
 }

@@ -10,8 +10,6 @@ namespace OpenBveApi {
 	/// <summary>Provides path-related functions for accessing files and directories in a cross-platform manner.</summary>
 	public static partial class Path {
 		
-		// --- read-only fields ---
-		
 		/// <summary>The list of characters that are invalid in platform-independent relative paths.</summary>
 		private static readonly char[] InvalidPathChars = { ':', '*', '?', '"', '<', '>', '|' };
 		
@@ -130,6 +128,10 @@ namespace OpenBveApi {
 		/// <returns>Whether the operation succeeded and the specified file was found.</returns>
 		/// <exception cref="System.Exception">Raised when combining the paths failed, for example due to malformed paths or due to unauthorized access.</exception>
 		public static string CombineFile(string absolute, string relative) {
+			if (System.IO.Path.IsPathRooted(relative) && char.IsLetter(relative[0]))
+			{
+				throw new ArgumentException("The relative path must not be rooted.");
+			}
 			if (string.IsNullOrEmpty(absolute))
 			{
 				throw new ArgumentException("The absolute path was empty.");
@@ -278,7 +280,7 @@ namespace OpenBveApi {
 			{
 				if (Expression.IndexOfAny(InvalidPathChars) != -1)
 				{
-					// Check our platform independant list first
+					// Check our platform independent list first
 					return true;
 				}
 			}
@@ -368,6 +370,12 @@ namespace OpenBveApi {
 		 * Provide easy mirrors to the System.IO.Path functions
 		 */
 
+		/// <summary>Combines two strings into a path</summary>
+		public static string Combine(string path1, string path2)
+		{
+			return System.IO.Path.Combine(path1, path2);
+		}
+
 		/// <summary>Returns the directory information for the specified path string</summary>
 		/// <param name="path">The path string</param>
 		public static string GetDirectoryName(string path)
@@ -375,18 +383,33 @@ namespace OpenBveApi {
 			return System.IO.Path.GetDirectoryName(path);
 		}
 
-		/// <summary>Returns the file name and extension for the specificed path string</summary>
+		/// <summary>Returns the file name and extension for the specified path string</summary>
 		/// <param name="path">The path string</param>
 		public static string GetFileName(string path)
 		{
 			return System.IO.Path.GetFileName(path);
 		}
 
-		/// <summary>Returns the file name for the specificed path string</summary>
+		/// <summary>Returns the file name for the specified path string</summary>
 		/// <param name="path">The path string</param>
 		public static string GetFileNameWithoutExtension(string path)
 		{
 			return System.IO.Path.GetFileNameWithoutExtension(path);
+		}
+
+		/// <summary>Determines whether a path contains a filename extension</summary>
+		/// <param name="path">The path string</param>
+		public static bool HasExtension(string path)
+		{
+			return System.IO.Path.HasExtension(path);
+		}
+
+		/// <summary>Gets a value containing whether the specified path string contains a root</summary>
+		/// <param name="path"></param>
+		/// <returns></returns>
+		public static bool IsPathRooted(string path)
+		{
+			return System.IO.Path.IsPathRooted(path);
 		}
 	}
 }

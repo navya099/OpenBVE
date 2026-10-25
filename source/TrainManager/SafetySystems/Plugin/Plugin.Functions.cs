@@ -1,4 +1,6 @@
-﻿using System;
+#pragma warning disable CS0618 // Type or member is obsolete
+
+using System;
 using System.Reflection;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
@@ -142,7 +144,7 @@ namespace TrainManager.Trains
 
 			bool hasLocoBrake = Handles.HasLocoBrake;
 			int cars = Cars.Length;
-			return new VehicleSpecs(powerNotches, brakeType, brakeNotches, hasHoldBrake, hasLocoBrake, cars, SafetySystems.Headlights.NumberOfStates);
+			return new VehicleSpecs(powerNotches, brakeType, brakeNotches, hasHoldBrake, hasLocoBrake, cars, SafetySystems.Headlights?.NumberOfStates ?? 0);
 		}
 
 		/// <summary>Loads the specified plugin for the specified train.</summary>
@@ -222,6 +224,15 @@ namespace TrainManager.Trains
 
 				foreach (Type type in types)
 				{
+					/*
+					 * NOTE: This originally used:
+					 * --------------------------
+					 * IRuntime api = assembly.CreateInstance(type.FullName) as IRuntime;
+					 * --------------------------
+					 * This seems to fail when loading multiple copies of the some plugins
+					 * I don't see why, both should do exactly the same thing :/
+					 */
+
 					// IRawRuntime first as IRuntime is assignable from it
 					if (typeof(IRawRuntime).IsAssignableFrom(type))
 					{
@@ -230,7 +241,7 @@ namespace TrainManager.Trains
 							//Should never happen, but static code inspection suggests that it's possible....
 							throw new InvalidOperationException();
 						}
-						IRawRuntime api = assembly.CreateInstance(type.FullName) as IRawRuntime;
+						IRawRuntime api = Activator.CreateInstance(type) as IRawRuntime;
 						Plugin = new NetPlugin(pluginFile, trainFolder, api, this);
 						if (Plugin.Load(GetVehicleSpecs(), mode))
 						{
@@ -246,7 +257,7 @@ namespace TrainManager.Trains
 							//Should never happen, but static code inspection suggests that it's possible....
 							throw new InvalidOperationException();
 						}
-						IRuntime api = assembly.CreateInstance(type.FullName) as IRuntime;
+						IRuntime api = Activator.CreateInstance(type) as IRuntime;
 						Plugin = new NetPlugin(pluginFile, trainFolder, api, this);
 						if (Plugin.Load(GetVehicleSpecs(), mode))
 						{

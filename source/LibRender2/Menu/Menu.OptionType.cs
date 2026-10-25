@@ -1,4 +1,4 @@
-﻿//Simplified BSD License (BSD-2-Clause)
+//Simplified BSD License (BSD-2-Clause)
 //
 //Copyright (c) 2024, Maurizo M. Gavioli, The OpenBVE Project
 //
@@ -42,6 +42,12 @@ namespace LibRender2.Menu
 		/// <summary>Sets the UI scale factor</summary>
 		UIScaleFactor,
 		/// <summary>Sets the total number of valid sounds</summary>
-		NumberOfSounds
+		NumberOfSounds,
+		/// <summary>Sets whether to automatically reload the current objects</summary>
+		AutoReloadObjects,
+		/// <summary>Sets the shadow quality</summary>
+		ShadowQuality,
+		/// <summary>Sets whether shadow casters are filtered per cascade</summary>
+		ShadowFilterCascades
 	}
 }

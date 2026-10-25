@@ -17,61 +17,6 @@ namespace CsvRwRouteParser
 	 */
 	internal partial class Parser
 	{
-		/// <summary>Sets the brightness value for the specified track position</summary>
-		/// <param name="Data">The route data (Accessed via 'ref') which we wish to query the brightness value from</param>
-		/// <param name="TrackPosition">The track position to get the brightness value for</param>
-		/// <returns>The brightness value</returns>
-		private double GetBrightness(ref RouteData Data, double TrackPosition)
-		{
-			double tMin = double.PositiveInfinity;
-			double tMax = double.NegativeInfinity;
-			double bMin = 1.0, bMax = 1.0;
-			for (int i = 0; i < Data.Blocks.Count; i++)
-			{
-				for (int j = 0; j < Data.Blocks[i].BrightnessChanges.Length; j++)
-				{
-					if (Data.Blocks[i].BrightnessChanges[j].TrackPosition <= TrackPosition)
-					{
-						tMin = Data.Blocks[i].BrightnessChanges[j].TrackPosition;
-						bMin = Data.Blocks[i].BrightnessChanges[j].Value;
-					}
-				}
-			}
-			for (int i = Data.Blocks.Count - 1; i >= 0; i--)
-			{
-				for (int j = Data.Blocks[i].BrightnessChanges.Length - 1; j >= 0; j--)
-				{
-					if (Data.Blocks[i].BrightnessChanges[j].TrackPosition >= TrackPosition)
-					{
-						tMax = Data.Blocks[i].BrightnessChanges[j].TrackPosition;
-						bMax = Data.Blocks[i].BrightnessChanges[j].Value;
-					}
-				}
-			}
-			if (tMin == double.PositiveInfinity && tMax == double.NegativeInfinity)
-			{
-				return 1.0;
-			}
-
-			if (tMin == double.PositiveInfinity)
-			{
-				return (bMax - 1.0) * TrackPosition / tMax + 1.0;
-			}
-
-			if (tMax == double.NegativeInfinity)
-			{
-				return bMin;
-			}
-
-			if (tMin == tMax)
-			{
-				return 0.5 * (bMin + bMax);
-			}
-
-			double n = (TrackPosition - tMin) / (tMax - tMin);
-			return (1.0 - n) * bMin + n * bMax;
-		}
-
 		/// <summary>Loads all BVE4 signal or glow textures (Non animated file)</summary>
 		/// <param name="BaseFile">The base file.</param>
 		/// <param name="IsGlowTexture">Whether to load glow textures. If false, black is the transparent color. If true, the texture is edited according to the CSV route documentation.</param>
@@ -133,7 +78,7 @@ namespace CsvRwRouteParser
 												{
 													texture.InvertLightness();
 												}
-												Plugin.CurrentHost.RegisterTexture(texture, new TextureParameters(null, null), out Textures[j]);
+												Plugin.CurrentHost.RegisterTexture(texture, TextureParameters.NoChange, out Textures[j]);
 											}
 										}
 										else
@@ -169,7 +114,7 @@ namespace CsvRwRouteParser
 				if (i >= 1) {
 					if (int.TryParse(Expression.Substring(0, i), NumberStyles.Integer, Culture, out int h)) {
 						int n = Expression.Length - i - 1;
-						if (n == 1 | n == 2) {
+						if (n == 1 || n == 2) {
 							if (uint.TryParse(Expression.Substring(i + 1, n), NumberStyles.None, Culture, out uint m)) {
 								Value = 3600.0 * h + 60.0 * m;
 								return true;
@@ -232,23 +177,31 @@ namespace CsvRwRouteParser
 
 		private string[] SplitArguments(string ArgumentSequence)
 		{
+			char separator = Data.FileFormat == RoutefileFormat.RW ? ',' : ';';
+
+			if (Data.FileFormat == RoutefileFormat.RW)
+			{
+				int semiColon = ArgumentSequence.IndexOf(';');
+				if (semiColon != -1)
+				{
+					ArgumentSequence = ArgumentSequence.Substring(0, semiColon);
+				}
+			}
+
 			string[] Arguments;
 			{
 				int n = 0;
 				for (int k = 0; k < ArgumentSequence.Length; k++) {
-					if (IsRW && ArgumentSequence[k] == ',') {
-						n++;
-					} else if (ArgumentSequence[k] == ';') {
+					if (ArgumentSequence[k] == separator) 
+					{
 						n++;
 					}
 				}
 				Arguments = new string[n + 1];
 				int a = 0, h = 0;
 				for (int k = 0; k < ArgumentSequence.Length; k++) {
-					if (IsRW && ArgumentSequence[k] == ',') {
-						Arguments[h] = ArgumentSequence.Substring(a, k - a).Trim();
-						a = k + 1; h++;
-					} else if (ArgumentSequence[k] == ';') {
+					if (ArgumentSequence[k] == separator) 
+					{
 						Arguments[h] = ArgumentSequence.Substring(a, k - a).Trim();
 						a = k + 1; h++;
 					}

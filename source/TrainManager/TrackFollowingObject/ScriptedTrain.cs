@@ -1,6 +1,8 @@
 ﻿using System;
 using LibRender2.Trains;
 using OpenBveApi.Trains;
+using TrainManager.Car;
+using TrainManager.Handles;
 using TrainManager.SafetySystems;
 
 namespace TrainManager.Trains
@@ -21,6 +23,7 @@ namespace TrainManager.Trains
 		public ScriptedTrain(TrainState state) : base(state, TrainType.ScriptedTrain)
 		{
 			SafetySystems.PassAlarm = new PassAlarm(PassAlarmType.None, null);
+			Handles.Reverser = new ReverserHandle(this);
 		}
 
 		/// <summary>Disposes of the train</summary>
@@ -30,9 +33,6 @@ namespace TrainManager.Trains
 			for (int i = 0; i < Cars.Length; i++)
 			{
 				Cars[i].ChangeCarSection(CarSectionType.NotVisible);
-				Cars[i].FrontBogie.ChangeSection(-1);
-				Cars[i].RearBogie.ChangeSection(-1);
-				Cars[i].Coupler.ChangeSection(-1);
 			}
 			TrainManagerBase.currentHost.StopAllSounds(this);
 		}
@@ -56,15 +56,9 @@ namespace TrainManager.Trains
 					State = TrainState.Available;
 					for (int i = 0; i < Cars.Length; i++)
 					{
-						if (Cars[i].CarSections.Length != 0)
-						{
-							Cars[i].ChangeCarSection(CarSectionType.Exterior);
-						}
-						Cars[i].FrontBogie.ChangeSection(0);
-						Cars[i].RearBogie.ChangeSection(0);
-						Cars[i].Coupler.ChangeSection(0);
+						Cars[i].ChangeCarSection(CarSectionType.Exterior);
 
-						if (Cars[i].Specs.IsMotorCar && Cars[i].Sounds.Loop != null)
+						if (Cars[i].TractionModel.ProvidesPower && Cars[i].Sounds.Loop != null)
 						{
 							Cars[i].Sounds.Loop.Play(Cars[i], true);
 						}
@@ -101,17 +95,14 @@ namespace TrainManager.Trains
 						//DNB then must equal the smaller of the cab brightness value & the dynamic brightness value
 						dnb = (byte)Math.Min(TrainManagerBase.Renderer.Lighting.DynamicCabBrightness, ccb);
 					}
-					int cs = Cars[i].CurrentCarSection;
-					if (cs >= 0 && cs < Cars[i].CarSections.Length)
+					
+					if (Cars[i].CarSections.TryGetValue(Cars[i].CurrentCarSection, out CarSection currentCarSection) && currentCarSection.Groups.Length > 0)
 					{
-						if (Cars[i].CarSections[cs].Groups.Length > 0)
+						for (int k = 0; k < currentCarSection.Groups[0].Elements.Length; k++)
 						{
-							for (int k = 0; k < Cars[i].CarSections[cs].Groups[0].Elements.Length; k++)
+							if (currentCarSection.Groups[0].Elements[k].internalObject != null)
 							{
-								if (Cars[i].CarSections[cs].Groups[0].Elements[k].internalObject != null)
-								{
-									Cars[i].CarSections[cs].Groups[0].Elements[k].internalObject.DaytimeNighttimeBlend = dnb;
-								}
+								currentCarSection.Groups[0].Elements[k].internalObject.DaytimeNighttimeBlend = dnb;
 							}
 						}
 					}
@@ -138,15 +129,22 @@ namespace TrainManager.Trains
 				return;
 			}
 
+			if (Type == TrainType.PreTrain)
+			{
+				UpdateStation(TimeElapsed);
+			}
 			// update station and doors
 			UpdateDoors(TimeElapsed);
 
 			// Update Run and Motor sounds
-			foreach (var Car in Cars)
+			foreach (CarBase Car in Cars)
 			{
 				Car.Run.Update(TimeElapsed);
-				Car.Sounds.Motor?.Update(TimeElapsed);
-				
+				Car.TractionModel?.Update(TimeElapsed);
+				for (int j = 0; j < Car.Sounds.ControlledSounds.Count; j++)
+				{
+					Car.Sounds.ControlledSounds[j].Update(TimeElapsed);
+				}
 			}
 
 			// infrequent updates

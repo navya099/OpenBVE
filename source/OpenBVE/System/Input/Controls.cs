@@ -88,8 +88,8 @@ namespace OpenBve
 					File = OpenBveApi.Path.CombineFile(Program.FileSystem.GetDataFolder("Controls"), "Default.controls");
 					if (!System.IO.File.Exists(File))
 					{
-						MessageBox.Show(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","warning"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_missing"}),
-							Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Hand);
+						Program.ShowMessageBox(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","warning"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_missing"}),
+							Application.ProductName);
 					}
 				}
 			}
@@ -150,8 +150,7 @@ namespace OpenBve
 									//We've discovered a SDL keybinding is present, so reset the loading process with the default keyconfig & show an appropriate error message
 									if (ControlsReset == false)
 									{
-										MessageBox.Show(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_oldversion"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_reset"}), Application.ProductName,
-											MessageBoxButtons.OK, MessageBoxIcon.Hand);
+										Program.ShowMessageBox(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_oldversion"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_reset"}), Application.ProductName);
 									}
 
 									var DefaultControls = OpenBveApi.Path.CombineFile(Program.FileSystem.GetDataFolder("Controls"), "Default keyboard assignment.controls");
@@ -164,8 +163,8 @@ namespace OpenBve
 										}
 										else
 										{
-											MessageBox.Show(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","warning"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_default_oldversion"}),
-												Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Hand);
+											Program.ShowMessageBox(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","warning"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_default_oldversion"}),
+												Application.ProductName);
 											i = 0;
 											Lines = GetLines(Assembly.GetExecutingAssembly().GetManifestResourceStream("OpenBve.Default.controls"));
 											continue;
@@ -174,15 +173,31 @@ namespace OpenBve
 									}
 									else
 									{
-										MessageBox.Show(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","warning"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_default_missing"}),
-											Application.ProductName, MessageBoxButtons.OK, MessageBoxIcon.Hand);
-										Controls = new Control[0];
+										Program.ShowMessageBox(Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","warning"}) + Environment.NewLine + Translations.GetInterfaceString(HostApplication.OpenBve, new[] {"errors","controls_default_missing"}),
+											Application.ProductName);
+										Controls = Array.Empty<Control>();
 									}
 
 									return;
 								}
 
-								if (Enum.TryParse(Terms[2], true, out Key CurrentKey))
+								if (Terms[2].Equals("Disabled", StringComparison.OrdinalIgnoreCase) &&
+									int.TryParse(Terms[3], NumberStyles.Integer, Culture, out int DisabledModifiers))
+								{
+									Controls[Length].Method = Method;
+									Controls[Length].Device = Guid.Empty;
+									Controls[Length].Component = JoystickComponent.Invalid;
+									Controls[Length].Key = OpenBveApi.Input.Key.Disabled;
+									Controls[Length].Direction = 0;
+									Controls[Length].Modifier = (KeyboardModifier)DisabledModifiers;
+									if (Terms.Length >= 5 && int.TryParse(Terms[4], NumberStyles.Integer, Culture, out int DisabledOption))
+									{
+										Controls[Length].Option = DisabledOption;
+									}
+
+									Valid = true;
+								}
+								else if (Enum.TryParse(Terms[2], true, out Key CurrentKey))
 								{
 									if (int.TryParse(Terms[3], NumberStyles.Integer, Culture, out int Modifiers))
 									{

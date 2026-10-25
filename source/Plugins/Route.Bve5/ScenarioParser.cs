@@ -29,33 +29,32 @@ using System.Text;
 using Bve5_Parsing.ScenarioGrammar;
 using OpenBveApi;
 using OpenBveApi.Math;
-using OpenBveApi.Objects;
 using RouteManager2.Stations;
 using Path = OpenBveApi.Path;
 
 namespace Route.Bve5
 {
-	static partial class Bve5ScenarioParser
+	internal static partial class Bve5ScenarioParser
 	{
 		/// <summary>Checks whether the given file is a BVE5 scenario</summary>
-		/// <param name="FileName">The filename to check</param>
-		internal static bool IsBve5(string FileName)
+		/// <param name="fileName">The filename to check</param>
+		internal static bool IsBve5(string fileName)
 		{
 			try
 			{
-				using (StreamReader reader = new StreamReader(FileName))
+				using (StreamReader reader = new StreamReader(fileName))
 				{
-					var firstLine = reader.ReadLine() ?? "";
-					string b = String.Empty;
+					string firstLine = reader.ReadLine() ?? "";
+					string b = string.Empty;
 					if (!firstLine.ToLowerInvariant().StartsWith("bvets scenario"))
 					{
 						return false;
 					}
 					for (int i = 15; i < firstLine.Length; i++)
 					{
-						if (Char.IsDigit(firstLine[i]) || firstLine[i] == '.')
+						if (char.IsDigit(firstLine[i]) || firstLine[i] == '.')
 						{
-							b = b + firstLine[i];
+							b += firstLine[i];
 						}
 						else
 						{
@@ -84,23 +83,21 @@ namespace Route.Bve5
 			
 		}
 
-		internal static void ParseScenario(string FileName, bool PreviewOnly)
+		internal static void ParseScenario(string fileName, bool previewOnly)
 		{
-			Plugin.CurrentOptions.CurrentXParser = XParsers.Assimp;
-
-			Encoding Encoding = Text.DetermineBVE5FileEncoding(FileName);
+			Encoding Encoding = Text.DetermineBVE5FileEncoding(fileName);
 
 			ScenarioGrammarParser Parser = new ScenarioGrammarParser();
-			ScenarioData Data = Parser.Parse(File.ReadAllText(FileName, Encoding));
+			ScenarioData Data = Parser.Parse(File.ReadAllText(fileName, Encoding));
 
-			Plugin.CurrentRoute.Comment = Data.Comment;
-			Plugin.CurrentRoute.Stations = new RouteStation[0];
+			Plugin.CurrentRoute.Comment = Data.Comment ?? string.Empty;
+			Plugin.CurrentRoute.Stations = Array.Empty<RouteStation>();
 			CurrentStation = 0;
 			if (!string.IsNullOrEmpty(Data.Image))
 			{
-				Plugin.CurrentRoute.Image = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), Data.Image);
+				Plugin.CurrentRoute.Image = Path.CombineFile(System.IO.Path.GetDirectoryName(fileName), Data.Image);
 			}
-			string RouteFile = String.Empty;
+			string RouteFile = string.Empty;
 
 			if (!Data.Route.Any())
 			{
@@ -118,10 +115,10 @@ namespace Route.Bve5
 
 			if (RouteFileIndex != -1)
 			{
-				RouteFile = Path.CombineFile(System.IO.Path.GetDirectoryName(FileName), Data.Route[RouteFileIndex].Value);
+				RouteFile = Path.CombineFile(System.IO.Path.GetDirectoryName(fileName), Data.Route[RouteFileIndex].Value);
 			}
 
-			ParseMap(RouteFile, PreviewOnly);
+			ParseMap(RouteFile, previewOnly);
 		}
 
 		private static int GetRandomIndex(params double[] WeightTable)
@@ -135,7 +132,7 @@ namespace Route.Bve5
 				TotalWeight += WeightTable[i];
 			}
 
-			double Value = Plugin.RandomNumberGenerator.NextDouble() * TotalWeight;
+			double Value = Plugin.CurrentHost.Random.NextDouble() * TotalWeight;
 			int RetIndex = -1;
 
 			for (int i = WeightTable.Length - 1; i >= 0; i--)

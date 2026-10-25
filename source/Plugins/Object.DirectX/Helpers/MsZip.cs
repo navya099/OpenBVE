@@ -37,8 +37,8 @@ namespace Plugin
 		/// <returns>The uncompressed data</returns>
 		public static byte[] Decompress(byte[] Data)
 		{
-			uint MSZIP_SIGNATURE = 0x4B43;
-	    	uint MSZIP_BLOCK = 32786;
+			const uint MSZIP_SIGNATURE = 0x4B43;
+	    	const uint MSZIP_BLOCK = 32786;
 
 			int p = 0;
             int end = Data.Length;
@@ -90,11 +90,17 @@ namespace Plugin
 				// Decompress the compressed block
 				byte[] blockBytes = new byte[compressedBlockSize];
 				int numBytesRead = inputStream.Read(blockBytes, 0, compressedBlockSize);
-				
+
+				// NOTE: Some MSZip objects have a truncated final block
+				//		 To decode these correctly, the block byte array must be zero-padded to compressedBlockSize
+				//		 The compiler warning is incorrect in this case (YUCK)- Don't message except in debug builds
+				//		 https://github.com/leezer3/OpenBVE/issues/1150
+#if DEBUG
 				if (numBytesRead != compressedBlockSize)
 				{
-					throw new Exception("Insufficient number of bytes read from the compressed stream.");
+					Plugin.CurrentHost.AddMessage(OpenBveApi.Interface.MessageType.Warning, false, "MSZip: Potentially truncated final block. ");
 				}
+#endif
 
 				byte[] decompressedBytes = ZlibDecompressWithDictionary(blockBytes, currentBlock == 0 ? null : previousBlockBytes);
 
@@ -141,16 +147,18 @@ namespace Plugin
 
                     if (inflateReturnCode == ZlibConstants.Z_STREAM_END) {
                         break;
-                    } else if (inflateReturnCode == ZlibConstants.Z_NEED_DICT && dictionary != null) {
-                        //implies bytesToWrite was 0
-                        var dictionaryAdler32 = ((int)Adler.Adler32(1u, dictionary, 0, dictionary.Length));
-                        if (codec.Adler32 != dictionaryAdler32) {
-                            throw new InvalidOperationException("Compressed data is requesting a dictionary with adler32 " + codec.Adler32 + ", but the dictionary is actually " + dictionaryAdler32);
-                        }
+                    }
 
-                        codec.AssertOk("SetDictionary", codec.SetDictionary(dictionary));
+                    if (inflateReturnCode == ZlibConstants.Z_NEED_DICT && dictionary != null) {
+	                    //implies bytesToWrite was 0
+	                    int dictionaryAdler32 = (int)Adler.Adler32(1u, dictionary, 0, dictionary.Length);
+	                    if (codec.Adler32 != dictionaryAdler32) {
+		                    throw new InvalidOperationException("Compressed data is requesting a dictionary with adler32 " + codec.Adler32 + ", but the dictionary is actually " + dictionaryAdler32);
+	                    }
+
+	                    codec.AssertOk("SetDictionary", codec.SetDictionary(dictionary));
                     } else {
-                        codec.AssertOk("Inflate", inflateReturnCode);
+	                    codec.AssertOk("Inflate", inflateReturnCode);
                     }
                 }
 
@@ -159,10 +167,10 @@ namespace Plugin
             }
         }
 
-        internal static void AssertOk(this ZlibCodec codec, string Message, int errorCode)
+        internal static void AssertOk(this ZlibCodec codec, string errorLocation, int errorCode)
         {
             if (errorCode != 0) {
-                throw new InvalidOperationException("Failed with " + errorCode + "; " + Message + "; " + codec.Message);
+                throw new InvalidOperationException("Failed with " + errorCode + "; " + errorLocation + "; " + codec.Message);
             }
         }
     }

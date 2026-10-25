@@ -96,7 +96,7 @@ namespace SoundManager
 		/// <returns>Whether the sound is playing or supposed to be playing.</returns>
 		public bool IsPlaying()
 		{
-			if (State == SoundSourceState.PlayPending | State == SoundSourceState.Playing)
+			if (State == SoundSourceState.PlayPending | State == SoundSourceState.Playing | State == SoundSourceState.ResumePending)
 			{
 				return true;
 			}
@@ -117,26 +117,30 @@ namespace SoundManager
 		/// <summary>Stops this sound</summary>
 		public void Stop()
 		{
-			if (State == SoundSourceState.PlayPending)
+			switch (State)
 			{
-				State = SoundSourceState.Stopped;
-			}
-			else if (State == SoundSourceState.Playing)
-			{
-				State = SoundSourceState.StopPending;
+				case SoundSourceState.PlayPending:
+					State = SoundSourceState.Stopped;
+					break;
+				case SoundSourceState.ResumePending:
+				case SoundSourceState.Playing:
+					State = SoundSourceState.StopPending;
+					break;
 			}
 		}
 
 		/// <summary>Pauses this sound</summary>
 		public void Pause()
 		{
-			if (State == SoundSourceState.PlayPending)
+			switch (State)
 			{
-				State = SoundSourceState.Paused;
-			}
-			else if (State == SoundSourceState.Playing)
-			{
-				State = SoundSourceState.PausePending;
+				case SoundSourceState.PlayPending:
+				case SoundSourceState.ResumePending:
+					State = SoundSourceState.Paused;
+					break;
+				case SoundSourceState.Playing:
+					State = SoundSourceState.PausePending;
+					break;
 			}
 		}
 
@@ -165,7 +169,7 @@ namespace SoundManager
 		// --- constructors ---
 		/// <summary>Creates a new microphone source.</summary>
 		/// <param name="openAlMic">The OpenAL microphone handle</param>
-		/// <param name="micStore">The databuffer to read to</param>
+		/// <param name="micStore">The data buffer to read to</param>
 		/// <param name="position">The position.</param>
 		/// <param name="backwardTolerance">allowed tolerance in the backward direction</param>
 		/// <param name="forwardTolerance">allowed tolerance in the forward direction</param>

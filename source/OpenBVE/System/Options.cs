@@ -26,7 +26,7 @@ namespace OpenBve
 			internal int TimeAccelerationFactor;
 			///// <summary>The current type of motion blur</summary>
 			internal MotionBlurMode MotionBlur;
-			/// <summary>Whether duplicate verticies are culled during loading</summary>
+			/// <summary>Whether duplicate vertices are culled during loading</summary>
 			internal bool ObjectOptimizationVertexCulling;
 			/// <summary>Whether collisions between trains are enabled</summary>
 			internal bool Collisions;
@@ -38,10 +38,8 @@ namespace OpenBve
 			internal double JoystickAxisThreshold;
 			/// <summary>The delay after which a held-down key will start to repeat</summary>
 			internal double KeyRepeatDelay;
-			/// <summary>The interval at which a held down key will repeat after the intial delay</summary>
+			/// <summary>The interval at which a held down key will repeat after the initial delay</summary>
 			internal double KeyRepeatInterval;
-			/// <summary>The current sound model</summary>
-			internal SoundModels SoundModel;
 			/// <summary>The range outside of which sounds will be inaudible</summary>
 			internal SoundRange SoundRange;
 			/// <summary>Whether warning messages are to be shown</summary>
@@ -79,8 +77,8 @@ namespace OpenBve
 			internal bool PreferNativeBackend = true;
 			/// <summary>Stores whether the RailDriver speed display is in MPH (true) or KPH (false)</summary>
 			internal bool RailDriverMPH;
-			/// <summary>The list of enable Input Device Plugins</summary>
-			internal string[] EnableInputDevicePlugins;
+			/// <summary>The list of enabled Input Device Plugins</summary>
+			internal string[] EnabledInputDevicePlugins;
 			/// <summary>The time in seconds after which the mouse cursor is hidden</summary>
 			/// <remarks>Set to zero to never hide the cursor</remarks>
 			internal double CursorHideDelay;
@@ -105,6 +103,13 @@ namespace OpenBve
 			internal int FPSLimit;
 
 			internal bool DailyBuildUpdates;
+
+			/// <summary>Whether smooth transitions are enabled for interior camera modes</summary>
+			internal bool CameraInteriorTransition;
+			/// <summary>Whether smooth transitions are enabled for exterior camera modes</summary>
+			internal bool CameraExteriorTransition;
+			/// <summary>The duration of camera transitions in seconds</summary>
+			internal double CameraTransitionSpeed;
 			
 			/// <summary>Creates a new instance of the options class with default values set</summary>
 			internal Options()
@@ -136,13 +141,11 @@ namespace OpenBve
 				JoystickAxisThreshold = 0.0;
 				KeyRepeatDelay = 0.5;
 				KeyRepeatInterval = 0.1;
-				SoundModel = SoundModels.Inverse;
 				SoundRange = SoundRange.Low;
 				SoundNumber = 16;
 				ShowWarningMessages = true;
 				ShowErrorMessages = true;
 				ObjectOptimizationBasicThreshold = 10000;
-				ObjectOptimizationFullThreshold = 1000;
 				ObjectOptimizationVertexCulling = false;
 				RouteFolder = "";
 				TrainFolder = "";
@@ -164,7 +167,7 @@ namespace OpenBve
 				OldTransparencyMode = true;
 				KioskMode = false;
 				KioskModeTimer = 300;
-				EnableInputDevicePlugins = new string[] { };
+				EnabledInputDevicePlugins = new string[] { };
 				CursorFileName = "nk.png";
 				Panel2ExtendedMode = false;
 				Panel2ExtendedMinSize = 128;
@@ -174,11 +177,13 @@ namespace OpenBve
 				Accessibility = false;
 				ScreenReaderAvailable = false;
 				ForceForwardsCompatibleContext = false;
-				IsUseNewRenderer = true;
 				DailyBuildUpdates = false;
 				UseGDIDecoders = false;
 				EnableBve5ScriptedTrain = true;
 				UserInterfaceScaleFactor = 1;
+				CameraInteriorTransition = true;
+				CameraExteriorTransition = true;
+				CameraTransitionSpeed = 0.4;
 				CultureInfo currentCultureInfo = CultureInfo.CurrentCulture;
 				switch (Program.CurrentHost.Platform)
 				{
@@ -289,9 +294,11 @@ namespace OpenBve
 				Builder.AppendLine("mainmenuHeight = " + MainMenuHeight.ToString(Culture));
 				Builder.AppendLine("loadInAdvance = " + (LoadInAdvance ? "true" : "false"));
 				Builder.AppendLine("unloadtextures = " + (UnloadUnusedTextures ? "true" : "false"));
-				Builder.AppendLine("isUseNewRenderer = " + (IsUseNewRenderer ? "true" : "false"));
 				Builder.AppendLine("forwardsCompatibleContext = " + (ForceForwardsCompatibleContext ? "true" : "false"));
 				Builder.AppendLine("uiscalefactor = " + UserInterfaceScaleFactor);
+				Builder.AppendLine("cameraInteriorTransition = " + (CameraInteriorTransition ? "true" : "false"));
+				Builder.AppendLine("cameraExteriorTransition = " + (CameraExteriorTransition ? "true" : "false"));
+				Builder.AppendLine("cameraTransitionSpeed = " + CameraTransitionSpeed.ToString(Culture));
 				Builder.AppendLine();
 				Builder.AppendLine("[quality]");
 				Builder.AppendLine("interpolation = " + Interpolation);
@@ -301,13 +308,24 @@ namespace OpenBve
 				Builder.AppendLine("transparencyMode = " + ((int)TransparencyMode).ToString(Culture));
 				Builder.AppendLine("oldtransparencymode = " + (OldTransparencyMode ? "true" : "false"));
 				Builder.AppendLine("viewingDistance = " + ViewingDistance.ToString(Culture));
+				Builder.AppendLine("nearclipscenery = " + NearClipScenery.ToString(Culture));
+				Builder.AppendLine("nearclipcab = " + NearClipCab.ToString(Culture));
+				Builder.AppendLine("nearclipbase = " + NearClipBase.ToString(Culture));
 				Builder.AppendLine("quadLeafSize = " + QuadTreeLeafSize.ToString(Culture));
 				Builder.AppendLine("motionBlur = " + MotionBlur);
+				Builder.AppendLine("shadowresolution = " + ShadowResolution);
+				Builder.AppendLine("shadowdrawdistance = " + ShadowDrawDistance);
+				Builder.AppendLine("shadowcascades = " + (int)ShadowCascades);
+				Builder.AppendLine("shadowstrength = " + ShadowStrength.ToString(Culture));
+				Builder.AppendLine("shadowbias = " + ShadowBias.ToString(Culture));
+				Builder.AppendLine("shadownormalbias = " + ShadowNormalBias.ToString(Culture));
+				Builder.AppendLine("shadowfiltercascades = " + (ShadowFilterCascades ? "true" : "false"));
+				Builder.AppendLine("shadowsmooth = " + (ShadowSmooth ? "true" : "false"));
+				Builder.AppendLine("shadowfilterradius = " + ShadowFilterRadius.ToString(Culture));
 				Builder.AppendLine("fpslimit = " + FPSLimit.ToString(Culture));
 				Builder.AppendLine();
 				Builder.AppendLine("[objectOptimization]");
 				Builder.AppendLine("basicThreshold = " + ObjectOptimizationBasicThreshold.ToString(Culture));
-				Builder.AppendLine("fullThreshold = " + ObjectOptimizationFullThreshold.ToString(Culture));
 				Builder.AppendLine("vertexCulling = " + ObjectOptimizationVertexCulling.ToString(Culture));
 				Builder.AppendLine();
 				Builder.AppendLine("[simulation]");
@@ -335,7 +353,6 @@ namespace OpenBve
 				Builder.AppendLine("raildrivermph = " + (RailDriverMPH ? "true" : "false"));
 				Builder.AppendLine();
 				Builder.AppendLine("[sound]");
-				Builder.AppendLine("model = " + SoundModel);
 				Builder.AppendLine("range = " + SoundRange);
 				Builder.AppendLine("number = " + SoundNumber.ToString(Culture));
 				Builder.AppendLine();
@@ -375,9 +392,9 @@ namespace OpenBve
 
 				Builder.AppendLine();
 				Builder.AppendLine("[enableInputDevicePlugins]");
-				for (int i = 0; i < EnableInputDevicePlugins.Length; i++)
+				for (int i = 0; i < EnabledInputDevicePlugins.Length; i++)
 				{
-					Builder.AppendLine(EnableInputDevicePlugins[i]);
+					Builder.AppendLine(EnabledInputDevicePlugins[i]);
 				}
 
 				Builder.AppendLine();
@@ -396,7 +413,7 @@ namespace OpenBve
 				}
 				catch
 				{
-					MessageBox.Show(@"Failed to write to the Options folder.", @"OpenBVE", MessageBoxButtons.OK, MessageBoxIcon.Hand);
+					Program.ShowMessageBox(@"Failed to write to the Options folder.", Application.ProductName);
 				}
 			}
 		}
@@ -422,7 +439,7 @@ namespace OpenBve
 
 			if (File.Exists(configFile))
 			{
-				ConfigFile<OptionsSection, OptionsKey> cfg = new ConfigFile<OptionsSection, OptionsKey>(File.ReadAllLines(configFile, new UTF8Encoding()), Program.CurrentHost);
+				ConfigFile<OptionsSection, OptionsKey> cfg = new ConfigFile<OptionsSection, OptionsKey>(File.ReadAllLines(configFile, new UTF8Encoding()), configFile, Program.CurrentHost);
 
 				while (cfg.RemainingSubBlocks > 0)
 				{
@@ -436,7 +453,7 @@ namespace OpenBve
 							block.TryGetValue(OptionsKey.Folder, ref CurrentOptions.UserInterfaceFolder);
 							block.GetEnumValue(OptionsKey.TimetableMode, out CurrentOptions.TimeTableStyle);
 							block.GetValue(OptionsKey.KioskMode, out Interface.CurrentOptions.KioskMode);
-							block.TryGetValue(OptionsKey.KioskModeTimer, ref CurrentOptions.KioskModeTimer);
+							block.TryGetValue(OptionsKey.KioskModeTimer, ref CurrentOptions.KioskModeTimer, NumberRange.NonNegative);
 							if (CurrentOptions.KioskModeTimer > 1000 || CurrentOptions.KioskModeTimer == 0)
 							{
 								CurrentOptions.KioskModeTimer = 300;
@@ -447,34 +464,83 @@ namespace OpenBve
 							block.GetValue(OptionsKey.DailyBuildUpdates, out Interface.CurrentOptions.DailyBuildUpdates);
 							break;
 						case OptionsSection.Display:
+						{
 							block.GetValue(OptionsKey.PreferNativeBackend, out CurrentOptions.PreferNativeBackend);
 							block.GetValue(OptionsKey.Mode, out string m);
 							CurrentOptions.FullscreenMode = string.Compare(m, "fullscreen", StringComparison.OrdinalIgnoreCase) == 0;
-							block.TryGetValue(OptionsKey.WindowWidth, ref Interface.CurrentOptions.WindowWidth);
-							block.TryGetValue(OptionsKey.WindowHeight, ref Interface.CurrentOptions.WindowHeight);
-							block.TryGetValue(OptionsKey.FullScreenWidth, ref Interface.CurrentOptions.FullscreenWidth);
-							block.TryGetValue(OptionsKey.FullScreenHeight, ref CurrentOptions.FullscreenHeight);
-							block.TryGetValue(OptionsKey.FullScreenBits, ref CurrentOptions.FullscreenBits);
-							block.TryGetValue(OptionsKey.MainMenuWidth, ref CurrentOptions.MainMenuWidth);
-							block.TryGetValue(OptionsKey.MainMenuHeight, ref CurrentOptions.MainMenuHeight);
+							block.TryGetValue(OptionsKey.WindowWidth, ref Interface.CurrentOptions.WindowWidth, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.WindowHeight, ref Interface.CurrentOptions.WindowHeight, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.FullScreenWidth, ref Interface.CurrentOptions.FullscreenWidth, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.FullScreenHeight, ref CurrentOptions.FullscreenHeight, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.FullScreenBits, ref CurrentOptions.FullscreenBits, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.MainMenuWidth, ref CurrentOptions.MainMenuWidth, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.MainMenuHeight, ref CurrentOptions.MainMenuHeight, NumberRange.Positive);
+							block.GetValue(OptionsKey.VSync, out Interface.CurrentOptions.VerticalSynchronization);
 							block.GetValue(OptionsKey.LoadInAdvance, out Interface.CurrentOptions.LoadInAdvance);
 							block.GetValue(OptionsKey.UnloadTextures, out CurrentOptions.UnloadUnusedTextures);
-							block.GetValue(OptionsKey.IsUseNewRenderer, out Interface.CurrentOptions.IsUseNewRenderer);
 							block.GetValue(OptionsKey.ForwardsCompatibleContext, out CurrentOptions.ForceForwardsCompatibleContext);
-							block.TryGetValue(OptionsKey.ViewingDistance, ref Interface.CurrentOptions.ViewingDistance);
-							block.TryGetValue(OptionsKey.QuadLeafSize, ref Interface.CurrentOptions.QuadTreeLeafSize);
+							block.TryGetValue(OptionsKey.ViewingDistance, ref Interface.CurrentOptions.ViewingDistance, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.QuadLeafSize, ref Interface.CurrentOptions.QuadTreeLeafSize, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.NearClipScenery, ref Interface.CurrentOptions.NearClipScenery, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.NearClipCab, ref Interface.CurrentOptions.NearClipCab, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.NearClipBase, ref Interface.CurrentOptions.NearClipBase, NumberRange.Positive);
+							// ensure viewing distance is greater than the near clipping plane to avoid rendering issues
+							double maxNearClip = Math.Max(Interface.CurrentOptions.NearClipScenery, Math.Max(Interface.CurrentOptions.NearClipCab, Interface.CurrentOptions.NearClipBase));
+
+							if (Interface.CurrentOptions.ViewingDistance <= maxNearClip)
+							{
+								Interface.CurrentOptions.ViewingDistance = (int)Math.Ceiling(maxNearClip) + 1;
+							}
+
 							block.TryGetValue(OptionsKey.UIScaleFactor, ref CurrentOptions.UserInterfaceScaleFactor);
+							block.GetValue(OptionsKey.CameraInteriorTransition, out CurrentOptions.CameraInteriorTransition);
+							block.GetValue(OptionsKey.CameraExteriorTransition, out CurrentOptions.CameraExteriorTransition);
+							block.TryGetValue(OptionsKey.CameraTransitionSpeed, ref CurrentOptions.CameraTransitionSpeed, NumberRange.Positive);
+							if (CurrentOptions.CameraTransitionSpeed == 0)
+							{
+								CurrentOptions.CameraTransitionSpeed = 0.4;
+							}
 							break;
+						}
 						case OptionsSection.Quality:
+						{
 							block.GetEnumValue(OptionsKey.Interpolation, out Interface.CurrentOptions.Interpolation);
 							block.TryGetValue(OptionsKey.AnisotropicFilteringMaximum, ref CurrentOptions.AnisotropicFilteringMaximum);
 							block.TryGetValue(OptionsKey.AnisotropicFilteringLevel, ref Interface.CurrentOptions.AnisotropicFilteringLevel);
 							block.TryGetValue(OptionsKey.AntiAliasingLevel, ref Interface.CurrentOptions.AntiAliasingLevel);
 							block.GetEnumValue(OptionsKey.TransparencyMode, out Interface.CurrentOptions.TransparencyMode);
 							block.GetValue(OptionsKey.OldTransparencyMode, out CurrentOptions.OldTransparencyMode);
-							block.TryGetValue(OptionsKey.ViewingDistance, ref Interface.CurrentOptions.ViewingDistance);
-							block.TryGetValue(OptionsKey.QuadLeafSize, ref CurrentOptions.QuadTreeLeafSize);
+							block.TryGetValue(OptionsKey.ViewingDistance, ref Interface.CurrentOptions.ViewingDistance, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.QuadLeafSize, ref Interface.CurrentOptions.QuadTreeLeafSize, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.NearClipScenery, ref Interface.CurrentOptions.NearClipScenery, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.NearClipCab, ref Interface.CurrentOptions.NearClipCab, NumberRange.Positive);
+							block.TryGetValue(OptionsKey.NearClipBase, ref Interface.CurrentOptions.NearClipBase, NumberRange.Positive);
+							// ensure viewing distance is greater than the near clipping plane to avoid rendering issues
+							double maxNearClip = Math.Max(Interface.CurrentOptions.NearClipScenery, Math.Max(Interface.CurrentOptions.NearClipCab, Interface.CurrentOptions.NearClipBase));
+
+							if (Interface.CurrentOptions.ViewingDistance <= maxNearClip)
+							{
+								Interface.CurrentOptions.ViewingDistance = (int)Math.Ceiling(maxNearClip) + 1;
+							}
 							block.GetEnumValue(OptionsKey.MotionBlur, out CurrentOptions.MotionBlur);
+							block.TryGetEnumValue(OptionsKey.ShadowResolution, ref Interface.CurrentOptions.ShadowResolution);
+							block.TryGetEnumValue(OptionsKey.ShadowDrawDistance, ref Interface.CurrentOptions.ShadowDrawDistance);
+							block.TryGetEnumValue(OptionsKey.ShadowCascades, ref Interface.CurrentOptions.ShadowCascades);
+							block.TryGetValue(OptionsKey.ShadowStrength, ref CurrentOptions.ShadowStrength);
+							block.TryGetValue(OptionsKey.ShadowBias, ref CurrentOptions.ShadowBias);
+							if (CurrentOptions.ShadowBias < 0.0) CurrentOptions.ShadowBias = 0.0;
+							if (CurrentOptions.ShadowBias > 1.0) CurrentOptions.ShadowBias = 1.0;
+							block.TryGetValue(OptionsKey.ShadowNormalBias, ref CurrentOptions.ShadowNormalBias);
+							if (CurrentOptions.ShadowNormalBias < 0.0) CurrentOptions.ShadowNormalBias = 0.0;
+							if (CurrentOptions.ShadowNormalBias > 4.0) CurrentOptions.ShadowNormalBias = 4.0;
+							block.GetValue(OptionsKey.ShadowFilterCascades, out Interface.CurrentOptions.ShadowFilterCascades);
+							if (block.GetValue(OptionsKey.ShadowSmooth, out string smoothVal))
+							{
+								Interface.CurrentOptions.ShadowSmooth = smoothVal.Trim().Equals("true", StringComparison.OrdinalIgnoreCase) || smoothVal.Trim() == "1";
+							}
+							block.TryGetValue(OptionsKey.ShadowFilterRadius, ref CurrentOptions.ShadowFilterRadius);
+							if (CurrentOptions.ShadowFilterRadius < 0.5) CurrentOptions.ShadowFilterRadius = 0.5;
+							if (CurrentOptions.ShadowFilterRadius > 3.0) CurrentOptions.ShadowFilterRadius = 3.0;
 							block.GetValue(OptionsKey.FPSLimit, out CurrentOptions.FPSLimit);
 							if (CurrentOptions.FPSLimit < 0)
 							{
@@ -482,11 +548,13 @@ namespace OpenBve
 							}
 
 							break;
+						}
 						case OptionsSection.ObjectOptimization:
+						{
 							block.GetValue(OptionsKey.BasicThreshold, out CurrentOptions.ObjectOptimizationBasicThreshold);
-							block.GetValue(OptionsKey.FullThreshold, out CurrentOptions.ObjectOptimizationFullThreshold);
 							block.GetValue(OptionsKey.VertexCulling, out CurrentOptions.ObjectOptimizationVertexCulling);
 							break;
+						}
 						case OptionsSection.Simulation:
 							block.GetValue(OptionsKey.Toppling, out CurrentOptions.Toppling);
 							block.GetValue(OptionsKey.Collisions, out CurrentOptions.Collisions);
@@ -517,7 +585,6 @@ namespace OpenBve
 							block.GetValue(OptionsKey.CursorHideDelay, out CurrentOptions.CursorHideDelay);
 							break;
 						case OptionsSection.Sound:
-							block.GetEnumValue(OptionsKey.Model, out CurrentOptions.SoundModel);
 							block.GetEnumValue(OptionsKey.Range, out CurrentOptions.SoundRange);
 							block.GetValue(OptionsKey.Number, out CurrentOptions.SoundNumber);
 							if (CurrentOptions.SoundNumber < 16) CurrentOptions.SoundNumber = 16;
@@ -575,11 +642,11 @@ namespace OpenBve
 
 							break;
 						case OptionsSection.EnableInputDevicePlugins:
-							Array.Resize(ref CurrentOptions.EnableInputDevicePlugins, block.RemainingDataValues);
+							Array.Resize(ref CurrentOptions.EnabledInputDevicePlugins, block.RemainingDataValues);
 							num = 0;
-							while (num < CurrentOptions.EnableInputDevicePlugins.Length)
+							while (num < CurrentOptions.EnabledInputDevicePlugins.Length)
 							{
-								block.GetNextRawValue(out CurrentOptions.EnableInputDevicePlugins[num]);
+								block.GetNextRawValue(out CurrentOptions.EnabledInputDevicePlugins[num]);
 								num++;
 							}
 

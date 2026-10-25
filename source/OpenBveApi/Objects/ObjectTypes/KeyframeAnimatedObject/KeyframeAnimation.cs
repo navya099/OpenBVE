@@ -22,7 +22,9 @@
 //(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 //SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+using System;
 using OpenBveApi.Math;
+using OpenBveApi.Motor;
 using OpenBveApi.Trains;
 
 namespace OpenBveApi.Objects
@@ -33,11 +35,11 @@ namespace OpenBveApi.Objects
 		/// <summary>The parent object</summary>
 	    internal readonly KeyframeAnimatedObject ParentObject;
 		/// <summary>The parent animation</summary>
-	    internal readonly string ParentAnimation;
+	    internal readonly int ParentAnimation;
 		/// <summary>The animation name</summary>
 	    public readonly string Name;
 		/// <summary>The base matrix before transforms are performed</summary>
-	    private readonly Matrix4D baseMatrix;
+		internal Matrix4D baseMatrix;
 
 		/*
 	     * FRAMERATE
@@ -64,8 +66,11 @@ namespace OpenBveApi.Objects
 	     *
 	     */
 
+		
+		private readonly double myFrameRate;
+
 		/// <summary>The framerate</summary>
-		public readonly double FrameRate;
+		public double FrameRate => ParentObject.IsInterior ? myFrameRate * 30 : myFrameRate;
 
 	    /// <summary>The total number of frames in the animation</summary>
 	    public readonly int FrameCount;
@@ -79,28 +84,32 @@ namespace OpenBveApi.Objects
 	    internal double AnimationKey;
 
 	    private double lastDistance;
+		/// <summary>Whether the animation is linked to wheel rotation</summary>
+	    private readonly bool IsWheelLinked;
 
-		/// <summary>Creates a new keyframe animation</summary>
-		/// <param name="parentObject">The parent object</param>
-		/// <param name="parentAnimation">The parent animation</param>
-		/// <param name="name">The animation name</param>
-		/// <param name="frameCount">The total number of frames in the animation</param>
-		/// <param name="frameRate">The framerate of the animation</param>
-		/// <param name="matrix">The base matrix to be transformed</param>
-		public KeyframeAnimation(KeyframeAnimatedObject parentObject, string parentAnimation, string name, int frameCount, double frameRate, Matrix4D matrix)
+	    /// <summary>Creates a new keyframe animation</summary>
+	    /// <param name="parentObject">The parent object</param>
+	    /// <param name="parentAnimation">The parent animation</param>
+	    /// <param name="name">The animation name</param>
+	    /// <param name="frameCount">The total number of frames in the animation</param>
+	    /// <param name="frameRate">The framerate of the animation</param>
+	    /// <param name="matrix">The base matrix to be transformed</param>
+	    /// <param name="wheeLinked">Whether the animation is linked to wheel rotation</param>
+	    public KeyframeAnimation(KeyframeAnimatedObject parentObject, int parentAnimation, string name, int frameCount, double frameRate, Matrix4D matrix, bool wheeLinked)
 	    {
 			ParentObject = parentObject;
 			ParentAnimation = parentAnimation;
 			Name = name;
 		    baseMatrix = matrix;
 			FrameCount = frameCount;
-			FrameRate = frameRate / 100;
+			myFrameRate = frameRate / 100;
+			IsWheelLinked = wheeLinked;
 	    }
 
 	    /// <summary>Updates the animation</summary>
-		public void Update(AbstractCar baseCar, Vector3 position, double trackPosition, int sectionIndex, bool isPartOfTrain, double timeElapsed)
+		public void Update(AbstractCar baseCar, bool isReversed, Vector3 position, double trackPosition, double timeElapsed)
 		{
-			if (!string.IsNullOrEmpty(ParentAnimation) && ParentObject.Animations.ContainsKey(ParentAnimation))
+			if (ParentAnimation != -1 && ParentObject.Animations.ContainsKey(ParentAnimation))
 			{
 				// we have a parent- calculate our key from the parent key
 				// n.b. ROD animations must have a parent of WHEEL
@@ -109,58 +118,161 @@ namespace OpenBveApi.Objects
 			else
 			{
 				// calculate the current keyframe for the animation
-				if (isPartOfTrain)
+				if (baseCar != null)
 				{
 					// HACK: use the train as a dynamic to allow us to pull out the car reference
-					double wheelRadius;
-					if (baseCar.Wheels != null && baseCar.Wheels.ContainsKey(Name))
+					bool wheelLinked = IsWheelLinked;
+					if (ParentAnimation != -1 && ParentObject.Animations.ContainsKey(ParentAnimation))
 					{
-						if (baseCar.Wheels.ContainsKey(Name))
+						wheelLinked |= ParentObject.Animations[ParentAnimation].IsWheelLinked;
+					}
+						
+					if (wheelLinked)
+					{
+						double wheelRadius = 0;
+
+						if (Name.StartsWith("WHEEL", StringComparison.InvariantCultureIgnoreCase))
 						{
-							wheelRadius = baseCar.Wheels[Name].Radius;
+							// Animations starting with WHEEL are linked to the wheel index
+							// find first digit from the end (to account for stuff like wheel11_tread from MSTSBin)
+							int idx = Name.Length - 1;
+							while (idx > 0)
+							{
+								if (char.IsDigit(Name[idx]))
+								{
+									break;
+								}
+								idx--;
+							}
+
+							// NOTE: Need to account for stuff which doesn't even bother with a number...
+							char wheel1 = '1';
+							char wheel2 = ' ';
+							if (idx > 0)
+							{
+								wheel1 = Name[idx];
+								wheel2 = Name[idx - 1];
+							}
+							if (char.IsDigit(wheel1) && char.IsDigit(wheel2))
+							{
+								// bogie wheelset
+								int wheel = wheel1;
+								int wheelset = 0;
+								while (wheelset < baseCar.TrailingWheels.Count)
+								{
+									wheel -= baseCar.TrailingWheels[wheelset].TotalNumber;
+									wheelRadius = baseCar.TrailingWheels[wheelset].Radius;
+									if (wheel <= 0)
+									{
+										break;
+									}
+									wheelset++;
+								}
+							}
+							else
+							{
+								// driving wheelset
+								int wheel = wheel1;
+								int wheelset = 0;
+								while (wheelset < baseCar.DrivingWheels.Count)
+								{
+									wheel -= baseCar.DrivingWheels[wheelset].TotalNumber;
+									wheelRadius = baseCar.DrivingWheels[wheelset].Radius;
+									if (wheel <= 0)
+									{
+										break;
+									}
+									wheelset++;
+								}
+							}
+							
 						}
 						else
 						{
-							// if controllers are not defined for WHEELSN-N, it appears that those for the base WHEELSN are used
-							// otherwise, controlled by the position of WHEELS1
-							string baseName = Name.Substring(0, 7);
-							if (!baseCar.Wheels.ContainsKey(baseName))
+							// Other wheel linked animations link to the first driving wheel
+							if (baseCar.DrivingWheels.Count > 0)
 							{
-								baseName = "WHEELS1";
+								wheelRadius = baseCar.DrivingWheels[0].Radius;
 							}
-							wheelRadius = baseCar.Wheels[baseName].Radius;
+							else
+							{
+								AnimationKey = 0;
+								return;
+							}
 						}
+
+						double distanceTravelled = baseCar.FrontAxle.Follower.TrackPosition - lastDistance;
+						if (isReversed)
+						{
+							distanceTravelled = -distanceTravelled;
+						}
+						double wheelCircumference = 2 * System.Math.PI * wheelRadius;
+						lastDistance = baseCar.FrontAxle.Follower.TrackPosition;
+						AnimationKey += (distanceTravelled / wheelCircumference) * FrameCount;
+						if (AnimationKey < 0)
+						{
+							AnimationKey = FrameCount + AnimationKey;
+						}
+						AnimationKey %= FrameCount;
+					}
+					else if (Name.StartsWith("PANTOGRAPHBOTTOM1", StringComparison.InvariantCultureIgnoreCase) || Name.StartsWith("PANTOGRAPHTOP1", StringComparison.InvariantCultureIgnoreCase))
+					{
+						dynamic d = baseCar;
+						// n.b. use pantograph state from the train, as some stuff has pantographs on trailer cars
+						switch (d.baseTrain.Specs.PantographState)
+						{
+							case PantographState.Raised:
+								if (AnimationKey < 1)
+								{
+									AnimationKey += timeElapsed * FrameRate;
+									AnimationKey = System.Math.Min(1, AnimationKey);
+								}
+								break;
+							case PantographState.Lowered:
+							case PantographState.Dewired:// assume that the ADD has activated and dropped it
+								if (AnimationKey > 0)
+								{
+									AnimationKey -= timeElapsed * FrameRate;
+									AnimationKey = System.Math.Max(0, AnimationKey);
+								}
+								break;
+						}
+					}
+					else if (Name.StartsWith("PANTOGRAPHBOTTOM2", StringComparison.InvariantCultureIgnoreCase) || Name.StartsWith("PANTOGRAPHTOP2", StringComparison.InvariantCultureIgnoreCase))
+					{
+						AnimationKey = 0;
 					}
 					else
 					{
-						// unknown animation key- for the minute, we'll stick to the MSTS keys
-						return;
+						switch (Name)
+						{
+							// OE interior view smoke / fan
+							case "CYLINDER03":
+							case "CYLINDER04":
+							case "SMOKE":
+								AnimationKey += timeElapsed * FrameRate;
+								AnimationKey %= FrameCount;
+								break;
+							default:
+								// unknown animation key- for the minute, we'll stick to the MSTS keys
+								AnimationKey = 0;
+								break;
+						}
+						
 					}
-
-					double distanceTravelled = baseCar.FrontAxle.Follower.TrackPosition - lastDistance;
-					double wheelCircumference = 2 * System.Math.PI * wheelRadius;
-					lastDistance = baseCar.FrontAxle.Follower.TrackPosition;
-					AnimationKey += (distanceTravelled / wheelCircumference) * FrameCount;
-					AnimationKey %= FrameCount;
 				}
 				else
 				{
-					AnimationKey += timeElapsed * FrameRate;
-					AnimationKey %= FrameCount;
+					AnimationKey = 0;
 				}
-				
 			}
 			
 			// we start off with the base matrix (clone!)
 			Matrix = new Matrix4D(baseMatrix);
 			for (int i = 0; i < AnimationControllers.Length; i++)
 			{
-				if (AnimationControllers[i] != null)
-				{
-					// for each of the valid controllers within the animation, perform an update
-					AnimationControllers[i].Update(AnimationKey, timeElapsed, ref Matrix);
-				}
-				
+				// for each of the valid controllers within the animation, perform an update
+				AnimationControllers[i]?.Update(AnimationKey, timeElapsed, ref Matrix);
 			}
 		}
 
@@ -169,7 +281,7 @@ namespace OpenBveApi.Objects
 	    /// <returns>The cloned animation</returns>
 	    public KeyframeAnimation Clone(KeyframeAnimatedObject parentObject)
 	    {
-		    KeyframeAnimation kf = new KeyframeAnimation(parentObject, ParentAnimation, Name, FrameCount, FrameRate, Matrix);
+		    KeyframeAnimation kf = new KeyframeAnimation(parentObject, ParentAnimation, Name, FrameCount, FrameRate, Matrix, IsWheelLinked);
 		    kf.AnimationControllers = new AbstractAnimation[AnimationControllers.Length];
 		    for (int i = 0; i < AnimationControllers.Length; i++)
 		    {

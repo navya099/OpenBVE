@@ -49,7 +49,7 @@ namespace LibRender2.Loadings
 
 			if (TextureLoadingBkg == null)
 			{
-				int bkgNo = new Random().Next(numOfLoadingBkgs);
+				int bkgNo = renderer.currentHost.Random.Next(numOfLoadingBkgs);
 				string backgroundFile = string.Empty;
 				try
 				{
@@ -106,7 +106,7 @@ namespace LibRender2.Loadings
 				if (renderer.Screen.Width / TextureLoadingBkg.AspectRatio > renderer.Screen.Height) // if screen ratio is shorter than bkg...
 				{
 					bkgHeight = renderer.Screen.Height; // set height to screen height
-					bkgWidth = (int)(renderer.Screen.Height * TextureLoadingBkg.AspectRatio); // and scale width proprtionally
+					bkgWidth = (int)(renderer.Screen.Height * TextureLoadingBkg.AspectRatio); // and scale width proportionally
 				}
 				else // if screen ratio is wider than bkg...
 				{

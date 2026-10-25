@@ -33,9 +33,11 @@ using OpenBveApi.Colors;
 using OpenBveApi.Graphics;
 using OpenBveApi.Hosts;
 using OpenBveApi.Interface;
+using OpenBveApi.Math;
 using OpenBveApi.Routes;
 using OpenBveApi.Runtime;
 using OpenBveApi.Textures;
+using OpenTK.Graphics.OpenGL;
 using RouteManager2;
 using TrainManager;
 using MouseCursor = OpenTK.MouseCursor;
@@ -84,7 +86,7 @@ namespace OpenBve
 			ZoomInButton.Location = new Vector2(Program.Renderer.Screen.Width * 0.7, Program.Renderer.Screen.Height * 0.9);
 			ZoomOutButton.Location = new Vector2(ZoomInButton.Location.X - ZoomOutButton.Size.X - 5, Program.Renderer.Screen.Height * 0.9);
 			TextureManager.UnloadTexture(ref MapPicturebox.Texture);
-			Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius), new TextureParameters(null, null), out MapPicturebox.Texture);
+			Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius, font: Program.Renderer.Fonts.NormalFont.Font), TextureParameters.NoChange, out MapPicturebox.Texture);
 			TitleLabel.Location = new Vector2(Program.Renderer.Screen.Width * 0.5 - TitleLabel.Size.X * 0.5, 5);
 			CloseButton.IsVisible = true;
 			ZoomInButton.IsVisible = true;
@@ -93,6 +95,10 @@ namespace OpenBve
 
 		internal void Draw()
 		{
+			Program.Renderer.PushMatrix(MatrixMode.Projection);
+			Matrix4D.CreateOrthographicOffCenter(0.0f, Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, 0.0f, -1.0f, 1.0f, out Program.Renderer.CurrentProjectionMatrix);
+			Program.Renderer.PushMatrix(MatrixMode.Modelview);
+			Program.Renderer.CurrentViewMatrix = Matrix4D.Identity;
 			MapPicturebox.Draw();
 			if (selectedSwitch != Guid.Empty)
 			{
@@ -114,6 +120,8 @@ namespace OpenBve
 			ZoomOutButton.Draw();
 			CloseButton.Draw();
 			TitleLabel.Draw();
+			Program.Renderer.PopMatrix(MatrixMode.Modelview);
+			Program.Renderer.PopMatrix(MatrixMode.Projection);
 		}
 
 		/// <summary>Processes a mouse move event</summary>
@@ -164,7 +172,7 @@ namespace OpenBve
 				Program.CurrentRoute.Switches[selectedSwitch].Toggle();
 				// Unload existing texture and re-create with new path
 				TextureManager.UnloadTexture(ref MapPicturebox.Texture);
-				Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius), new TextureParameters(null, null), out MapPicturebox.Texture);
+				Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius, Program.Renderer.Fonts.NormalFont.Font), TextureParameters.NoChange, out MapPicturebox.Texture);
 			}
 			CloseButton.MouseDown(x, y);
 			ZoomInButton.MouseDown(x, y);
@@ -182,7 +190,7 @@ namespace OpenBve
 			drawRadius /= 2;
 			// Unload existing texture and re-create with new path
 			TextureManager.UnloadTexture(ref MapPicturebox.Texture);
-			Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius), new TextureParameters(null, null), out MapPicturebox.Texture);
+			Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius, Program.Renderer.Fonts.NormalFont.Font), TextureParameters.NoChange, out MapPicturebox.Texture);
 		}
 
 		/// <summary>Zooms the map out</summary>
@@ -196,7 +204,7 @@ namespace OpenBve
 			drawRadius *= 2;
 			// Unload existing texture and re-create with new path
 			TextureManager.UnloadTexture(ref MapPicturebox.Texture);
-			Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius), new TextureParameters(null, null), out MapPicturebox.Texture);
+			Program.CurrentHost.RegisterTexture(Illustrations.CreateRouteMap(Program.Renderer.Screen.Width, Program.Renderer.Screen.Height, true, out AvailableSwitches, trackFollower, drawRadius, Program.Renderer.Fonts.NormalFont.Font), TextureParameters.NoChange, out MapPicturebox.Texture);
 		}
 
 		internal void Close(object sender, EventArgs e)

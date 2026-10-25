@@ -20,7 +20,7 @@ namespace OpenBve
 			Map,
 			Gradient,
 			NumOf
-		};
+		}
 
 		/// <summary>The width of the gradient position bar in pixels</summary>
 		private const int gradientPosWidth= 2;
@@ -60,7 +60,10 @@ namespace OpenBve
 				return;
 			Vector2 Pos = Vector2.Null;
 			Vector2	origin = Vector2.Null;
-			GL.Color4(1.0f, 1.0f, 1.0f, 1.0f);
+			if (!Interface.CurrentOptions.ForceForwardsCompatibleContext)
+			{
+				GL.Color4(1.0f, 1.0f, 1.0f, 1.0f);
+			}
 			// draw the relevant image
 			switch (currentState)
 			{
@@ -85,9 +88,8 @@ namespace OpenBve
 			case OverlayState.Gradient:
 				Program.Renderer.Rectangle.Draw(gradientImage, origin, gradientSize);
 				// get current train position in track
-				int trackPos	= (int)(TrainManager.PlayerTrain.FrontCarTrackPosition);
 				// convert to gradient profile offset
-				Pos.X = gradientSize.Y * (trackPos - Program.CurrentRoute.Information.GradientMinTrack) /
+				Pos.X = gradientSize.Y * (TrainManager.PlayerTrain.FrontCarTrackPosition - Program.CurrentRoute.Information.GradientMinTrack) /
 						(Program.CurrentRoute.Information.GradientMaxTrack - Program.CurrentRoute.Information.GradientMinTrack);
 				// draw a vertical bar at the current train position
 				Program.Renderer.Rectangle.Draw(null, new Vector2(Pos.X, gradientSize.Y / 2),
@@ -96,27 +98,32 @@ namespace OpenBve
 			}
 		}
 
-		/// <summary>Sets the state, intializing any required resource.</summary>
+		/// <summary>Sets the state, initializing any required resource.</summary>
 		/// <param name="newState">The new state to set to.</param>
 		private void SetState(OverlayState newState)
 		{
 			switch (newState)
 			{
-			case OverlayState.Map:
-				if (mapImage == null)
-				{
-					mapImage	= new Texture(Program.CurrentRoute.Information.RouteMap);
-					mapSize		= new Vector2(Program.CurrentRoute.Information.RouteMap.Width, Program.CurrentRoute.Information.RouteMap.Height);
-				}
-				break;
-			case OverlayState.Gradient:
-				if (gradientImage == null)
-				{
-					gradientImage	= new Texture(Program.CurrentRoute.Information.GradientProfile);
-					gradientSize	= new Vector2(Program.CurrentRoute.Information.GradientProfile.Width, Program.CurrentRoute.Information.GradientProfile.Height);
-				}
-				break;
+				case OverlayState.Map:
+					if (mapImage == null)
+					{
+						mapImage = new Texture(Program.CurrentRoute.Information.RouteMap);
+						mapSize = new Vector2(Program.CurrentRoute.Information.RouteMap.Width,
+							Program.CurrentRoute.Information.RouteMap.Height);
+					}
+
+					break;
+				case OverlayState.Gradient:
+					if (gradientImage == null)
+					{
+						gradientImage = new Texture(Program.CurrentRoute.Information.GradientProfile);
+						gradientSize = new Vector2(Program.CurrentRoute.Information.GradientProfile.Width,
+							Program.CurrentRoute.Information.GradientProfile.Height);
+					}
+
+					break;
 			}
+
 			currentState	= newState;
 		}
 	}

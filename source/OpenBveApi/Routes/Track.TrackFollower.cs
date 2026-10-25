@@ -1,7 +1,8 @@
-﻿using System.Linq;
-using OpenBveApi.Hosts;
+﻿using OpenBveApi.Hosts;
 using OpenBveApi.Math;
 using OpenBveApi.Trains;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace OpenBveApi.Routes
 {
@@ -24,11 +25,13 @@ namespace OpenBveApi.Routes
 		public double Pitch;
 		/// <summary>The curve radius at the current location</summary>
 		public double CurveRadius;
-		/// <summary>The curve cant at the current location</summary>
+		/// <summary>The interpolated curve cant at the current location</summary>
 		public double CurveCant;
+		/// <summary>The raw cant value at the current location</summary>
+		public double RawCant;
 		/// <summary>The distance the follower has travelled</summary>
 		public double Odometer;
-		/// <summary>The adjusted cant value due to the Route.Innacuracy value</summary>
+		/// <summary>The adjusted cant value due to the Route.Inaccuracy value</summary>
 		public double CantDueToInaccuracy;
 		/// <summary>The adhesion multiplier at the current location</summary>
 		public double AdhesionMultiplier;
@@ -46,6 +49,8 @@ namespace OpenBveApi.Routes
 		public int TrackIndex;
 		/// <summary>The station index at the current location</summary>
 		public int StationIndex;
+		/// <summary>Returns the available power supplies at this track followers location</summary>
+		public Dictionary<PowerSupplyTypes, PowerSupply> AvailablePowerSupplies => currentHost.Tracks[TrackIndex].Elements[LastTrackElement].PowerSupplies;
 
 		private readonly HostInterface currentHost;
 
@@ -106,7 +111,7 @@ namespace OpenBveApi.Routes
 		/// <summary>Call this method to update a single track follower on a relative basis</summary>
 		/// <param name="relativeTrackPosition">The new absolute track position of the follower</param>
 		/// <param name="updateWorldCoordinates">Whether to update the world co-ordinates</param>
-		/// <param name="addTrackInaccuracy">Whether to add track innacuracy</param>
+		/// <param name="addTrackInaccuracy">Whether to add track inaccuracy</param>
 		public void UpdateRelative(double relativeTrackPosition, bool updateWorldCoordinates, bool addTrackInaccuracy)
 		{
 			if (relativeTrackPosition == 0)
@@ -258,10 +263,12 @@ namespace OpenBveApi.Routes
 							(-2.0 * t3 + 3.0 * t2) * currentHost.Tracks[TrackIndex].Elements[i + 1].CurveCant +
 							(t3 - t2) * currentHost.Tracks[TrackIndex].Elements[i + 1].CurveCantTangent;
 						CurveRadius = currentHost.Tracks[TrackIndex].Elements[i].CurveRadius;
+						RawCant = currentHost.Tracks[TrackIndex].Elements[i].CurveCant;
 					}
 					else
 					{
 						CurveCant = currentHost.Tracks[TrackIndex].Elements[i].CurveCant;
+						RawCant = currentHost.Tracks[TrackIndex].Elements[i].CurveCant;
 					}
 
 
@@ -320,7 +327,7 @@ namespace OpenBveApi.Routes
 			RainIntensity = currentHost.Tracks[TrackIndex].Elements[i].RainIntensity;
 			SnowIntensity = currentHost.Tracks[TrackIndex].Elements[i].SnowIntensity;
 			//Pitch added for Plugin Data usage
-			//Mutliply this by 1000 to get the original value
+			//Multiply this by 1000 to get the original value
 			Pitch = currentHost.Tracks[TrackIndex].Elements[i].Pitch * 1000;
 			// inaccuracy
 			if (addTrackInaccuracy)
@@ -397,7 +404,7 @@ namespace OpenBveApi.Routes
 						return;
 					}
 
-					if (oldDelta > e.TrackPositionDelta & newDelta <= e.TrackPositionDelta)
+					if (oldDelta > e.TrackPositionDelta && newDelta <= e.TrackPositionDelta)
 					{
 						e.TryTrigger(-1, this);
 					}
@@ -408,7 +415,7 @@ namespace OpenBveApi.Routes
 				for (int j = 0; j < currentHost.Tracks[Index].Elements[elementIndex].Events.Count; j++)
 				{
 					GeneralEvent e = currentHost.Tracks[Index].Elements[elementIndex].Events[j];
-					if (oldDelta < e.TrackPositionDelta & newDelta >= e.TrackPositionDelta)
+					if (oldDelta < e.TrackPositionDelta && newDelta >= e.TrackPositionDelta)
 					{
 						e.TryTrigger(1, this);
 					}
